@@ -14,7 +14,6 @@ import ch.epfl.bluebrain.nexus.kg.config.AppConfig._
 import ch.epfl.bluebrain.nexus.kg.config.Schemas._
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary._
 import ch.epfl.bluebrain.nexus.kg.config.{AppConfig, Settings}
-import ch.epfl.bluebrain.nexus.kg.resources.Ref.Latest
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection._
 import ch.epfl.bluebrain.nexus.kg.resources.StorageReference.DiskStorageReference
 import ch.epfl.bluebrain.nexus.kg.resources.file.File._
@@ -83,14 +82,14 @@ class RepoSpec
 
     "performing create operations" should {
       "create a new resource" in new Context {
-        repo.create(id, organizationRef, Latest(schema), Set.empty, value).value.accepted shouldEqual
-          ResourceF.simpleF(id, value, schema = Latest(schema))
+        repo.create(id, organizationRef, schema.ref, Set.empty, value).value.accepted shouldEqual
+          ResourceF.simpleF(id, value, schema = schema.ref)
       }
 
       "prevent to create a new resource that already exists" in new Context {
-        repo.create(id, organizationRef, Latest(schema), Set.empty, value).value.accepted shouldBe a[Resource]
+        repo.create(id, organizationRef, schema.ref, Set.empty, value).value.accepted shouldBe a[Resource]
         repo
-          .create(id, organizationRef, Latest(schema), Set.empty, value)
+          .create(id, organizationRef, schema.ref, Set.empty, value)
           .value
           .rejected[ResourceAlreadyExists] shouldEqual ResourceAlreadyExists(id.ref)
       }
@@ -98,86 +97,95 @@ class RepoSpec
 
     "performing update operations" should {
       "update a resource" in new Context {
-        repo.create(id, organizationRef, Latest(schema), Set.empty, value).value.accepted shouldBe a[Resource]
+        repo.create(id, organizationRef, schema.ref, Set.empty, value).value.accepted shouldBe a[Resource]
         private val types = Set(randomIri())
         private val json  = randomJson()
-        repo.update(id, 1L, types, json).value.accepted shouldEqual
-          ResourceF.simpleF(id, json, 2L, schema = Latest(schema), types = types)
+        repo.update(id, schema.ref, 1L, types, json).value.accepted shouldEqual
+          ResourceF.simpleF(id, json, 2L, schema = schema.ref, types = types)
       }
 
       "prevent to update a resource that does not exist" in new Context {
-        repo.update(id, 1L, Set.empty, value).value.rejected[NotFound] shouldEqual NotFound(id.ref)
+        repo.update(id, schema.ref, 1L, Set.empty, value).value.rejected[NotFound] shouldEqual NotFound(id.ref)
       }
 
       "prevent to update a resource with an incorrect revision" in new Context {
-        repo.create(id, organizationRef, Latest(schema), Set.empty, value).value.accepted shouldBe a[Resource]
+        repo.create(id, organizationRef, schema.ref, Set.empty, value).value.accepted shouldBe a[Resource]
         private val types = Set(randomIri())
         private val json  = randomJson()
-        repo.update(id, 3L, types, json).value.rejected[IncorrectRev] shouldEqual IncorrectRev(id.ref, 3L, 1L)
+        repo.update(id, schema.ref, 3L, types, json).value.rejected[IncorrectRev] shouldEqual IncorrectRev(
+          id.ref,
+          3L,
+          1L
+        )
       }
 
       "prevent to update a deprecated resource" in new Context {
-        repo.create(id, organizationRef, Latest(schema), Set.empty, value).value.accepted shouldBe a[Resource]
-        repo.deprecate(id, 1L).value.accepted shouldBe a[Resource]
+        repo.create(id, organizationRef, schema.ref, Set.empty, value).value.accepted shouldBe a[Resource]
+        repo.deprecate(id, schema.ref, 1L).value.accepted shouldBe a[Resource]
         private val types = Set(randomIri())
         private val json  = randomJson()
-        repo.update(id, 2L, types, json).value.rejected[ResourceIsDeprecated] shouldEqual ResourceIsDeprecated(id.ref)
+        repo
+          .update(id, schema.ref, 2L, types, json)
+          .value
+          .rejected[ResourceIsDeprecated] shouldEqual ResourceIsDeprecated(id.ref)
       }
     }
 
     "performing deprecate operations" should {
       "deprecate a resource" in new Context {
-        repo.create(id, organizationRef, Latest(schema), Set.empty, value).value.accepted shouldBe a[Resource]
+        repo.create(id, organizationRef, schema.ref, Set.empty, value).value.accepted shouldBe a[Resource]
 
-        repo.deprecate(id, 1L).value.accepted shouldEqual
-          ResourceF.simpleF(id, value, 2L, schema = Latest(schema), deprecated = true)
+        repo.deprecate(id, schema.ref, 1L).value.accepted shouldEqual
+          ResourceF.simpleF(id, value, 2L, schema = schema.ref, deprecated = true)
       }
 
       "prevent to deprecate a resource that does not exist" in new Context {
-        repo.deprecate(id, 1L).value.rejected[NotFound] shouldEqual NotFound(id.ref)
+        repo.deprecate(id, schema.ref, 1L).value.rejected[NotFound] shouldEqual NotFound(id.ref)
       }
 
       "prevent to deprecate a resource with an incorrect revision" in new Context {
-        repo.create(id, organizationRef, Latest(schema), Set.empty, value).value.accepted shouldBe a[Resource]
-        repo.deprecate(id, 3L).value.rejected[IncorrectRev] shouldEqual IncorrectRev(id.ref, 3L, 1L)
+        repo.create(id, organizationRef, schema.ref, Set.empty, value).value.accepted shouldBe a[Resource]
+        repo.deprecate(id, schema.ref, 3L).value.rejected[IncorrectRev] shouldEqual IncorrectRev(id.ref, 3L, 1L)
       }
 
       "prevent to deprecate a deprecated resource" in new Context {
-        repo.create(id, organizationRef, Latest(schema), Set.empty, value).value.accepted shouldBe a[Resource]
-        repo.deprecate(id, 1L).value.accepted shouldBe a[Resource]
-        repo.deprecate(id, 2L).value.rejected[ResourceIsDeprecated] shouldEqual ResourceIsDeprecated(id.ref)
+        repo.create(id, organizationRef, schema.ref, Set.empty, value).value.accepted shouldBe a[Resource]
+        repo.deprecate(id, schema.ref, 1L).value.accepted shouldBe a[Resource]
+        repo.deprecate(id, schema.ref, 2L).value.rejected[ResourceIsDeprecated] shouldEqual ResourceIsDeprecated(id.ref)
       }
     }
 
     "performing tag operations" should {
       "tag a resource" in new Context {
-        repo.create(id, organizationRef, Latest(schema), Set.empty, value).value.accepted shouldBe a[Resource]
+        repo.create(id, organizationRef, schema.ref, Set.empty, value).value.accepted shouldBe a[Resource]
         private val json = randomJson()
-        repo.update(id, 1L, Set.empty, json).value.accepted shouldBe a[Resource]
-        repo.tag(id, 2L, 1L, "name").value.accepted shouldEqual
-          ResourceF.simpleF(id, json, 3L, schema = Latest(schema)).copy(tags = Map("name" -> 1L))
+        repo.update(id, schema.ref, 1L, Set.empty, json).value.accepted shouldBe a[Resource]
+        repo.tag(id, schema.ref, 2L, 1L, "name").value.accepted shouldEqual
+          ResourceF.simpleF(id, json, 3L, schema = schema.ref).copy(tags = Map("name" -> 1L))
       }
 
       "prevent to tag a resource that does not exist" in new Context {
-        repo.tag(id, 1L, 1L, "name").value.rejected[NotFound] shouldEqual NotFound(id.ref)
+        repo.tag(id, schema.ref, 1L, 1L, "name").value.rejected[NotFound] shouldEqual NotFound(id.ref)
       }
 
       "prevent to tag a resource with an incorrect revision" in new Context {
-        repo.create(id, organizationRef, Latest(schema), Set.empty, value).value.accepted shouldBe a[Resource]
-        repo.tag(id, 3L, 1L, "name").value.rejected[IncorrectRev] shouldEqual IncorrectRev(id.ref, 3L, 1L)
+        repo.create(id, organizationRef, schema.ref, Set.empty, value).value.accepted shouldBe a[Resource]
+        repo.tag(id, schema.ref, 3L, 1L, "name").value.rejected[IncorrectRev] shouldEqual IncorrectRev(id.ref, 3L, 1L)
       }
 
       "prevent to tag a deprecated resource" in new Context {
-        repo.create(id, organizationRef, Latest(schema), Set.empty, value).value.accepted shouldBe a[Resource]
-        repo.deprecate(id, 1L).value.accepted shouldBe a[Resource]
-        repo.tag(id, 2L, 1L, "name").value.rejected[ResourceIsDeprecated] shouldEqual ResourceIsDeprecated(id.ref)
+        repo.create(id, organizationRef, schema.ref, Set.empty, value).value.accepted shouldBe a[Resource]
+        repo.deprecate(id, schema.ref, 1L).value.accepted shouldBe a[Resource]
+        repo.tag(id, schema.ref, 2L, 1L, "name").value.rejected[ResourceIsDeprecated] shouldEqual ResourceIsDeprecated(
+          id.ref
+        )
       }
 
       "prevent to tag a resource with a higher tag than current revision" in new Context {
-        repo.create(id, organizationRef, Latest(schema), Set.empty, value).value.accepted shouldBe a[Resource]
+        repo.create(id, organizationRef, schema.ref, Set.empty, value).value.accepted shouldBe a[Resource]
         private val json = randomJson()
-        repo.update(id, 1L, Set.empty, json).value.accepted shouldBe a[Resource]
-        repo.tag(id, 2L, 4L, "name").value.rejected[IncorrectRev] shouldEqual IncorrectRev(id.ref, 4L, 2L)
+        repo.update(id, schema.ref, 1L, Set.empty, json).value.accepted shouldBe a[Resource]
+        repo.tag(id, schema.ref, 2L, 4L, "name").value.rejected[IncorrectRev] shouldEqual IncorrectRev(id.ref, 4L, 2L)
       }
     }
 
@@ -191,13 +199,13 @@ class RepoSpec
 
       "create file resource" in new File {
         repo.createFile(id, organizationRef, storageRef, attributes).value.accepted shouldEqual
-          ResourceF.simpleF(id, value, 1L, types, schema = Latest(schema)).copy(file = Some(storageRef -> attributes))
+          ResourceF.simpleF(id, value, 1L, types, schema = schema.ref).copy(file = Some(storageRef -> attributes))
       }
 
       "update the file resource" in new File {
         repo.createFile(id, organizationRef, storageRef, attributes).value.accepted shouldBe a[Resource]
         repo.updateFile(id, storageRef, 1L, attributes2).value.accepted shouldEqual
-          ResourceF.simpleF(id, value, 2L, types, schema = Latest(schema)).copy(file = Some(storageRef -> attributes2))
+          ResourceF.simpleF(id, value, 2L, types, schema = schema.ref).copy(file = Some(storageRef -> attributes2))
       }
 
       "prevent to update a file resource with an incorrect revision" in new File {
@@ -208,7 +216,7 @@ class RepoSpec
 
       "prevent update a file resource to a deprecated resource" in new File {
         repo.createFile(id, organizationRef, storageRef, attributes).value.accepted shouldBe a[Resource]
-        repo.deprecate(id, 1L).value.accepted shouldBe a[Resource]
+        repo.deprecate(id, schema.ref, 1L).value.accepted shouldBe a[Resource]
         repo.updateFile(id, storageRef, 2L, attributes).value.rejected[ResourceIsDeprecated] shouldEqual
           ResourceIsDeprecated(id.ref)
       }
@@ -228,13 +236,13 @@ class RepoSpec
         linkFile(id, desc, path) shouldReturn IO.pure(attributes)
 
         repo.createLink(id, organizationRef, storageRef, attributes).value.accepted shouldEqual
-          ResourceF.simpleF(id, value, 1L, types, schema = Latest(schema)).copy(file = Some(storageRef -> attributes))
+          ResourceF.simpleF(id, value, 1L, types, schema = schema.ref).copy(file = Some(storageRef -> attributes))
       }
 
       "update link" in new File {
         repo.createLink(id, organizationRef, storageRef, attributes).value.accepted shouldBe a[Resource]
         repo.updateLink(id, storageRef, attributes2, 1L).value.accepted shouldEqual
-          ResourceF.simpleF(id, value, 2L, types, schema = Latest(schema)).copy(file = Some(storageRef -> attributes2))
+          ResourceF.simpleF(id, value, 2L, types, schema = schema.ref).copy(file = Some(storageRef -> attributes2))
       }
 
       "prevent link update with an incorrect revision" in new File {
@@ -245,7 +253,7 @@ class RepoSpec
 
       "prevent link update to a deprecated resource" in new File {
         repo.createLink(id, organizationRef, storageRef, attributes).value.accepted shouldBe a[Resource]
-        repo.deprecate(id, 1L).value.accepted shouldBe a[Resource]
+        repo.deprecate(id, schema.ref, 1L).value.accepted shouldBe a[Resource]
         repo.updateLink(id, storageRef, attributes, 2L).value.rejected[ResourceIsDeprecated] shouldEqual
           ResourceIsDeprecated(id.ref)
       }
@@ -253,8 +261,8 @@ class RepoSpec
 
     "performing get operations" should {
       "get a resource" in new Context {
-        repo.create(id, organizationRef, Latest(schema), Set.empty, value).value.accepted shouldBe a[Resource]
-        repo.get(id, None).value.some shouldEqual ResourceF.simpleF(id, value, schema = Latest(schema))
+        repo.create(id, organizationRef, schema.ref, Set.empty, value).value.accepted shouldBe a[Resource]
+        repo.get(id, None).value.some shouldEqual ResourceF.simpleF(id, value, schema = schema.ref)
       }
 
       "return None when the resource does not exist" in new Context {
@@ -262,42 +270,42 @@ class RepoSpec
       }
 
       "return None when getting a resource from the wrong schema" in new Context {
-        repo.create(id, organizationRef, Latest(schema), Set.empty, value).value.accepted shouldBe a[Resource]
+        repo.create(id, organizationRef, schema.ref, Set.empty, value).value.accepted shouldBe a[Resource]
         repo.get(id, Some(genIri.ref)).value.ioValue shouldEqual None
         repo.get(id, 1L, Some(genIri.ref)).value.ioValue shouldEqual None
       }
 
       "return a specific revision of the resource" in new Context {
-        repo.create(id, organizationRef, Latest(schema), Set.empty, value).value.accepted shouldBe a[Resource]
+        repo.create(id, organizationRef, schema.ref, Set.empty, value).value.accepted shouldBe a[Resource]
         private val json = randomJson()
-        repo.update(id, 1L, Set(nxv.Resource), json).value.accepted shouldBe a[Resource]
+        repo.update(id, schema.ref, 1L, Set(nxv.Resource), json).value.accepted shouldBe a[Resource]
         repo.get(id, 1L, None).value.some shouldEqual
-          ResourceF.simpleF(id, value, 1L, schema = Latest(schema))
+          ResourceF.simpleF(id, value, 1L, schema = schema.ref)
         repo.get(id, 2L, None).value.some shouldEqual
-          ResourceF.simpleF(id, json, 2L, schema = Latest(schema), types = Set(nxv.Resource))
+          ResourceF.simpleF(id, json, 2L, schema = schema.ref, types = Set(nxv.Resource))
         repo.get(id, 2L, None).value.some shouldEqual repo.get(id, None).value.some
       }
 
       "return a specific tag of the resource" in new Context {
-        repo.create(id, organizationRef, Latest(schema), Set.empty, value).value.accepted shouldBe a[Resource]
+        repo.create(id, organizationRef, schema.ref, Set.empty, value).value.accepted shouldBe a[Resource]
         private val json = randomJson()
-        repo.update(id, 1L, Set(nxv.Resource), json).value.accepted shouldBe a[Resource]
-        repo.tag(id, 2L, 1L, "name").value.accepted shouldBe a[Resource]
-        repo.tag(id, 3L, 2L, "other").value.accepted shouldBe a[Resource]
+        repo.update(id, schema.ref, 1L, Set(nxv.Resource), json).value.accepted shouldBe a[Resource]
+        repo.tag(id, schema.ref, 2L, 1L, "name").value.accepted shouldBe a[Resource]
+        repo.tag(id, schema.ref, 3L, 2L, "other").value.accepted shouldBe a[Resource]
 
-        repo.get(id, "name", None).value.some shouldEqual ResourceF.simpleF(id, value, 1L, schema = Latest(schema))
+        repo.get(id, "name", None).value.some shouldEqual ResourceF.simpleF(id, value, 1L, schema = schema.ref)
         repo.get(id, "other", None).value.some shouldEqual
-          ResourceF.simpleF(id, json, 2L, schema = Latest(schema), types = Set(nxv.Resource))
+          ResourceF.simpleF(id, json, 2L, schema = schema.ref, types = Set(nxv.Resource))
       }
     }
 
     "performing get tag operations" should {
       "get a resource tag" in new Context {
-        repo.create(id, organizationRef, Latest(schema), Set.empty, value).value.accepted shouldBe a[Resource]
+        repo.create(id, organizationRef, schema.ref, Set.empty, value).value.accepted shouldBe a[Resource]
         private val json = randomJson()
-        repo.update(id, 1L, Set.empty, json).value.accepted shouldBe a[Resource]
-        repo.tag(id, 2L, 1L, "name").value.accepted shouldEqual
-          ResourceF.simpleF(id, json, 3L, schema = Latest(schema)).copy(tags = Map("name" -> 1L))
+        repo.update(id, schema.ref, 1L, Set.empty, json).value.accepted shouldBe a[Resource]
+        repo.tag(id, schema.ref, 2L, 1L, "name").value.accepted shouldEqual
+          ResourceF.simpleF(id, json, 3L, schema = schema.ref).copy(tags = Map("name" -> 1L))
         repo.get(id, None).value.some.tags shouldEqual Map("name" -> 1L)
       }
 
@@ -306,19 +314,19 @@ class RepoSpec
       }
 
       "return None when getting a resource from the wrong schema" in new Context {
-        repo.create(id, organizationRef, Latest(schema), Set.empty, value).value.accepted shouldBe a[Resource]
+        repo.create(id, organizationRef, schema.ref, Set.empty, value).value.accepted shouldBe a[Resource]
         repo.get(id, Some(genIri.ref)).value.ioValue shouldEqual None
         repo.get(id, 1L, Some(genIri.ref)).value.ioValue shouldEqual None
       }
 
       "return a specific revision of the resource tags" in new Context {
-        repo.create(id, organizationRef, Latest(schema), Set.empty, value).value.accepted shouldBe a[Resource]
+        repo.create(id, organizationRef, schema.ref, Set.empty, value).value.accepted shouldBe a[Resource]
         private val json = randomJson()
-        repo.update(id, 1L, Set.empty, json).value.accepted shouldBe a[Resource]
-        repo.tag(id, 2L, 1L, "name").value.accepted shouldEqual
-          ResourceF.simpleF(id, json, 3L, schema = Latest(schema)).copy(tags = Map("name" -> 1L))
-        repo.tag(id, 3L, 1L, "name2").value.accepted shouldEqual
-          ResourceF.simpleF(id, json, 4L, schema = Latest(schema)).copy(tags = Map("name" -> 1L, "name2" -> 1L))
+        repo.update(id, schema.ref, 1L, Set.empty, json).value.accepted shouldBe a[Resource]
+        repo.tag(id, schema.ref, 2L, 1L, "name").value.accepted shouldEqual
+          ResourceF.simpleF(id, json, 3L, schema = schema.ref).copy(tags = Map("name" -> 1L))
+        repo.tag(id, schema.ref, 3L, 1L, "name2").value.accepted shouldEqual
+          ResourceF.simpleF(id, json, 4L, schema = schema.ref).copy(tags = Map("name" -> 1L, "name2" -> 1L))
 
         repo.get(id, None).value.some.tags shouldEqual Map("name"     -> 1L, "name2" -> 1L)
         repo.get(id, 4L, None).value.some.tags shouldEqual Map("name" -> 1L, "name2" -> 1L)
@@ -348,8 +356,8 @@ class RepoSpec
         repo.get(id, 1L, None).value.some.file.value shouldEqual (storageRef -> attributes)
 
         //by tag
-        repo.tag(id, 2L, 1L, "one").value.accepted shouldBe a[Resource]
-        repo.tag(id, 3L, 2L, "two").value.accepted shouldBe a[Resource]
+        repo.tag(id, schema.ref, 2L, 1L, "one").value.accepted shouldBe a[Resource]
+        repo.tag(id, schema.ref, 3L, 2L, "two").value.accepted shouldBe a[Resource]
         repo.get(id, "one", None).value.some.file.value shouldEqual (storageRef -> attributes)
         repo.get(id, "two", None).value.some.file.value shouldEqual (storageRef -> attributes2)
 

@@ -50,6 +50,21 @@ object Rejection {
   final case class NotAFileResource(ref: Ref) extends Rejection(s"Resource '${ref.show}' is not a file resource.")
 
   /**
+    * Signals the missing digest computed for a file resource
+    *
+    * @param ref a reference to the resource
+    */
+  final case class FileDigestNotComputed(ref: Ref)
+      extends Rejection(s"Resource '${ref.show}' does not have a computed digest.")
+
+  /**
+    * Signals an attempt to compute the digest for a file where the digest already exists.
+    *
+    * @param ref a reference to the resource
+    */
+  final case class FileDigestAlreadyExists(ref: Ref) extends Rejection(s"File '${ref.show}' digest already exists.")
+
+  /**
     * Signals an attempt to perform a request with an invalid payload.
     *
     * @param ref a reference to the resource
@@ -68,21 +83,31 @@ object Rejection {
   /**
     * Signals an attempt to interact with a resource that doesn't exist.
     *
-    * @param ref    a reference to the resource
-    * @param revOpt an optional revision of the resource
-    * @param tagOpt an optional tag of the resource
+    * @param ref       a reference to the resource
+    * @param revOpt    an optional revision of the resource
+    * @param tagOpt    an optional tag of the resource
+    * @param schemaOpt an optional schema of the resource
     */
-  final case class NotFound(ref: Ref, revOpt: Option[Long] = None, tagOpt: Option[String] = None)
-      extends Rejection(
-        (revOpt, tagOpt) match {
-          case (Some(rev), None) => s"Resource '${ref.show}' not found at revision $rev."
-          case (None, Some(tag)) => s"Resource '${ref.show}' not found at tag '$tag'."
-          case _                 => s"Resource '${ref.show}' not found."
-        }
+  final case class NotFound(
+      ref: Ref,
+      revOpt: Option[Long] = None,
+      tagOpt: Option[String] = None,
+      schemaOpt: Option[Ref] = None
+  ) extends Rejection(
+        ((revOpt, tagOpt) match {
+          case (Some(rev), None) => s"Resource '${ref.show}' not found at revision $rev"
+          case (None, Some(tag)) => s"Resource '${ref.show}' not found at tag '$tag'"
+          case _                 => s"Resource '${ref.show}' not found"
+        }) + schemaOpt.map(schema => s" for schema '${schema.show}'.").getOrElse(".")
       )
   object NotFound {
-    def notFound(ref: Ref, revOpt: Option[Long] = None, tagOpt: Option[String] = None): Rejection =
-      NotFound(ref, revOpt, tagOpt)
+    def notFound(
+        ref: Ref,
+        rev: Option[Long] = None,
+        tag: Option[String] = None,
+        schema: Option[Ref] = None
+    ): Rejection =
+      NotFound(ref, rev, tag, schema)
   }
 
   /**
@@ -121,7 +146,8 @@ object Rejection {
     */
   final case class IncorrectRev(ref: Ref, provided: Long, expected: Long)
       extends Rejection(
-        s"Incorrect revision '$provided' provided, expected '$expected', the resource '${ref.show}' may have been updated since last seen.")
+        s"Incorrect revision '$provided' provided, expected '$expected', the resource '${ref.show}' may have been updated since last seen."
+      )
 
   /**
     * Signal an attempt to fetch view statistics for AggregateView.
@@ -190,7 +216,8 @@ object Rejection {
     * @param error the error to be transformed
     */
   final def fromMarshallingErr[F[_]](id: AbsoluteIri, error: MarshallingError)(
-      implicit F: MonadError[F, Throwable]): F[Rejection] =
+      implicit F: MonadError[F, Throwable]
+  ): F[Rejection] =
     error match {
       case ConversionError(message, _) => F.pure(InvalidJsonLD(message))
       case _: RootNodeNotFound         => F.pure(IncorrectId(id.ref))
@@ -215,6 +242,7 @@ object Rejection {
   }
 
   implicit def statusCodeFrom: StatusFrom[Rejection] = StatusFrom {
+    case _: FileDigestNotComputed    => StatusCodes.BadRequest
     case _: ResourceIsDeprecated     => StatusCodes.BadRequest
     case _: IncorrectTypes           => StatusCodes.BadRequest
     case _: IllegalContextValue      => StatusCodes.BadRequest
@@ -232,6 +260,7 @@ object Rejection {
     case _: ProjectsNotFound         => StatusCodes.NotFound
     case _: IncorrectRev             => StatusCodes.Conflict
     case _: ResourceAlreadyExists    => StatusCodes.Conflict
+    case _: FileDigestAlreadyExists  => StatusCodes.Conflict
     case _: InvalidIdentity          => StatusCodes.Unauthorized
   }
 }

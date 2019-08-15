@@ -22,9 +22,11 @@ object QueryResultEncoder {
       qrsEncoderJsonLinks[Json](nextLink).apply(results)
     }
 
-  implicit def qrsEncoderJson(implicit searchUri: Uri,
-                              pagination: FromPagination,
-                              http: HttpConfig): Encoder[QueryResults[SparqlLink]] =
+  implicit def qrsEncoderJson(
+      implicit searchUri: Uri,
+      pagination: FromPagination,
+      http: HttpConfig
+  ): Encoder[QueryResults[SparqlLink]] =
     Encoder.instance { results =>
       val nextLink = next(searchUri, results.total, pagination)
       qrsEncoderJsonLinks[SparqlLink](nextLink).apply(results)

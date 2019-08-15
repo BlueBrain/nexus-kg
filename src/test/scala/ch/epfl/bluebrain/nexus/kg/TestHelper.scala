@@ -25,23 +25,27 @@ trait TestHelper extends EitherValues with Randomness {
   val write: Permission = Permission.unsafe("files/write")
 
   def resourceAcls(acl: AccessControlList): ResourceAccessControlList =
-    ResourceAccessControlList(url"http://example.com/id".value,
-                              1L,
-                              Set.empty,
-                              clock.instant(),
-                              Anonymous,
-                              clock.instant(),
-                              Anonymous,
-                              acl)
+    ResourceAccessControlList(
+      url"http://example.com/id".value,
+      1L,
+      Set.empty,
+      clock.instant(),
+      Anonymous,
+      clock.instant(),
+      Anonymous,
+      acl
+    )
 
-  def simpleV(id: ResId,
-              value: Json,
-              rev: Long = 1L,
-              types: Set[AbsoluteIri] = Set.empty,
-              deprecated: Boolean = false,
-              schema: Ref = Ref(unconstrainedSchemaUri),
-              created: Identity = Anonymous,
-              updated: Identity = Anonymous)(implicit clock: Clock): ResourceF[Value] =
+  def simpleV(
+      id: ResId,
+      value: Json,
+      rev: Long = 1L,
+      types: Set[AbsoluteIri] = Set.empty,
+      deprecated: Boolean = false,
+      schema: Ref = Ref(unconstrainedSchemaUri),
+      created: Identity = Anonymous,
+      updated: Identity = Anonymous
+  )(implicit clock: Clock): ResourceF[Value] =
     ResourceF(
       id,
       rev,

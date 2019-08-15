@@ -45,10 +45,12 @@ trait RoutesFixtures extends TestHelper with Resources {
   )
 
   val mappings: Map[String, AbsoluteIri] =
-    Map("nxv"      -> nxv.base,
-        "resource" -> unconstrainedSchemaUri,
-        "view"     -> viewSchemaUri,
-        "resolver" -> resolverSchemaUri)
+    Map(
+      "nxv"      -> nxv.base,
+      "resource" -> unconstrainedSchemaUri,
+      "view"     -> viewSchemaUri,
+      "resolver" -> resolverSchemaUri
+    )
 
   val organization = genString(length = 4)
   val project      = genString(length = 4)

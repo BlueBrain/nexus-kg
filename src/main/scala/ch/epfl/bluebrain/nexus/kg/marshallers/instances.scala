@@ -31,10 +31,12 @@ object instances extends LowPriority {
   private def stringMarshaller(implicit output: TextOutputFormat): ToResponseMarshaller[(StatusCode, String)] = {
     val contentTypes: Seq[ContentType.NonBinary] =
       List(output.contentType, `text/plain`.toContentType(HttpCharsets.`UTF-8`))
-    val marshallers = contentTypes.map(contentType =>
-      Marshaller.withFixedContentType[(StatusCode, String), HttpResponse](contentType) {
-        case (status, value) => HttpResponse(status = status, entity = HttpEntity(contentType, value))
-    })
+    val marshallers = contentTypes.map(
+      contentType =>
+        Marshaller.withFixedContentType[(StatusCode, String), HttpResponse](contentType) {
+          case (status, value) => HttpResponse(status = status, entity = HttpEntity(contentType, value))
+        }
+    )
     Marshaller.oneOf(marshallers: _*)
   }
 
@@ -45,7 +47,8 @@ object instances extends LowPriority {
     */
   implicit final def eitherStringMarshaller(
       implicit output: TextOutputFormat,
-      printer: Printer = defaultPrinter): ToResponseMarshaller[Either[Rejection, (StatusCode, String)]] =
+      printer: Printer = defaultPrinter
+  ): ToResponseMarshaller[Either[Rejection, (StatusCode, String)]] =
     eitherMarshaller(valueWithStatusCodeFromMarshaller, stringMarshaller)
 
   /**
@@ -55,7 +58,8 @@ object instances extends LowPriority {
     * @return marshaller for any `A` value
     */
   implicit final def eitherValueMarshaller[A: Encoder](
-      implicit printer: Printer = defaultPrinter): ToResponseMarshaller[Either[Rejection, (StatusCode, A)]] =
+      implicit printer: Printer = defaultPrinter
+  ): ToResponseMarshaller[Either[Rejection, (StatusCode, A)]] =
     eitherMarshaller(valueWithStatusCodeFromMarshaller, valueWithStatusCodeMarshaller[A])
 
   /**
@@ -66,7 +70,8 @@ object instances extends LowPriority {
     */
   implicit final def eitherValueWithRejectionMarshaller[A](
       implicit encoder: RejectionEncoder[A],
-      printer: Printer = defaultPrinter): ToResponseMarshaller[Either[Rejection, (StatusCode, A)]] =
+      printer: Printer = defaultPrinter
+  ): ToResponseMarshaller[Either[Rejection, (StatusCode, A)]] =
     Marshaller { implicit ec =>
       {
         case Left(rej) => valueWithStatusCodeFromMarshaller.apply(rej)
@@ -86,7 +91,8 @@ object instances extends LowPriority {
   implicit final def valueWithStatusCodeFromMarshaller[A: Encoder](
       implicit statusFrom: StatusFrom[A],
       printer: Printer = defaultPrinter,
-      ordered: OrderedKeys = orderedKeys): ToResponseMarshaller[A] =
+      ordered: OrderedKeys = orderedKeys
+  ): ToResponseMarshaller[A] =
     jsonLdWithStatusCodeMarshaller.compose { value =>
       statusFrom(value) -> value.asJson
     }
@@ -117,32 +123,41 @@ trait LowPriority extends FailFastCirceSupport {
     */
   final implicit def jsonLdWithStatusCodeMarshaller(
       implicit printer: Printer = defaultPrinter,
-      keys: OrderedKeys = orderedKeys): ToResponseMarshaller[(StatusCode, Json)] =
-    onOf(contentType =>
-      Marshaller.withFixedContentType[(StatusCode, Json), HttpResponse](contentType) {
-        case (status, json) =>
-          HttpResponse(status = status, entity = HttpEntity(`application/ld+json`, printer.pretty(json.sortKeys)))
-    })
+      keys: OrderedKeys = orderedKeys
+  ): ToResponseMarshaller[(StatusCode, Json)] =
+    onOf(
+      contentType =>
+        Marshaller.withFixedContentType[(StatusCode, Json), HttpResponse](contentType) {
+          case (status, json) =>
+            HttpResponse(status = status, entity = HttpEntity(`application/ld+json`, printer.pretty(json.sortKeys)))
+        }
+    )
 
   /**
     * `Json` => HTTP entity
     *
     * @return marshaller for JSON-LD value
     */
-  final implicit def jsonLdEntityMarshaller(implicit printer: Printer = defaultPrinter,
-                                            keys: OrderedKeys = orderedKeys): ToEntityMarshaller[Json] =
-    onOf(contentType =>
-      Marshaller.withFixedContentType[Json, MessageEntity](contentType) { json =>
-        HttpEntity(`application/ld+json`, printer.pretty(json.sortKeys))
-    })
+  final implicit def jsonLdEntityMarshaller(
+      implicit printer: Printer = defaultPrinter,
+      keys: OrderedKeys = orderedKeys
+  ): ToEntityMarshaller[Json] =
+    onOf(
+      contentType =>
+        Marshaller.withFixedContentType[Json, MessageEntity](contentType) { json =>
+          HttpEntity(`application/ld+json`, printer.pretty(json.sortKeys))
+        }
+    )
 
   /**
     * `A` => HTTP entity
     *
     * @return marshaller for JSON-LD value
     */
-  final implicit def valueEntityMarshaller[A: Encoder](implicit printer: Printer = defaultPrinter,
-                                                       keys: OrderedKeys = orderedKeys): ToEntityMarshaller[A] =
+  final implicit def valueEntityMarshaller[A: Encoder](
+      implicit printer: Printer = defaultPrinter,
+      keys: OrderedKeys = orderedKeys
+  ): ToEntityMarshaller[A] =
     jsonLdEntityMarshaller.compose(_.asJson)
 
   /**
@@ -153,11 +168,13 @@ trait LowPriority extends FailFastCirceSupport {
     */
   implicit final def valueWithStatusCodeMarshaller[A: Encoder](
       implicit printer: Printer = defaultPrinter,
-      keys: OrderedKeys = orderedKeys): ToResponseMarshaller[(StatusCode, A)] =
+      keys: OrderedKeys = orderedKeys
+  ): ToResponseMarshaller[(StatusCode, A)] =
     jsonLdWithStatusCodeMarshaller.compose { case (status, value) => status -> value.asJson }
 
   private[marshallers] def onOf[A, Response](
-      fMarshaller: MediaType.WithFixedCharset => Marshaller[A, Response]): Marshaller[A, Response] = {
+      fMarshaller: MediaType.WithFixedCharset => Marshaller[A, Response]
+  ): Marshaller[A, Response] = {
     val marshallers = Seq(`application/ld+json`, `application/json`).map(fMarshaller)
     Marshaller.oneOf(marshallers: _*)
   }

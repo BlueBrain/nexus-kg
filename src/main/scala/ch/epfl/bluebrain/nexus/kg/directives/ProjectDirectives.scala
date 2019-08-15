@@ -4,14 +4,16 @@ import java.util.UUID
 
 import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.{Directive0, Directive1}
+import cats.implicits._
 import ch.epfl.bluebrain.nexus.admin.client.AdminClient
 import ch.epfl.bluebrain.nexus.admin.client.types.{Organization, Project}
 import ch.epfl.bluebrain.nexus.iam.client.types.AuthToken
+import ch.epfl.bluebrain.nexus.iam.client.types.Identity.Subject
 import ch.epfl.bluebrain.nexus.kg.KgError.{OrganizationNotFound, ProjectIsDeprecated, ProjectNotFound}
 import ch.epfl.bluebrain.nexus.kg.cache.ProjectCache
 import ch.epfl.bluebrain.nexus.kg.config.Schemas
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary.nxv
-import ch.epfl.bluebrain.nexus.kg.resources.{OrganizationRef, ProjectLabel, ProjectRef}
+import ch.epfl.bluebrain.nexus.kg.resources.{OrganizationRef, ProjectInitializer, ProjectLabel, ProjectRef}
 import ch.epfl.bluebrain.nexus.kg.resources.syntax._
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import monix.eval.Task
@@ -37,10 +39,17 @@ object ProjectDirectives {
   /**
     * Fetches project configuration from the cache if possible, from nexus admin otherwise.
     */
-  def project(implicit projectCache: ProjectCache[Task],
-              client: AdminClient[Task],
-              cred: Option[AuthToken],
-              s: Scheduler): Directive1[Project] = {
+  def project(
+      implicit projectCache: ProjectCache[Task],
+      client: AdminClient[Task],
+      cred: Option[AuthToken],
+      s: Scheduler,
+      initializer: ProjectInitializer[Task],
+      subject: Subject
+  ): Directive1[Project] = {
+
+    def initialize(projectOpt: Option[Project]) =
+      projectOpt.map(project => initializer(project, subject) >> Task.pure(Some(project))).getOrElse(Task.pure(None))
 
     def projectByLabel(orgLabel: String, projectLabel: String): Directive1[Project] = {
       val label = ProjectLabel(orgLabel, projectLabel)
@@ -48,10 +57,10 @@ object ProjectDirectives {
         .getBy(label)
         .flatMap {
           case value @ Some(_) => Task.pure(value)
-          case None            => client.fetchProject(orgLabel, projectLabel)
+          case None            => client.fetchProject(orgLabel, projectLabel).flatMap(initialize)
         }
         .onErrorRecoverWith {
-          case _ => client.fetchProject(orgLabel, projectLabel)
+          case _ => client.fetchProject(orgLabel, projectLabel).flatMap(initialize)
         }
       onSuccess(result.runToFuture)
         .flatMap {
@@ -65,10 +74,10 @@ object ProjectDirectives {
         .get(OrganizationRef(orgUuid), ProjectRef(projUuid))
         .flatMap {
           case value @ Some(_) => Task.pure(value)
-          case None            => client.fetchProject(orgUuid, projUuid)
+          case None            => client.fetchProject(orgUuid, projUuid).flatMap(initialize)
         }
         .onErrorRecoverWith {
-          case _ => client.fetchProject(orgUuid, projUuid)
+          case _ => client.fetchProject(orgUuid, projUuid).flatMap(initialize)
         }
       onSuccess(result.runToFuture)
         .flatMap {
@@ -91,20 +100,20 @@ object ProjectDirectives {
     *
     * @param label the organization label
     */
-  def org(label: String)(implicit client: AdminClient[Task],
-                         cred: Option[AuthToken],
-                         s: Scheduler): Directive1[Organization] = {
+  def org(
+      label: String
+  )(implicit client: AdminClient[Task], cred: Option[AuthToken], s: Scheduler): Directive1[Organization] = {
     def orgByLabel: Directive1[Organization] =
       onSuccess(client.fetchOrganization(label).runToFuture)
         .flatMap {
-          case None          => failWith(OrganizationNotFound(label))
-          case Some(project) => provide(project)
+          case None      => failWith(OrganizationNotFound(label))
+          case Some(org) => provide(org)
         }
     def orgByUuid(uuid: UUID): Directive1[Organization] =
       onSuccess(client.fetchOrganization(uuid).runToFuture)
         .flatMap {
-          case None          => reject()
-          case Some(project) => provide(project)
+          case None      => reject()
+          case Some(org) => provide(org)
         }
 
     Try(UUID.fromString(label)) match {

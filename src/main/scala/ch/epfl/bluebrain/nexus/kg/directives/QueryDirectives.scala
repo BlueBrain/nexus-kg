@@ -134,8 +134,9 @@ object QueryDirectives {
     * @param param the parameter
     * @tparam A the type of the parameter
     */
-  def noParameter[A](param: NameReceptacle[A])(
-      implicit paramAux: ParamDefAux[NameOptionReceptacle[A], Directive1[Option[A]]]): Directive0 = {
+  def noParameter[A](
+      param: NameReceptacle[A]
+  )(implicit paramAux: ParamDefAux[NameOptionReceptacle[A], Directive1[Option[A]]]): Directive0 = {
     parameter(param.?).flatMap {
       case Some(_) =>
         reject(MalformedQueryParamRejection(param.name, "the provided query parameter should not be present"))

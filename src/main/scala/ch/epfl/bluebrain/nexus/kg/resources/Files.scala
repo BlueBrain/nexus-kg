@@ -9,6 +9,7 @@ import ch.epfl.bluebrain.nexus.commons.http.HttpClient
 import ch.epfl.bluebrain.nexus.commons.search.{FromPagination, Pagination}
 import ch.epfl.bluebrain.nexus.commons.sparql.client.BlazegraphClient
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity.Subject
+import ch.epfl.bluebrain.nexus.kg.KgError.InternalError
 import ch.epfl.bluebrain.nexus.kg.cache.StorageCache
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig
 import ch.epfl.bluebrain.nexus.kg.config.Schemas._
@@ -17,15 +18,16 @@ import ch.epfl.bluebrain.nexus.kg.resources.Rejection.NotFound.notFound
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection._
 import ch.epfl.bluebrain.nexus.kg.resources.Resources.generateId
 import ch.epfl.bluebrain.nexus.kg.resources.file.File
-import ch.epfl.bluebrain.nexus.kg.resources.file.File.{FileAttributes, FileDescription, LinkDescription}
+import ch.epfl.bluebrain.nexus.kg.resources.file.File._
 import ch.epfl.bluebrain.nexus.kg.resources.syntax._
 import ch.epfl.bluebrain.nexus.kg.routes.SearchParams
 import ch.epfl.bluebrain.nexus.kg.storage.Storage
-import ch.epfl.bluebrain.nexus.kg.storage.Storage.StorageOperations.{Fetch, Link, Save}
+import ch.epfl.bluebrain.nexus.kg.storage.Storage.StorageOperations.{Fetch, FetchDigest, Link, Save}
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
+import ch.epfl.bluebrain.nexus.storage.client.StorageClientError
 import io.circe.Json
 
-class Files[F[_]: Effect: Timer](repo: Repo[F])(implicit storageCache: StorageCache[F], config: AppConfig) {
+class Files[F[_]: Timer](repo: Repo[F])(implicit storageCache: StorageCache[F], config: AppConfig, F: Effect[F]) {
 
   /**
     * Creates a file resource.
@@ -36,9 +38,11 @@ class Files[F[_]: Effect: Timer](repo: Repo[F])(implicit storageCache: StorageCa
     * @tparam In the storage input type
     * @return either a rejection or the new resource representation in the F context
     */
-  def create[In](storage: Storage, fileDesc: FileDescription, source: In)(implicit subject: Subject,
-                                                                          project: Project,
-                                                                          saveStorage: Save[F, In]): RejOrResource[F] =
+  def create[In](
+      storage: Storage,
+      fileDesc: FileDescription,
+      source: In
+  )(implicit subject: Subject, project: Project, saveStorage: Save[F, In]): RejOrResource[F] =
     create(Id(project.ref, generateId(project.base)), storage, fileDesc, source)
 
   /**
@@ -54,10 +58,55 @@ class Files[F[_]: Effect: Timer](repo: Repo[F])(implicit storageCache: StorageCa
   def create[In](id: ResId, storage: Storage, fileDesc: FileDescription, source: In)(
       implicit subject: Subject,
       project: Project,
-      saveStorage: Save[F, In]): RejOrResource[F] =
-    EitherT
-      .right(storage.save.apply(id, fileDesc, source))
-      .flatMap(attr => repo.createFile(id, OrganizationRef(project.organizationUuid), storage.reference, attr))
+      saveStorage: Save[F, In]
+  ): RejOrResource[F] = {
+    val orgRef = OrganizationRef(project.organizationUuid)
+    for {
+      _       <- repo.createFileTest(id, orgRef, storage.reference, fileDesc.process(StoredSummary.empty))
+      attr    <- EitherT.right(storage.save.apply(id, fileDesc, source))
+      created <- repo.createFile(id, orgRef, storage.reference, attr)
+    } yield created
+  }
+
+  /**
+    * Updates the digest of a file resource if it is not already present.
+    * The digest is fetched from the storage implementation and saved in the primary store
+    *
+    * @param id      the id of the resource
+    * @return either a rejection or the new resource representation in the F context
+    */
+  def updateDigestIfEmpty(id: ResId)(implicit subject: Subject, fetchDigest: FetchDigest[F]): RejOrResource[F] = {
+    def storageServerErrToKgError: PartialFunction[Throwable, F[Digest]] = {
+      case err: StorageClientError.UnknownError =>
+        F.raiseError(InternalError(s"Storage error for resource '${id.ref.show}'. Error: '${err.entityAsString}'"))
+      case err =>
+        F.raiseError(err)
+    }
+
+    // format: off
+    for {
+      curr              <- repo.get(id, Some(fileRef)).toRight(notFound(id.ref, schema = Some(fileRef)))
+      currFile          <- EitherT.fromEither[F](curr.file.toRight(notFound(id.ref, schema = Some(fileRef))))
+      (storageRef, attr) = currFile
+      storage           <- EitherT.fromOptionF(storageCache.get(id.parent, storageRef.id), UnexpectedState(storageRef.id.ref))
+      digest            <- if (attr.digest == Digest.empty) EitherT.right(storage.fetchDigest.apply(attr.path).recoverWith(storageServerErrToKgError)) else EitherT.leftT[F, Digest](FileDigestAlreadyExists(id.ref): Rejection)
+      _                 <- if (digest == Digest.empty) EitherT.leftT[F, Resource](FileDigestNotComputed(id.ref)) else EitherT.rightT[F, Rejection](())
+      updated           <- repo.updateDigest(id, storage.reference, curr.rev, digest)
+    } yield updated
+    // format: on
+  }
+
+  /**
+    * Updates the digest of a file resource.
+    *
+    * @param id      the id of the resource
+    * @param storage the storage reference
+    * @param rev     the last known revision of the resource
+    * @param digest  the digest of the file in a json format
+    * @return either a rejection or the new resource representation in the F context
+    */
+  def updateDigest(id: ResId, storage: Storage, rev: Long, digest: Json)(implicit subject: Subject): RejOrResource[F] =
+    EitherT.fromEither[F](Digest(id, digest)).flatMap(repo.updateDigest(id, storage.reference, rev, _))
 
   /**
     * Replaces a file resource.
@@ -72,10 +121,13 @@ class Files[F[_]: Effect: Timer](repo: Repo[F])(implicit storageCache: StorageCa
     */
   def update[In](id: ResId, storage: Storage, rev: Long, fileDesc: FileDescription, source: In)(
       implicit subject: Subject,
-      saveStorage: Save[F, In]): RejOrResource[F] =
-    EitherT
-      .right(storage.save.apply(id, fileDesc, source))
-      .flatMap(attr => repo.updateFile(id, storage.reference, rev, attr))
+      saveStorage: Save[F, In]
+  ): RejOrResource[F] =
+    for {
+      _       <- repo.updateFileTest(id, storage.reference, rev, fileDesc.process(StoredSummary.empty))
+      attr    <- EitherT.right(storage.save.apply(id, fileDesc, source))
+      created <- repo.updateFile(id, storage.reference, rev, attr)
+    } yield created
 
   /**
     * Creates a link to an existing file.
@@ -84,8 +136,10 @@ class Files[F[_]: Effect: Timer](repo: Repo[F])(implicit storageCache: StorageCa
     * @param source     the source representation in JSON-LD
     * @return either a rejection or the new resource representation in the F context
     */
-  def createLink(storage: Storage,
-                 source: Json)(implicit subject: Subject, project: Project, linkStorage: Link[F]): RejOrResource[F] =
+  def createLink(
+      storage: Storage,
+      source: Json
+  )(implicit subject: Subject, project: Project, linkStorage: Link[F]): RejOrResource[F] =
     createLink(Id(project.ref, generateId(project.base)), storage, source)
 
   /**
@@ -96,14 +150,22 @@ class Files[F[_]: Effect: Timer](repo: Repo[F])(implicit storageCache: StorageCa
     * @param source   the source representation in JSON-LD
     * @return either a rejection or the new resource representation in the F context
     */
-  def createLink(id: ResId, storage: Storage, source: Json)(implicit subject: Subject,
-                                                            project: Project,
-                                                            linkStorage: Link[F]): RejOrResource[F] =
+  def createLink(
+      id: ResId,
+      storage: Storage,
+      source: Json
+  )(implicit subject: Subject, project: Project, linkStorage: Link[F]): RejOrResource[F] = {
+    val orgRef = OrganizationRef(project.organizationUuid)
+    // format: off
     for {
-      link    <- EitherT.fromEither[F](LinkDescription(id, source))
-      attr    <- EitherT.right(storage.link.apply(id, FileDescription(link.filename, link.mediaType), link.path))
-      created <- repo.createLink(id, OrganizationRef(project.organizationUuid), storage.reference, attr)
+      link      <- EitherT.fromEither[F](LinkDescription(id, source))
+      fileDesc   = FileDescription.from(link)
+      _         <- repo.createLinkTest(id, orgRef, storage.reference, fileDesc.process(StoredSummary.empty))
+      attr      <- EitherT.right(storage.link.apply(id, fileDesc, link.path))
+      created   <- repo.createLink(id, orgRef, storage.reference, attr)
     } yield created
+    // format: on
+  }
 
   /**
     * Updates a link to an existing file.
@@ -114,13 +176,19 @@ class Files[F[_]: Effect: Timer](repo: Repo[F])(implicit storageCache: StorageCa
     * @param source   the source representation in JSON-LD
     * @return either a rejection or the new resource representation in the F context
     */
-  def updateLink(id: ResId, storage: Storage, rev: Long, source: Json)(implicit subject: Subject,
-                                                                       linkStorage: Link[F]): RejOrResource[F] =
+  def updateLink(id: ResId, storage: Storage, rev: Long, source: Json)(
+      implicit subject: Subject,
+      linkStorage: Link[F]
+  ): RejOrResource[F] =
+    // format: off
     for {
-      link    <- EitherT.fromEither[F](LinkDescription(id, source))
-      attr    <- EitherT.right(storage.link.apply(id, FileDescription(link.filename, link.mediaType), link.path))
-      created <- repo.updateLink(id, storage.reference, attr, rev)
+      link      <- EitherT.fromEither[F](LinkDescription(id, source))
+      fileDesc   = FileDescription.from(link)
+      _         <- repo.updateLinkTest(id, storage.reference, fileDesc.process(StoredSummary.empty), rev)
+      attr      <- EitherT.right(storage.link.apply(id, fileDesc, link.path))
+      created   <- repo.updateLink(id, storage.reference, attr, rev)
     } yield created
+  // format: on
 
   /**
     * Deprecates an existing file.
@@ -130,10 +198,7 @@ class Files[F[_]: Effect: Timer](repo: Repo[F])(implicit storageCache: StorageCa
     * @return Some(resource) in the F context when found and None in the F context when not found
     */
   def deprecate(id: ResId, rev: Long)(implicit subject: Subject): RejOrResource[F] =
-    for {
-      _          <- repo.get(id, rev, Some(fileRef)).toRight(NotFound(id.ref, Some(rev)))
-      deprecated <- repo.deprecate(id, rev)
-    } yield deprecated
+    repo.deprecate(id, fileRef, rev)
 
   /**
     * Attempts to stream the file resource for the latest revision.
@@ -142,7 +207,7 @@ class Files[F[_]: Effect: Timer](repo: Repo[F])(implicit storageCache: StorageCa
     * @return the optional streamed file in the F context
     */
   def fetch[Out](id: ResId)(implicit fetchStorage: Fetch[F, Out]): RejOrFile[F, Out] =
-    fetch(repo.get(id, Some(fileRef)).toRight(notFound(id.ref)))
+    fetch(repo.get(id, Some(fileRef)).toRight(notFound(id.ref, schema = Some(fileRef))))
 
   /**
     * Attempts to stream the file resource with specific revision.
@@ -152,7 +217,7 @@ class Files[F[_]: Effect: Timer](repo: Repo[F])(implicit storageCache: StorageCa
     * @return the optional streamed file in the F context
     */
   def fetch[Out](id: ResId, rev: Long)(implicit fetchStorage: Fetch[F, Out]): RejOrFile[F, Out] =
-    fetch(repo.get(id, rev, Some(fileRef)).toRight(notFound(id.ref, Some(rev))))
+    fetch(repo.get(id, rev, Some(fileRef)).toRight(notFound(id.ref, Some(rev), schema = Some(fileRef))))
 
   /**
     * Attempts to stream the file resource with specific tag. The
@@ -163,11 +228,13 @@ class Files[F[_]: Effect: Timer](repo: Repo[F])(implicit storageCache: StorageCa
     * @return the optional streamed file in the F context
     */
   def fetch[Out](id: ResId, tag: String)(implicit fetchStorage: Fetch[F, Out]): RejOrFile[F, Out] =
-    fetch(repo.get(id, tag, Some(fileRef)).toRight(notFound(id.ref, tagOpt = Some(tag))))
+    fetch(repo.get(id, tag, Some(fileRef)).toRight(notFound(id.ref, tag = Some(tag), schema = Some(fileRef))))
 
   private def fetch[Out](rejOrResource: RejOrResource[F])(implicit fetchStorage: Fetch[F, Out]): RejOrFile[F, Out] = {
     def fileOrRejection(resource: Resource): Either[Rejection, (ProjectRef, StorageReference, File.FileAttributes)] =
-      resource.file.map { case (ref, attr) => (resource.id.parent, ref, attr) }.toRight(notFound(resource.id.ref))
+      resource.file
+        .map { case (ref, attr) => (resource.id.parent, ref, attr) }
+        .toRight(notFound(resource.id.ref, schema = Some(fileRef)))
 
     def storageOrRejection(project: ProjectRef, ref: StorageReference, attr: FileAttributes) =
       storageCache.get(project, ref.id).map(_.map(_ -> attr).toRight(notFound(ref.id.ref)))
@@ -190,11 +257,12 @@ class Files[F[_]: Effect: Timer](repo: Repo[F])(implicit storageCache: StorageCa
     */
   def list(view: Option[ElasticSearchView], params: SearchParams, pagination: Pagination)(
       implicit tc: HttpClient[F, JsonResults],
-      elasticSearch: ElasticSearchClient[F]): F[JsonResults] =
+      elasticSearch: ElasticSearchClient[F]
+  ): F[JsonResults] =
     listResources(view, params.copy(schema = Some(fileSchemaUri)), pagination)
 
   /**
-    * Lists incoming resources for the provided 'file 'id''
+    * Lists incoming resources for the provided file ''id''
     *
     * @param id         the resource id for which to retrieve the incoming links
     * @param view       optionally available default sparql view
@@ -202,7 +270,8 @@ class Files[F[_]: Effect: Timer](repo: Repo[F])(implicit storageCache: StorageCa
     * @return search results in the F context
     */
   def listIncoming(id: AbsoluteIri, view: Option[SparqlView], pagination: FromPagination)(
-      implicit sparql: BlazegraphClient[F]): F[LinkResults] =
+      implicit sparql: BlazegraphClient[F]
+  ): F[LinkResults] =
     incoming(id, view, pagination)
 
   /**
@@ -214,10 +283,12 @@ class Files[F[_]: Effect: Timer](repo: Repo[F])(implicit storageCache: StorageCa
     * @param includeExternalLinks flag to decide whether or not to include external links (not Nexus managed) in the query result
     * @return search results in the F context
     */
-  def listOutgoing(id: AbsoluteIri,
-                   view: Option[SparqlView],
-                   pagination: FromPagination,
-                   includeExternalLinks: Boolean)(implicit sparql: BlazegraphClient[F]): F[LinkResults] =
+  def listOutgoing(
+      id: AbsoluteIri,
+      view: Option[SparqlView],
+      pagination: FromPagination,
+      includeExternalLinks: Boolean
+  )(implicit sparql: BlazegraphClient[F]): F[LinkResults] =
     outgoing(id, view, pagination, includeExternalLinks)
 
 }
@@ -229,8 +300,10 @@ object Files {
     * @tparam F the monadic effect type
     * @return a new [[Files]] for the provided F type
     */
-  final def apply[F[_]: Timer: Effect](implicit config: AppConfig,
-                                       repo: Repo[F],
-                                       storageCache: StorageCache[F]): Files[F] =
+  final def apply[F[_]: Timer: Effect](
+      implicit config: AppConfig,
+      repo: Repo[F],
+      storageCache: StorageCache[F]
+  ): Files[F] =
     new Files[F](repo)
 }

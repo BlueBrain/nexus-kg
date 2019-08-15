@@ -105,7 +105,11 @@ object Routes {
       case err: StorageClientError =>
         // suppress error
         logger.error(s"Received unexpected response from remote storage: '${err.message}'")
-        completeGeneric()
+        complete(
+          StatusCodes.BadGateway -> (RemoteStorageError(
+            "The downstream storage service experienced an unexpected error, please try again later."
+          ): KgError)
+        )
       case UnsupportedOperation =>
         // suppress error
         complete(UnsupportedOperation: KgError)
@@ -167,18 +171,21 @@ object Routes {
     * @param resources the resources operations
     */
   @SuppressWarnings(Array("MaxParameters"))
-  def apply(resources: Resources[Task],
-            resolvers: Resolvers[Task],
-            views: Views[Task],
-            storages: Storages[Task],
-            schemas: Schemas[Task],
-            files: Files[Task],
-            tags: Tags[Task],
-            coordinator: ProjectViewCoordinator[Task])(
+  def apply(
+      resources: Resources[Task],
+      resolvers: Resolvers[Task],
+      views: Views[Task],
+      storages: Storages[Task],
+      schemas: Schemas[Task],
+      files: Files[Task],
+      tags: Tags[Task],
+      coordinator: ProjectViewCoordinator[Task]
+  )(
       implicit system: ActorSystem,
       clients: Clients[Task],
       cache: Caches[Task],
-      config: AppConfig,
+      projectInitializer: ProjectInitializer[Task],
+      config: AppConfig
   ): Route = {
     import clients._
     implicit val um: FromEntityUnmarshaller[String] =
@@ -239,15 +246,15 @@ object Routes {
     def routeSelectorUndescore(implicit acls: AccessControlLists, caller: Caller, project: Project) =
       pathPrefix(IdSegment) { id =>
         // format: off
-        onSuccess(resources.fetch(Id(project.ref, id), MetadataOptions()).value.runToFuture) {
-          case Right(resource) if resource.schema == resolverRef => new ResolverRoutes(resolvers, tags).routes(id)
-          case Right(resource) if resource.schema == viewRef     => new ViewRoutes(views, tags, coordinator).routes(id)
-          case Right(resource) if resource.schema == shaclRef    => new SchemaRoutes(schemas, tags).routes(id)
-          case Right(resource) if resource.schema == fileRef     => new FileRoutes(files, resources, tags).routes(id)
-          case Right(resource) if resource.schema == storageRef  => new StorageRoutes(storages, tags).routes(id)
-          case Right(resource)                                   => new ResourceRoutes(resources, tags, resource.schema).routes(id) ~ list ~ createDefault
-          case Left(_: Rejection.NotFound)                       => new ResourceRoutes(resources, tags, unconstrainedRef).routes(id) ~ list ~ createDefault
-          case Left(err) => complete(err)
+        onSuccess(resources.fetchSchema(Id(project.ref, id)).value.runToFuture) {
+          case Right(`resolverRef`)         => new ResolverRoutes(resolvers, tags).routes(id)
+          case Right(`viewRef`)             => new ViewRoutes(views, tags, coordinator).routes(id)
+          case Right(`shaclRef`)            => new SchemaRoutes(schemas, tags).routes(id)
+          case Right(`fileRef`)             => new FileRoutes(files, resources, tags).routes(id)
+          case Right(`storageRef`)          => new StorageRoutes(storages, tags).routes(id)
+          case Right(schema)                => new ResourceRoutes(resources, tags, schema).routes(id) ~ list ~ createDefault
+          case Left(_: Rejection.NotFound)  => new ResourceRoutes(resources, tags, unconstrainedRef).routes(id) ~ list ~ createDefault
+          case Left(err)                    => complete(err)
         }
         // format: on
       } ~ list ~ createDefault

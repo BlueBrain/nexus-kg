@@ -24,10 +24,12 @@ import ch.epfl.bluebrain.nexus.rdf.{Graph, Iri, RootedGraph}
 import io.circe.Json
 
 class Materializer[F[_]: Effect](resolution: ProjectResolution[F], projectCache: ProjectCache[F])(
-    implicit config: AppConfig) {
+    implicit config: AppConfig
+) {
 
   private def flattenCtx(rrefs: List[Ref], ccontextValue: Json)(
-      implicit project: Project): EitherT[F, Rejection, Json] = {
+      implicit project: Project
+  ): EitherT[F, Rejection, Json] = {
     type JsonRefs = (Json, List[Ref])
     def inner(refs: List[Ref], contextValue: Json): EitherT[F, Rejection, JsonRefs] =
       (contextValue.asString, contextValue.asArray, contextValue.asObject) match {
@@ -146,8 +148,8 @@ class Materializer[F[_]: Effect](resolution: ProjectResolution[F], projectCache:
   // format: on
 
   private def withoutMeta(resource: Resource)(implicit project: Project): RejOrResourceV[F] =
-    apply(resource.value, resource.id.value)(project).map(value =>
-      resource.map(_ => value.copy(graph = value.graph.removeMetadata)))
+    apply(resource.value, resource.id.value)(project)
+      .map(value => resource.map(_ => value.copy(graph = value.graph.removeMetadata)))
 
   /**
     * Materializes a resource flattening its context and producing a raw graph. While flattening the context references
@@ -169,11 +171,14 @@ class Materializer[F[_]: Effect](resolution: ProjectResolution[F], projectCache:
     * @param resource the resource to materialize
     */
   def withMeta(resource: Resource, metadataOptions: MetadataOptions = MetadataOptions())(
-      implicit project: Project): RejOrResourceV[F] =
+      implicit project: Project
+  ): RejOrResourceV[F] =
     apply(resource).map { resourceV =>
       val graph =
-        RootedGraph(resourceV.value.graph.rootNode,
-                    resourceV.value.graph.triples ++ resourceV.metadata(metadataOptions))
+        RootedGraph(
+          resourceV.value.graph.rootNode,
+          resourceV.value.graph.triples ++ resourceV.metadata(metadataOptions)
+        )
       resourceV.map(_.copy(graph = graph))
     }
 

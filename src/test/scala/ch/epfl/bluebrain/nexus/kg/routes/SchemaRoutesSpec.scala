@@ -79,6 +79,7 @@ class SchemaRoutesSpec
   private implicit val schemas       = mock[Schemas[Task]]
   private implicit val resources     = mock[Resources[Task]]
   private implicit val tagsRes       = mock[Tags[Task]]
+  private implicit val initializer   = mock[ProjectInitializer[Task]]
 
   private implicit val cacheAgg = Caches(projectCache, viewCache, resolverCache, storageCache)
 
@@ -122,9 +123,11 @@ class SchemaRoutesSpec
         "@type" -> Json.fromString("Schema"),
         "_self" -> Json.fromString(s"http://127.0.0.1:8080/v1/schemas/$organization/$project/nxv:$genUuid"),
         "_incoming" -> Json.fromString(
-          s"http://127.0.0.1:8080/v1/schemas/$organization/$project/nxv:$genUuid/incoming"),
+          s"http://127.0.0.1:8080/v1/schemas/$organization/$project/nxv:$genUuid/incoming"
+        ),
         "_outgoing" -> Json.fromString(
-          s"http://127.0.0.1:8080/v1/schemas/$organization/$project/nxv:$genUuid/outgoing"),
+          s"http://127.0.0.1:8080/v1/schemas/$organization/$project/nxv:$genUuid/outgoing"
+        )
       )
 
     val resource =
@@ -137,7 +140,20 @@ class SchemaRoutesSpec
     val resourceV =
       ResourceF.simpleV(id, resourceValue, created = user, updated = user, schema = shaclRef, types = types)
 
-    resources.fetch(id, MetadataOptions()) shouldReturn EitherT.rightT[Task, Rejection](resourceV)
+    resources.fetchSchema(id) shouldReturn EitherT.rightT[Task, Rejection](shaclRef)
+
+    def endpoints(rev: Option[Long] = None, tag: Option[String] = None): List[String] = {
+      val queryParam = (rev, tag) match {
+        case (Some(r), _) => s"?rev=$r"
+        case (_, Some(t)) => s"?tag=$t"
+        case _            => ""
+      }
+      List(
+        s"/v1/schemas/$organization/$project/$urlEncodedId$queryParam",
+        s"/v1/resources/$organization/$project/schema/$urlEncodedId$queryParam",
+        s"/v1/resources/$organization/$project/_/$urlEncodedId$queryParam"
+      )
+    }
   }
 
   "The schema routes" should {
@@ -173,107 +189,71 @@ class SchemaRoutesSpec
     "update a schema" in new Context {
       schemas.update(eqTo(id), eqTo(1L), eqTo(schema))(eqTo(caller.subject), eqTo(finalProject)) shouldReturn
         EitherT.rightT[Task, Rejection](resource)
-
-      Put(s"/v1/schemas/$organization/$project/$urlEncodedId?rev=1", schema) ~> addCredentials(oauthToken) ~> routes ~> check {
-        status shouldEqual StatusCodes.OK
-        responseAs[Json] should equalIgnoreArrayOrder(schemaResponse())
+      forAll(endpoints(rev = Some(1L))) { endpoint =>
+        Put(endpoint, schema) ~> addCredentials(oauthToken) ~> routes ~> check {
+          status shouldEqual StatusCodes.OK
+          responseAs[Json] should equalIgnoreArrayOrder(schemaResponse())
+        }
       }
-      Put(s"/v1/resources/$organization/$project/schema/$urlEncodedId?rev=1", schema) ~> addCredentials(oauthToken) ~> routes ~> check {
-        status shouldEqual StatusCodes.OK
-        responseAs[Json] should equalIgnoreArrayOrder(schemaResponse())
-      }
-      Put(s"/v1/resources/$organization/$project/_/$urlEncodedId?rev=1", schema) ~> addCredentials(oauthToken) ~> routes ~> check {
-        status shouldEqual StatusCodes.OK
-        responseAs[Json] should equalIgnoreArrayOrder(schemaResponse())
-      }
-
     }
 
     "deprecate a schema" in new Context {
       schemas.deprecate(id, 1L) shouldReturn EitherT.rightT[Task, Rejection](resource)
-
-      Delete(s"/v1/schemas/$organization/$project/$urlEncodedId?rev=1") ~> addCredentials(oauthToken) ~> routes ~> check {
-        status shouldEqual StatusCodes.OK
-        responseAs[Json] should equalIgnoreArrayOrder(schemaResponse())
-      }
-      Delete(s"/v1/resources/$organization/$project/schema/$urlEncodedId?rev=1") ~> addCredentials(oauthToken) ~> routes ~> check {
-        status shouldEqual StatusCodes.OK
-        responseAs[Json] should equalIgnoreArrayOrder(schemaResponse())
-      }
-      Delete(s"/v1/resources/$organization/$project/_/$urlEncodedId?rev=1") ~> addCredentials(oauthToken) ~> routes ~> check {
-        status shouldEqual StatusCodes.OK
-        responseAs[Json] should equalIgnoreArrayOrder(schemaResponse())
+      forAll(endpoints(rev = Some(1L))) { endpoint =>
+        Delete(endpoint) ~> addCredentials(oauthToken) ~> routes ~> check {
+          status shouldEqual StatusCodes.OK
+          responseAs[Json] should equalIgnoreArrayOrder(schemaResponse())
+        }
       }
     }
 
     "tag a schema" in new Context {
       val json = tag(2L, "one")
-
       tagsRes.create(id, 1L, json, shaclRef) shouldReturn EitherT.rightT[Task, Rejection](resource)
-
-      Post(s"/v1/schemas/$organization/$project/$urlEncodedId/tags?rev=1", json) ~> addCredentials(oauthToken) ~> routes ~> check {
-        status shouldEqual StatusCodes.Created
-        responseAs[Json] should equalIgnoreArrayOrder(schemaResponse())
-      }
-      Post(s"/v1/resources/$organization/$project/schema/$urlEncodedId/tags?rev=1", json) ~> addCredentials(oauthToken) ~> routes ~> check {
-        status shouldEqual StatusCodes.Created
-        responseAs[Json] should equalIgnoreArrayOrder(schemaResponse())
-      }
-      Post(s"/v1/resources/$organization/$project/_/$urlEncodedId/tags?rev=1", json) ~> addCredentials(oauthToken) ~> routes ~> check {
-        status shouldEqual StatusCodes.Created
-        responseAs[Json] should equalIgnoreArrayOrder(schemaResponse())
+      forAll(endpoints()) { endpoint =>
+        Post(s"$endpoint/tags?rev=1", json) ~> addCredentials(oauthToken) ~> routes ~> check {
+          status shouldEqual StatusCodes.Created
+          responseAs[Json] should equalIgnoreArrayOrder(schemaResponse())
+        }
       }
     }
 
     "fetch latest revision of a schema" in new Context {
       schemas.fetch(id) shouldReturn EitherT.rightT[Task, Rejection](resourceV)
       val expected = resourceValue.graph.as[Json](shaclCtx).right.value.removeKeys("@context") deepMerge Json.obj(
-        "@type" -> Json.fromString("Schema"))
-
-      Get(s"/v1/schemas/$organization/$project/$urlEncodedId") ~> addCredentials(oauthToken) ~> Accept(
-        MediaRanges.`*/*`) ~> routes ~> check {
-        status shouldEqual StatusCodes.OK
-        responseAs[Json].removeKeys("@context") should equalIgnoreArrayOrder(expected)
-      }
-      Get(s"/v1/resources/$organization/$project/schema/$urlEncodedId") ~> addCredentials(oauthToken) ~> Accept(
-        MediaRanges.`*/*`) ~> routes ~> check {
-        status shouldEqual StatusCodes.OK
-        responseAs[Json].removeKeys("@context") should equalIgnoreArrayOrder(expected)
-      }
-      Get(s"/v1/resources/$organization/$project/_/$urlEncodedId") ~> addCredentials(oauthToken) ~> Accept(
-        MediaRanges.`*/*`) ~> routes ~> check {
-        status shouldEqual StatusCodes.OK
-        responseAs[Json].removeKeys("@context") should equalIgnoreArrayOrder(expected)
+        "@type" -> Json.fromString("Schema")
+      )
+      forAll(endpoints()) { endpoint =>
+        Get(endpoint) ~> addCredentials(oauthToken) ~> Accept(MediaRanges.`*/*`) ~> routes ~> check {
+          status shouldEqual StatusCodes.OK
+          responseAs[Json].removeKeys("@context") should equalIgnoreArrayOrder(expected)
+        }
       }
     }
 
     "fetch specific revision of a schema" in new Context {
       schemas.fetch(id, 1L) shouldReturn EitherT.rightT[Task, Rejection](resourceV)
       val expected = resourceValue.graph.as[Json](shaclCtx).right.value.removeKeys("@context") deepMerge Json.obj(
-        "@type" -> Json.fromString("Schema"))
-      Get(s"/v1/schemas/$organization/$project/$urlEncodedId?rev=1") ~> addCredentials(oauthToken) ~> Accept(
-        MediaRanges.`*/*`) ~> routes ~> check {
-        status shouldEqual StatusCodes.OK
-        responseAs[Json].removeKeys("@context") should equalIgnoreArrayOrder(expected)
+        "@type" -> Json.fromString("Schema")
+      )
+      forAll(endpoints(rev = Some(1L))) { endpoint =>
+        Get(endpoint) ~> addCredentials(oauthToken) ~> Accept(MediaRanges.`*/*`) ~> routes ~> check {
+          status shouldEqual StatusCodes.OK
+          responseAs[Json].removeKeys("@context") should equalIgnoreArrayOrder(expected)
+        }
       }
     }
 
     "fetch specific tag of a schema" in new Context {
       schemas.fetch(id, "some") shouldReturn EitherT.rightT[Task, Rejection](resourceV)
-
       val expected = resourceValue.graph.as[Json](shaclCtx).right.value.removeKeys("@context") deepMerge Json.obj(
-        "@type" -> Json.fromString("Schema"))
-
-      Get(s"/v1/schemas/$organization/$project/$urlEncodedId?tag=some") ~> addCredentials(oauthToken) ~> Accept(
-        MediaRanges.`*/*`) ~> routes ~> check {
-        status shouldEqual StatusCodes.OK
-        responseAs[Json].removeKeys("@context") should equalIgnoreArrayOrder(expected)
-      }
-
-      Get(s"/v1/resources/$organization/$project/schema/$urlEncodedId?tag=some") ~> addCredentials(oauthToken) ~> Accept(
-        MediaRanges.`*/*`) ~> routes ~> check {
-        status shouldEqual StatusCodes.OK
-        responseAs[Json].removeKeys("@context") should equalIgnoreArrayOrder(expected)
+        "@type" -> Json.fromString("Schema")
+      )
+      forAll(endpoints(tag = Some("some"))) { endpoint =>
+        Get(endpoint) ~> addCredentials(oauthToken) ~> Accept(MediaRanges.`*/*`) ~> routes ~> check {
+          status shouldEqual StatusCodes.OK
+          responseAs[Json].removeKeys("@context") should equalIgnoreArrayOrder(expected)
+        }
       }
     }
 
@@ -291,25 +271,29 @@ class SchemaRoutesSpec
       val expected = Json.obj("_total" -> Json.fromLong(1L), "_results" -> Json.arr(resultElem))
 
       Get(s"/v1/schemas/$organization/$project?deprecated=false") ~> addCredentials(oauthToken) ~> Accept(
-        MediaRanges.`*/*`) ~> routes ~> check {
+        MediaRanges.`*/*`
+      ) ~> routes ~> check {
         status shouldEqual StatusCodes.OK
         responseAs[Json].removeKeys("@context") shouldEqual expected.deepMerge(
           Json.obj(
             "_next" -> Json.fromString(
               s"http://127.0.0.1:8080/v1/schemas/$organization/$project?deprecated=false&after=%5B%22two%22%5D"
             )
-          ))
+          )
+        )
       }
 
       Get(s"/v1/resources/$organization/$project/schema?deprecated=false") ~> addCredentials(oauthToken) ~> Accept(
-        MediaRanges.`*/*`) ~> routes ~> check {
+        MediaRanges.`*/*`
+      ) ~> routes ~> check {
         status shouldEqual StatusCodes.OK
         responseAs[Json].removeKeys("@context") shouldEqual expected.deepMerge(
           Json.obj(
             "_next" -> Json.fromString(
               s"http://127.0.0.1:8080/v1/resources/$organization/$project/schema?deprecated=false&after=%5B%22two%22%5D"
             )
-          ))
+          )
+        )
       }
     }
 
@@ -328,25 +312,29 @@ class SchemaRoutesSpec
       val expected = Json.obj("_total" -> Json.fromLong(1L), "_results" -> Json.arr(resultElem))
 
       Get(s"/v1/schemas/$organization/$project?deprecated=false&after=%5B%22one%22%5D") ~> addCredentials(oauthToken) ~> Accept(
-        MediaRanges.`*/*`) ~> routes ~> check {
+        MediaRanges.`*/*`
+      ) ~> routes ~> check {
         status shouldEqual StatusCodes.OK
         responseAs[Json].removeKeys("@context") shouldEqual expected.deepMerge(
           Json.obj(
             "_next" -> Json.fromString(
               s"http://127.0.0.1:8080/v1/schemas/$organization/$project?deprecated=false&after=%5B%22two%22%5D"
             )
-          ))
+          )
+        )
       }
 
       Get(s"/v1/resources/$organization/$project/schema?deprecated=false&after=%5B%22one%22%5D") ~> addCredentials(
-        oauthToken) ~> Accept(MediaRanges.`*/*`) ~> routes ~> check {
+        oauthToken
+      ) ~> Accept(MediaRanges.`*/*`) ~> routes ~> check {
         status shouldEqual StatusCodes.OK
         responseAs[Json].removeKeys("@context") shouldEqual expected.deepMerge(
           Json.obj(
             "_next" -> Json.fromString(
               s"http://127.0.0.1:8080/v1/resources/$organization/$project/schema?deprecated=false&after=%5B%22two%22%5D"
             )
-          ))
+          )
+        )
       }
     }
   }

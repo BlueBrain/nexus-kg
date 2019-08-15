@@ -28,45 +28,61 @@ class AccessIdSpec extends WordSpecLike with Matchers with Inspectors with TestH
     )
     val mappings = Map("test-schema" -> url"http://schemas.nexus.example.com/test/v0.1.0/".value) ++ defaultPrefixMapping
     val uuid     = UUID.fromString("20fdc0fc-841a-11e8-adc0-fa7ae01bbebc")
-    implicit val project = Project(genIri,
-                                   "core",
-                                   "bbp",
-                                   None,
-                                   url"http://unused.com/",
-                                   genIri,
-                                   mappings,
-                                   uuid,
-                                   genUUID,
-                                   0L,
-                                   false,
-                                   Instant.EPOCH,
-                                   genIri,
-                                   Instant.EPOCH,
-                                   genIri)
+    implicit val project = Project(
+      genIri,
+      "core",
+      "bbp",
+      None,
+      url"http://unused.com/",
+      genIri,
+      mappings,
+      uuid,
+      genUUID,
+      0L,
+      false,
+      Instant.EPOCH,
+      genIri,
+      Instant.EPOCH,
+      genIri
+    )
 
     "generate short access id" in {
       val list = List(
-        (url"http://example.com/a".value,
-         shaclSchemaUri,
-         s"http://resources.nexus.com/v1/schemas/bbp/core/${urlEncode("http://example.com/a")}"),
-        (url"http://example.com/a".value,
-         fileSchemaUri,
-         s"http://resources.nexus.com/v1/files/bbp/core/${urlEncode("http://example.com/a")}"),
-        (url"http://example.com/a".value,
-         storageSchemaUri,
-         s"http://resources.nexus.com/v1/storages/bbp/core/${urlEncode("http://example.com/a")}"),
-        (url"http://schemas.nexus.example.com/test/v0.1.0/a".value,
-         unconstrainedSchemaUri,
-         s"http://resources.nexus.com/v1/resources/bbp/core/_/test-schema:a"),
-        (url"${base.asString}b".value,
-         url"http://example.com/a".value,
-         s"http://resources.nexus.com/v1/resources/bbp/core/${urlEncode("http://example.com/a")}/nxs:b"),
-        (url"https://bluebrain.github.io/nexus/schemas/some/other".value,
-         url"http://example.com/a".value,
-         s"http://resources.nexus.com/v1/resources/bbp/core/${urlEncode("http://example.com/a")}/nxs:some%2Fother"),
-        (url"http://unused.com/something/uuid".value,
-         unconstrainedSchemaUri,
-         s"http://resources.nexus.com/v1/resources/bbp/core/_/${urlEncode("something/uuid")}")
+        (
+          url"http://example.com/a".value,
+          shaclSchemaUri,
+          s"http://resources.nexus.com/v1/schemas/bbp/core/${urlEncode("http://example.com/a")}"
+        ),
+        (
+          url"http://example.com/a".value,
+          fileSchemaUri,
+          s"http://resources.nexus.com/v1/files/bbp/core/${urlEncode("http://example.com/a")}"
+        ),
+        (
+          url"http://example.com/a".value,
+          storageSchemaUri,
+          s"http://resources.nexus.com/v1/storages/bbp/core/${urlEncode("http://example.com/a")}"
+        ),
+        (
+          url"http://schemas.nexus.example.com/test/v0.1.0/a".value,
+          unconstrainedSchemaUri,
+          s"http://resources.nexus.com/v1/resources/bbp/core/_/test-schema:a"
+        ),
+        (
+          url"${base.asString}b".value,
+          url"http://example.com/a".value,
+          s"http://resources.nexus.com/v1/resources/bbp/core/${urlEncode("http://example.com/a")}/nxs:b"
+        ),
+        (
+          url"https://bluebrain.github.io/nexus/schemas/some/other".value,
+          url"http://example.com/a".value,
+          s"http://resources.nexus.com/v1/resources/bbp/core/${urlEncode("http://example.com/a")}/nxs:some%2Fother"
+        ),
+        (
+          url"http://unused.com/something/uuid".value,
+          unconstrainedSchemaUri,
+          s"http://resources.nexus.com/v1/resources/bbp/core/_/${urlEncode("something/uuid")}"
+        )
       )
       forAll(list) {
         case (id, schemaId, result) =>
@@ -76,28 +92,41 @@ class AccessIdSpec extends WordSpecLike with Matchers with Inspectors with TestH
 
     "generate long access id" in {
       val list = List(
-        (url"http://example.com/a".value,
-         shaclSchemaUri,
-         s"http://resources.nexus.com/v1/schemas/bbp/core/${urlEncode("http://example.com/a")}"),
-        (url"http://example.com/a".value,
-         fileSchemaUri,
-         s"http://resources.nexus.com/v1/files/bbp/core/${urlEncode("http://example.com/a")}"),
-        (url"http://example.com/a".value,
-         storageSchemaUri,
-         s"http://resources.nexus.com/v1/storages/bbp/core/${urlEncode("http://example.com/a")}"),
-        (url"http://schemas.nexus.example.com/test/v0.1.0/a".value,
-         unconstrainedSchemaUri,
-         s"http://resources.nexus.com/v1/resources/bbp/core/_/${urlEncode("http://schemas.nexus.example.com/test/v0.1.0/a")}"),
-        (url"${base.asString}b".value,
-         url"http://example.com/a".value,
-         s"http://resources.nexus.com/v1/resources/bbp/core/${urlEncode("http://example.com/a")}/${urlEncode(
-           s"${base.asString}b")}"),
-        (url"https://bluebrain.github.io/nexus/schemas/some/other".value,
-         url"http://example.com/a".value,
-         s"http://resources.nexus.com/v1/resources/bbp/core/${urlEncode("http://example.com/a")}/${urlEncode("https://bluebrain.github.io/nexus/schemas/some/other")}"),
-        (url"http://unused.com/something/uuid".value,
-         unconstrainedSchemaUri,
-         s"http://resources.nexus.com/v1/resources/bbp/core/_/${urlEncode("http://unused.com/something/uuid")}")
+        (
+          url"http://example.com/a".value,
+          shaclSchemaUri,
+          s"http://resources.nexus.com/v1/schemas/bbp/core/${urlEncode("http://example.com/a")}"
+        ),
+        (
+          url"http://example.com/a".value,
+          fileSchemaUri,
+          s"http://resources.nexus.com/v1/files/bbp/core/${urlEncode("http://example.com/a")}"
+        ),
+        (
+          url"http://example.com/a".value,
+          storageSchemaUri,
+          s"http://resources.nexus.com/v1/storages/bbp/core/${urlEncode("http://example.com/a")}"
+        ),
+        (
+          url"http://schemas.nexus.example.com/test/v0.1.0/a".value,
+          unconstrainedSchemaUri,
+          s"http://resources.nexus.com/v1/resources/bbp/core/_/${urlEncode("http://schemas.nexus.example.com/test/v0.1.0/a")}"
+        ),
+        (
+          url"${base.asString}b".value,
+          url"http://example.com/a".value,
+          s"http://resources.nexus.com/v1/resources/bbp/core/${urlEncode("http://example.com/a")}/${urlEncode(s"${base.asString}b")}"
+        ),
+        (
+          url"https://bluebrain.github.io/nexus/schemas/some/other".value,
+          url"http://example.com/a".value,
+          s"http://resources.nexus.com/v1/resources/bbp/core/${urlEncode("http://example.com/a")}/${urlEncode("https://bluebrain.github.io/nexus/schemas/some/other")}"
+        ),
+        (
+          url"http://unused.com/something/uuid".value,
+          unconstrainedSchemaUri,
+          s"http://resources.nexus.com/v1/resources/bbp/core/_/${urlEncode("http://unused.com/something/uuid")}"
+        )
       )
       forAll(list) {
         case (id, schemaId, result) =>

@@ -14,6 +14,7 @@ import ch.epfl.bluebrain.nexus.admin.client.AdminClient
 import ch.epfl.bluebrain.nexus.admin.client.types.{Organization, Project}
 import ch.epfl.bluebrain.nexus.iam.client.IamClientError
 import ch.epfl.bluebrain.nexus.iam.client.types.AuthToken
+import ch.epfl.bluebrain.nexus.iam.client.types.Identity.{Subject, User}
 import ch.epfl.bluebrain.nexus.kg.Error._
 import ch.epfl.bluebrain.nexus.kg.KgError.{OrganizationNotFound, ProjectIsDeprecated, ProjectNotFound}
 import ch.epfl.bluebrain.nexus.kg.cache.ProjectCache
@@ -22,7 +23,7 @@ import ch.epfl.bluebrain.nexus.kg.config.Vocabulary._
 import ch.epfl.bluebrain.nexus.kg.config.{Schemas, Settings}
 import ch.epfl.bluebrain.nexus.kg.directives.ProjectDirectives._
 import ch.epfl.bluebrain.nexus.kg.marshallers.instances._
-import ch.epfl.bluebrain.nexus.kg.resources.{OrganizationRef, ProjectLabel, ProjectRef}
+import ch.epfl.bluebrain.nexus.kg.resources.{OrganizationRef, ProjectInitializer, ProjectLabel, ProjectRef}
 import ch.epfl.bluebrain.nexus.kg.routes.Routes
 import ch.epfl.bluebrain.nexus.kg.{Error, KgError, TestHelper}
 import ch.epfl.bluebrain.nexus.rdf.Iri
@@ -45,13 +46,13 @@ class ProjectDirectivesSpec
   private val appConfig                 = Settings(system).appConfig
   private implicit val http: HttpConfig = appConfig.http
 
-  private implicit val projectCache: ProjectCache[Task] = mock[ProjectCache[Task]]
-  private implicit val client: AdminClient[Task]        = mock[AdminClient[Task]]
-  private implicit val cred: Option[AuthToken]          = None
+  private implicit val projectCache: ProjectCache[Task]      = mock[ProjectCache[Task]]
+  private implicit val client: AdminClient[Task]             = mock[AdminClient[Task]]
+  private implicit val initializer: ProjectInitializer[Task] = mock[ProjectInitializer[Task]]
+  private implicit val cred: Option[AuthToken]               = None
 
   before {
-    Mockito.reset(projectCache)
-    Mockito.reset(client)
+    Mockito.reset(projectCache, client, initializer)
   }
 
   private val id = genIri
@@ -88,22 +89,23 @@ class ProjectDirectivesSpec
         createdAt        <- hc.get[Instant]("createdAt")
         updatedBy        <- hc.get[AbsoluteIri]("updatedBy")
         updatedAt        <- hc.get[Instant]("updatedAt")
-      } yield
-        Project(id,
-                label,
-                organization,
-                description,
-                base,
-                vocab,
-                apiMap,
-                uuid,
-                organizationUuid,
-                rev,
-                deprecated,
-                createdAt,
-                createdBy,
-                updatedAt,
-                updatedBy)
+      } yield Project(
+        id,
+        label,
+        organization,
+        description,
+        base,
+        vocab,
+        apiMap,
+        uuid,
+        organizationUuid,
+        rev,
+        deprecated,
+        createdAt,
+        createdBy,
+        updatedAt,
+        updatedBy
+      )
     }
 
   "A Project directives" when {
@@ -134,6 +136,8 @@ class ProjectDirectivesSpec
       Instant.EPOCH,
       creator
     )
+
+    implicit val subject: Subject = User("subject", "realm")
 
     val orgMeta =
       Organization(id, "organization", None, genUUID, 1L, false, Instant.EPOCH, creator, Instant.EPOCH, creator)
@@ -247,8 +251,8 @@ class ProjectDirectivesSpec
 
       "fetch the project by label from admin client when not present on the cache" in {
         projectCache.getBy(label) shouldReturn Task.pure(None)
-
         client.fetchProject("organization", "project") shouldReturn Task.pure(Option(projectMeta))
+        initializer(projectMeta, subject) shouldReturn Task.unit
 
         Get("/organization/project") ~> route ~> check {
           responseAs[Project] shouldEqual projectMetaResp
@@ -258,8 +262,8 @@ class ProjectDirectivesSpec
       "fetch the project by UUID from admin client when not present on the cache" in {
         projectCache.get(orgRef, projectRef) shouldReturn Task.pure(None)
         projectCache.getBy(ProjectLabel(orgRef.show, projectRef.show)) shouldReturn Task.pure(None)
-
         client.fetchProject(orgRef.id, projectRef.id) shouldReturn Task.pure(Option(projectMeta))
+        initializer(projectMeta, subject) shouldReturn Task.unit
 
         Get(s"/${orgRef.show}/${projectRef.show}") ~> route ~> check {
           responseAs[Project] shouldEqual projectMetaResp
@@ -270,6 +274,7 @@ class ProjectDirectivesSpec
         projectCache.get(orgRef, projectRef) shouldReturn Task.pure(None)
         client.fetchProject(orgRef.id, projectRef.id) shouldReturn Task.pure(None)
         projectCache.getBy(ProjectLabel(orgRef.show, projectRef.show)) shouldReturn Task.pure(Option(projectMeta))
+        initializer(projectMeta, subject) shouldReturn Task.unit
 
         Get(s"/${orgRef.show}/${projectRef.show}") ~> route ~> check {
           responseAs[Project] shouldEqual projectMetaResp
@@ -279,6 +284,7 @@ class ProjectDirectivesSpec
       "fetch the project by label from admin client when cache throws an error" in {
         projectCache.getBy(label) shouldReturn Task.raiseError(new RuntimeException)
         client.fetchProject("organization", "project") shouldReturn Task.pure(Option(projectMeta))
+        initializer(projectMeta, subject) shouldReturn Task.unit
 
         Get("/organization/project") ~> route ~> check {
           responseAs[Project] shouldEqual projectMetaResp

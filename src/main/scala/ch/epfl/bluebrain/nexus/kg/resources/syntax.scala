@@ -31,7 +31,7 @@ object syntax {
         case Array(organization, project) => Right(ProjectLabel(organization, project))
         case _                            => Left(IllegalConversion("Expected a ProjectLabel, but found otherwise"))
       }
-  }
+    }
 
   implicit val projectUuidEncoder: NodeEncoder[ProjectRef] = node =>
     NodeEncoder.stringEncoder(node).flatMap { value =>
@@ -39,7 +39,7 @@ object syntax {
         case Success(uuid) => Right(ProjectRef(uuid))
         case _             => Left(IllegalConversion("Expected a ProjectRef, but found otherwise"))
       }
-  }
+    }
 
   implicit val encMediaType: Encoder[ContentType] =
     Encoder.encodeString.contramap(_.value)
@@ -139,9 +139,11 @@ object syntax {
       * @param permission the permission to filter
       * @return a set of [[ProjectLabel]]
       */
-    def hasPermission(acls: AccessControlLists,
-                      projects: Set[ProjectLabel],
-                      permission: Permission): Set[ProjectLabel] =
+    def hasPermission(
+        acls: AccessControlLists,
+        projects: Set[ProjectLabel],
+        permission: Permission
+    ): Set[ProjectLabel] =
       projects.filter(hasPermission(acls, _, permission))
   }
 
@@ -174,7 +176,9 @@ object syntax {
         err =>
           InvalidResourceFormat(
             ref,
-            s"The provided payload could not be mapped to the targeted resource due to '${err.message}'"))
+            s"The provided payload could not be mapped to the targeted resource due to '${err.message}'"
+          )
+      )
   }
 
   implicit class CryptoSyntax(private val value: String) extends AnyVal {

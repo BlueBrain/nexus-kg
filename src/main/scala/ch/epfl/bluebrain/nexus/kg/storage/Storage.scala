@@ -10,16 +10,16 @@ import akka.stream.alpakka.s3
 import akka.stream.alpakka.s3.{ApiVersion, MemoryBufferType}
 import cats.effect.Effect
 import ch.epfl.bluebrain.nexus.commons.rdf.instances._
-import ch.epfl.bluebrain.nexus.iam.client.types.{AuthToken, Permission}
+import ch.epfl.bluebrain.nexus.iam.client.types.Permission
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig._
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary.nxv
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection.InvalidResourceFormat
 import ch.epfl.bluebrain.nexus.kg.resources.StorageReference._
-import ch.epfl.bluebrain.nexus.kg.resources.file.File.{FileAttributes, FileDescription}
+import ch.epfl.bluebrain.nexus.kg.resources.file.File.{Digest, FileAttributes, FileDescription}
 import ch.epfl.bluebrain.nexus.kg.resources.syntax._
 import ch.epfl.bluebrain.nexus.kg.resources.{ProjectRef, Rejection, ResId, ResourceV, StorageReference}
 import ch.epfl.bluebrain.nexus.kg.storage.Storage.StorageOperations._
-import ch.epfl.bluebrain.nexus.kg.storage.Storage.{FetchFile, LinkFile, SaveFile, VerifyStorage}
+import ch.epfl.bluebrain.nexus.kg.storage.Storage.{FetchFile, FetchFileDigest, LinkFile, SaveFile, VerifyStorage}
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import ch.epfl.bluebrain.nexus.rdf.encoder.NodeEncoder
 import ch.epfl.bluebrain.nexus.rdf.encoder.NodeEncoder.stringEncoder
@@ -29,7 +29,6 @@ import ch.epfl.bluebrain.nexus.storage.client.StorageClient
 import ch.epfl.bluebrain.nexus.storage.client.config.StorageClientConfig
 import com.amazonaws.auth._
 import com.amazonaws.regions.AwsRegionProvider
-import javax.crypto.SecretKey
 
 import scala.collection.JavaConverters._
 import scala.util.Try
@@ -107,6 +106,12 @@ sealed trait Storage { self =>
   def isValid[F[_]](implicit verify: Verify[F]): VerifyStorage[F] = verify(self)
 
   /**
+    * Provides a [[FetchFileDigest]] instance.
+    *
+    */
+  def fetchDigest[F[_]](implicit fetchFile: FetchDigest[F]): FetchFileDigest[F] = fetchFile(self)
+
+  /**
     * A storage reference
     */
   def reference: StorageReference
@@ -115,6 +120,16 @@ sealed trait Storage { self =>
     * the maximum allowed file size (in bytes) for uploaded files
     */
   def maxFileSize: Long
+
+  /**
+    * @return a new storage with the same values as the current but encrypting the sensitive information
+    */
+  def encrypt(implicit config: StorageConfig): Storage
+
+  /**
+    * @return a new storage with the same values as the current but decrypting the sensitive information
+    */
+  def decrypt(implicit config: StorageConfig): Storage
 
 }
 
@@ -136,19 +151,22 @@ object Storage {
     * @param writePermission the permission required in order to upload a file to this storage
     * @param maxFileSize     the maximum allowed file size (in bytes) for uploaded files
     */
-  final case class DiskStorage(ref: ProjectRef,
-                               id: AbsoluteIri,
-                               rev: Long,
-                               deprecated: Boolean,
-                               default: Boolean,
-                               algorithm: String,
-                               volume: Path,
-                               readPermission: Permission,
-                               writePermission: Permission,
-                               maxFileSize: Long)
-      extends Storage {
+  final case class DiskStorage(
+      ref: ProjectRef,
+      id: AbsoluteIri,
+      rev: Long,
+      deprecated: Boolean,
+      default: Boolean,
+      algorithm: String,
+      volume: Path,
+      readPermission: Permission,
+      writePermission: Permission,
+      maxFileSize: Long
+  ) extends Storage {
 
-    def reference: StorageReference = DiskStorageReference(id, rev)
+    def reference: StorageReference                      = DiskStorageReference(id, rev)
+    def encrypt(implicit config: StorageConfig): Storage = this
+    def decrypt(implicit config: StorageConfig): Storage = this
   }
 
   object DiskStorage {
@@ -189,29 +207,32 @@ object Storage {
     * @param writePermission the permission required in order to upload a file to this storage
     * @param maxFileSize     the maximum allowed file size (in bytes) for uploaded files
     */
-  final case class RemoteDiskStorage(ref: ProjectRef,
-                                     id: AbsoluteIri,
-                                     rev: Long,
-                                     deprecated: Boolean,
-                                     default: Boolean,
-                                     algorithm: String,
-                                     endpoint: Uri,
-                                     credentials: Option[String],
-                                     folder: String,
-                                     readPermission: Permission,
-                                     writePermission: Permission,
-                                     maxFileSize: Long)
-      extends Storage {
+  final case class RemoteDiskStorage(
+      ref: ProjectRef,
+      id: AbsoluteIri,
+      rev: Long,
+      deprecated: Boolean,
+      default: Boolean,
+      algorithm: String,
+      endpoint: Uri,
+      credentials: Option[String],
+      folder: String,
+      readPermission: Permission,
+      writePermission: Permission,
+      maxFileSize: Long
+  ) extends Storage {
 
     def reference: StorageReference = RemoteDiskStorageReference(id, rev)
-
-    def decryptAuthToken(implicit aesKey: SecretKey): Option[AuthToken] =
-      credentials.map(cred => AuthToken(cred.decrypt))
 
     def client[F[_]: Effect](implicit as: ActorSystem): StorageClient[F] = {
       implicit val config = StorageClientConfig(url"$endpoint".value)
       StorageClient[F]
     }
+
+    def encrypt(implicit config: StorageConfig): Storage = copy(credentials = credentials.map(_.encrypt))
+
+    def decrypt(implicit config: StorageConfig): Storage = copy(credentials = credentials.map(_.decrypt))
+
   }
 
   /**
@@ -229,25 +250,36 @@ object Storage {
     * @param writePermission the permission required in order to upload a file to this storage
     * @param maxFileSize     the maximum allowed file size (in bytes) for uploaded files
     */
-  final case class S3Storage(ref: ProjectRef,
-                             id: AbsoluteIri,
-                             rev: Long,
-                             deprecated: Boolean,
-                             default: Boolean,
-                             algorithm: String,
-                             bucket: String,
-                             settings: S3Settings,
-                             readPermission: Permission,
-                             writePermission: Permission,
-                             maxFileSize: Long)
-      extends Storage {
+  final case class S3Storage(
+      ref: ProjectRef,
+      id: AbsoluteIri,
+      rev: Long,
+      deprecated: Boolean,
+      default: Boolean,
+      algorithm: String,
+      bucket: String,
+      settings: S3Settings,
+      readPermission: Permission,
+      writePermission: Permission,
+      maxFileSize: Long
+  ) extends Storage {
     def reference: StorageReference = S3StorageReference(id, rev)
+    def encrypt(implicit config: StorageConfig): Storage =
+      copy(settings = settings.copy(credentials = settings.credentials.map {
+        case S3Credentials(ak, as) => S3Credentials(ak.encrypt, as.encrypt)
+      }))
+
+    def decrypt(implicit config: StorageConfig): Storage =
+      copy(settings = settings.copy(credentials = settings.credentials.map {
+        case S3Credentials(ak, as) => S3Credentials(ak.decrypt, as.decrypt)
+      }))
+
   }
 
   private implicit val permissionEncoder: NodeEncoder[Permission] = node =>
     stringEncoder(node).flatMap { perm =>
       Permission(perm).toRight(IllegalConversion(s"Invalid Permission '$perm'"))
-  }
+    }
 
   /**
     * S3 connection settings with reasonable defaults.
@@ -265,13 +297,12 @@ object Storage {
     }
 
     /**
-      * @param aesKey the AES key to decrypt credentials
       * @return these settings converted to an instance of [[akka.stream.alpakka.s3.S3Settings]]
       */
-    def toAlpakka(implicit aesKey: SecretKey): s3.S3Settings = {
+    def toAlpakka: s3.S3Settings = {
       val credsProvider = credentials match {
         case Some(S3Credentials(accessKey, secretKey)) =>
-          new AWSStaticCredentialsProvider(new BasicAWSCredentials(accessKey.decrypt, secretKey.decrypt))
+          new AWSStaticCredentialsProvider(new BasicAWSCredentials(accessKey, secretKey))
         case None => new AWSStaticCredentialsProvider(new AnonymousAWSCredentials)
       }
 
@@ -326,14 +357,13 @@ object Storage {
     * Attempts to transform the resource into a [[Storage]].
     *
     * @param res     a materialized resource
-    * @param encrypt whether to encrypt the credentials during encoding
     * @return Right(storage) if the resource is compatible with a Storage, Left(rejection) otherwise
     */
-  final def apply(res: ResourceV, encrypt: Boolean)(implicit config: StorageConfig): Either[Rejection, Storage] =
+  final def apply(res: ResourceV)(implicit config: StorageConfig): Either[Rejection, Storage] =
     if (Set(nxv.Storage.value, nxv.DiskStorage.value).subsetOf(res.types)) diskStorage(res)
     else if (Set(nxv.Storage.value, nxv.RemoteDiskStorage.value).subsetOf(res.types))
-      remoteDiskStorage(res, encrypt)
-    else if (Set(nxv.Storage.value, nxv.S3Storage.value).subsetOf(res.types)) s3Storage(res, encrypt)
+      remoteDiskStorage(res)
+    else if (Set(nxv.Storage.value, nxv.S3Storage.value).subsetOf(res.types)) s3Storage(res)
     else Left(InvalidResourceFormat(res.id.ref, "The provided @type do not match any of the storage types"))
 
   private def diskStorage(res: ResourceV)(implicit config: StorageConfig): Either[Rejection, DiskStorage] = {
@@ -349,8 +379,9 @@ object Storage {
     // format: on
   }
 
-  private def remoteDiskStorage(res: ResourceV, encrypt: Boolean)(
-      implicit config: StorageConfig): Either[Rejection, RemoteDiskStorage] = {
+  private def remoteDiskStorage(
+      res: ResourceV
+  )(implicit config: StorageConfig): Either[Rejection, RemoteDiskStorage] = {
     val c = res.value.graph.cursor()
 
     val cred =
@@ -369,14 +400,11 @@ object Storage {
       read          <- c.downField(nxv.readPermission).focus.as[Permission].orElse(config.remoteDisk.readPermission).toRejectionOnLeft(res.id.ref)
       write         <- c.downField(nxv.writePermission).focus.as[Permission].orElse(config.remoteDisk.writePermission).toRejectionOnLeft(res.id.ref)
       fileSize      <- c.downField(nxv.maxFileSize).focus.as[Long].orElse(config.remoteDisk.maxFileSize).toRejectionOnLeft(res.id.ref)
-    } yield
-      if (encrypt) RemoteDiskStorage(res.id.parent, res.id.value, res.rev, res.deprecated, default, config.remoteDisk.digestAlgorithm, endpoint, credentials.map(_.encrypt), folder, read, write, fileSize)
-      else RemoteDiskStorage(res.id.parent, res.id.value, res.rev, res.deprecated, default, config.remoteDisk.digestAlgorithm, endpoint, credentials, folder, read, write, fileSize)
+    } yield RemoteDiskStorage(res.id.parent, res.id.value, res.rev, res.deprecated, default, config.remoteDisk.digestAlgorithm, endpoint, credentials, folder, read, write, fileSize)
     // format: on
   }
 
-  private def s3Storage(res: ResourceV, encrypt: Boolean)(
-      implicit config: StorageConfig): Either[Rejection, S3Storage] = {
+  private def s3Storage(res: ResourceV)(implicit config: StorageConfig): Either[Rejection, S3Storage] = {
     val c = res.value.graph.cursor()
     // format: off
     for {
@@ -390,9 +418,7 @@ object Storage {
       credentials = for {
         ak <- c.downField(nxv.accessKey).focus.flatMap(_.as[String].toOption)
         sk <- c.downField(nxv.secretKey).focus.flatMap(_.as[String].toOption)
-      } yield
-        if (encrypt) S3Credentials(ak.encrypt, sk.encrypt)
-        else S3Credentials(ak, sk)
+      } yield S3Credentials(ak, sk)
     } yield S3Storage(res.id.parent, res.id.value, res.rev, res.deprecated, default, config.amazon.digestAlgorithm, bucket, S3Settings(credentials, endpoint, region), read, write, fileSize)
     // format: on
   }
@@ -443,6 +469,17 @@ object Storage {
     def apply: F[Either[String, Unit]]
   }
 
+  trait FetchFileDigest[F[_]] {
+
+    /**
+      * Fetches the file digest associated to the provided ''relativePath''.
+      *
+      * @param relativePath the file relative path
+      */
+    def apply(relativePath: Uri.Path): F[Digest]
+
+  }
+
   // $COVERAGE-OFF$
   object StorageOperations {
 
@@ -456,7 +493,7 @@ object Storage {
     }
 
     object Verify {
-      implicit final def apply[F[_]: Effect](implicit as: ActorSystem, config: StorageConfig): Verify[F] = {
+      implicit final def apply[F[_]: Effect](implicit as: ActorSystem): Verify[F] = {
         case s: DiskStorage       => new DiskStorageOperations.VerifyDiskStorage[F](s)
         case s: RemoteDiskStorage => new RemoteDiskStorageOperations.Verify(s, s.client)
         case s: S3Storage         => new S3StorageOperations.Verify[F](s)
@@ -474,7 +511,7 @@ object Storage {
     }
 
     object Fetch {
-      implicit final def apply[F[_]: Effect](implicit as: ActorSystem, config: StorageConfig): Fetch[F, AkkaSource] = {
+      implicit final def apply[F[_]: Effect](implicit as: ActorSystem): Fetch[F, AkkaSource] = {
         case _: DiskStorage       => new DiskStorageOperations.FetchDiskFile[F]
         case s: RemoteDiskStorage => new RemoteDiskStorageOperations.Fetch(s, s.client)
         case s: S3Storage         => new S3StorageOperations.Fetch(s)
@@ -492,7 +529,7 @@ object Storage {
     }
 
     object Save {
-      implicit final def apply[F[_]: Effect](implicit as: ActorSystem, config: StorageConfig): Save[F, AkkaSource] = {
+      implicit final def apply[F[_]: Effect](implicit as: ActorSystem): Save[F, AkkaSource] = {
         case s: DiskStorage       => new DiskStorageOperations.SaveDiskFile(s)
         case s: RemoteDiskStorage => new RemoteDiskStorageOperations.Save(s, s.client)
         case s: S3Storage         => new S3StorageOperations.Save(s)
@@ -509,10 +546,27 @@ object Storage {
     }
 
     object Link {
-      implicit final def apply[F[_]: Effect](implicit as: ActorSystem, config: StorageConfig): Link[F] = {
+      implicit final def apply[F[_]: Effect](implicit as: ActorSystem): Link[F] = {
         case _: DiskStorage       => new DiskStorageOperations.LinkDiskFile()
         case s: RemoteDiskStorage => new RemoteDiskStorageOperations.Link(s, s.client)
         case s: S3Storage         => new S3StorageOperations.Link(s)
+      }
+    }
+
+    /**
+      * Provides a selected storage with [[FetchFileDigest]] operation
+      *
+      * @tparam F   the effect type
+      */
+    trait FetchDigest[F[_]] {
+      def apply(storage: Storage): FetchFileDigest[F]
+    }
+
+    object FetchDigest {
+      implicit final def apply[F[_]: Effect](implicit as: ActorSystem): FetchDigest[F] = {
+        case _: DiskStorage       => new DiskStorageOperations.FetchDigest()
+        case _: S3Storage         => new S3StorageOperations.FetchDigest()
+        case s: RemoteDiskStorage => new RemoteDiskStorageOperations.FetchDigest(s, s.client)
       }
     }
   }

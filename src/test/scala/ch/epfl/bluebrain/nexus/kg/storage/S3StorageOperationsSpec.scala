@@ -4,17 +4,17 @@ import java.nio.charset.StandardCharsets.UTF_8
 import java.nio.file.Paths
 import java.util.UUID
 
+import akka.http.scaladsl.model.ContentTypes._
 import akka.http.scaladsl.model.Uri
 import akka.stream.alpakka.s3
-import akka.stream.{ActorMaterializer, Materializer}
 import akka.stream.scaladsl.{FileIO, Sink}
+import akka.stream.{ActorMaterializer, Materializer}
 import cats.effect.IO
 import ch.epfl.bluebrain.nexus.commons.test.io.IOValues
 import ch.epfl.bluebrain.nexus.commons.test.{ActorSystemFixture, Randomness, Resources}
 import ch.epfl.bluebrain.nexus.iam.client.types.Permission
 import ch.epfl.bluebrain.nexus.kg.KgError
 import ch.epfl.bluebrain.nexus.kg.KgError.DownstreamServiceError
-import ch.epfl.bluebrain.nexus.kg.config.AppConfig._
 import ch.epfl.bluebrain.nexus.kg.resources.file.File.{Digest, FileAttributes, FileDescription}
 import ch.epfl.bluebrain.nexus.kg.resources.{Id, ProjectRef}
 import ch.epfl.bluebrain.nexus.kg.storage.Storage.{S3Credentials, S3Settings, S3Storage}
@@ -22,7 +22,6 @@ import ch.epfl.bluebrain.nexus.rdf.syntax._
 import com.amazonaws.auth.{AWSStaticCredentialsProvider, AnonymousAWSCredentials}
 import com.amazonaws.client.builder.AwsClientBuilder.EndpointConfiguration
 import com.amazonaws.services.s3.{AmazonS3, AmazonS3ClientBuilder}
-import akka.http.scaladsl.model.ContentTypes._
 import io.findify.s3mock.S3Mock
 import org.scalatest._
 
@@ -45,20 +44,10 @@ class S3StorageOperationsSpec
   private val region  = "fake-region"
   private val bucket  = "bucket"
   private val s3mock  = S3Mock(port)
-  private val read    = Permission.unsafe("resources/read")
-  private val write   = Permission.unsafe("files/write")
   private val readS3  = Permission.unsafe("s3/read")
   private val writeS3 = Permission.unsafe("s3/write")
 
   private var client: AmazonS3 = _
-
-  private implicit val sc: StorageConfig = StorageConfig(
-    DiskStorageConfig(Paths.get("/tmp"), "SHA-256", read, write, false, 1024L),
-    RemoteDiskStorageConfig("http://example.com", None, "SHA-256", read, write, true, 1024L),
-    S3StorageConfig("MD5", readS3, writeS3, true, 1024L),
-    "password",
-    "salt"
-  )
 
   private val keys  = Set("http.proxyHost", "http.proxyPort", "https.proxyHost", "https.proxyPort", "http.nonProxyHosts")
   private val props = mutable.Map[String, String]()
@@ -98,17 +87,19 @@ class S3StorageOperationsSpec
       val projectId  = base + "org" + "proj"
       val projectRef = ProjectRef(UUID.randomUUID)
       val storage =
-        S3Storage(projectRef,
-                  projectId,
-                  1L,
-                  deprecated = false,
-                  default = true,
-                  "MD5",
-                  bucket,
-                  S3Settings(None, Some(address), Some(region)),
-                  readS3,
-                  writeS3,
-                  1024L)
+        S3Storage(
+          projectRef,
+          projectId,
+          1L,
+          deprecated = false,
+          default = true,
+          "MD5",
+          bucket,
+          S3Settings(None, Some(address), Some(region)),
+          readS3,
+          writeS3,
+          1024L
+        )
 
       val verify = new S3StorageOperations.Verify[IO](storage)
       val save   = new S3StorageOperations.Save[IO](storage)
@@ -151,17 +142,19 @@ class S3StorageOperationsSpec
       val projectId  = base + "org" + "proj"
       val projectRef = ProjectRef(UUID.randomUUID)
       val storage =
-        S3Storage(projectRef,
-                  projectId,
-                  1L,
-                  deprecated = false,
-                  default = true,
-                  "MD5",
-                  bucket,
-                  S3Settings(None, Some(address), Some(region)),
-                  readS3,
-                  writeS3,
-                  1024L)
+        S3Storage(
+          projectRef,
+          projectId,
+          1L,
+          deprecated = false,
+          default = true,
+          "MD5",
+          bucket,
+          S3Settings(None, Some(address), Some(region)),
+          readS3,
+          writeS3,
+          1024L
+        )
 
       val verify = new S3StorageOperations.Verify[IO](storage)
       val link   = new S3StorageOperations.Link[IO](storage)
@@ -195,17 +188,19 @@ class S3StorageOperationsSpec
       val projectId  = base + "org" + "proj"
       val projectRef = ProjectRef(UUID.randomUUID)
       val storage =
-        S3Storage(projectRef,
-                  projectId,
-                  1L,
-                  deprecated = false,
-                  default = true,
-                  "MD5",
-                  "foobar",
-                  S3Settings(None, Some(address), Some(region)),
-                  readS3,
-                  writeS3,
-                  1024L)
+        S3Storage(
+          projectRef,
+          projectId,
+          1L,
+          deprecated = false,
+          default = true,
+          "MD5",
+          "foobar",
+          S3Settings(None, Some(address), Some(region)),
+          readS3,
+          writeS3,
+          1024L
+        )
 
       val verify = new S3StorageOperations.Verify[IO](storage)
       val save   = new S3StorageOperations.Save[IO](storage)
@@ -236,17 +231,19 @@ class S3StorageOperationsSpec
       val projectId  = base + "org" + "proj"
       val projectRef = ProjectRef(UUID.randomUUID)
       val storage =
-        S3Storage(projectRef,
-                  projectId,
-                  1L,
-                  deprecated = false,
-                  default = true,
-                  "MD5",
-                  bucket,
-                  S3Settings(None, Some(address), None),
-                  readS3,
-                  writeS3,
-                  1024L)
+        S3Storage(
+          projectRef,
+          projectId,
+          1L,
+          deprecated = false,
+          default = true,
+          "MD5",
+          bucket,
+          S3Settings(None, Some(address), None),
+          readS3,
+          writeS3,
+          1024L
+        )
 
       val verify = new S3StorageOperations.Verify[IO](storage)
       verify.apply.ioValue shouldEqual Right(())
@@ -291,7 +288,8 @@ class S3StorageOperationsSpec
       val attr     = save(resid, desc, FileIO.fromPath(path)).ioValue
 
       attr.location shouldEqual Uri(
-        s"http://minio.dev.nexus.ocp.bbp.epfl.ch/nexus-storage/${mangle(projectRef, fileUuid, "my s3.json")}")
+        s"http://minio.dev.nexus.ocp.bbp.epfl.ch/nexus-storage/${mangle(projectRef, fileUuid, "my s3.json")}"
+      )
       attr.mediaType shouldEqual `text/plain(UTF-8)`
       attr.bytes shouldEqual 263L
       attr.filename shouldEqual "my s3.json"
@@ -308,9 +306,10 @@ class S3StorageOperationsSpec
       val inexistent = fetch(
         attr.copy(
           uuid = randomUuid,
-          location = Uri(
-            s"http://minio.dev.nexus.ocp.bbp.epfl.ch/nexus-storage/${mangle(projectRef, randomUuid, "my s3.json")}")))
-        .failed[KgError.InternalError]
+          location =
+            Uri(s"http://minio.dev.nexus.ocp.bbp.epfl.ch/nexus-storage/${mangle(projectRef, randomUuid, "my s3.json")}")
+        )
+      ).failed[KgError.InternalError]
       inexistent.msg shouldEqual s"Empty content fetching S3 object with key '${mangle(projectRef, randomUuid, "my s3.json")}' in bucket 'nexus-storage'"
     }
   }
@@ -325,7 +324,8 @@ class S3StorageOperationsSpec
 
       S3Settings.getSystemProxy("http://s3.amazonaws.com") shouldEqual Some(s3.Proxy("example.com", 8080, "http"))
       S3Settings.getSystemProxy("https://s3.amazonaws.com") shouldEqual Some(
-        s3.Proxy("secure.example.com", 8080, "http"))
+        s3.Proxy("secure.example.com", 8080, "http")
+      )
       S3Settings.getSystemProxy("https://www.epfl.ch") shouldEqual None
       S3Settings.getSystemProxy("http://foo.bar.cluster.local") shouldEqual None
     }

@@ -39,18 +39,19 @@ class GlobalEventRoutesSpec extends EventsSpecBase {
 
 object GlobalEventRoutesSpec {
 
-  class TestableEventRoutes(events: List[Event], acls: AccessControlLists, caller: Caller)(implicit as: ActorSystem,
-                                                                                           config: AppConfig)
-      extends GlobalEventRoutes(acls, caller) {
+  class TestableEventRoutes(events: List[Event], acls: AccessControlLists, caller: Caller)(
+      implicit as: ActorSystem,
+      config: AppConfig
+  ) extends GlobalEventRoutes(acls, caller) {
 
     private val envelopes = events.zipWithIndex.map {
       case (ev, idx) =>
-        EventEnvelope(Sequence(idx.toLong), "persistenceid", 1l, ev)
+        EventEnvelope(Sequence(idx.toLong), "persistenceid", 1L, ev)
     }
 
     override protected def source(
         tag: String,
-        offset: Offset,
+        offset: Offset
     )(implicit enc: Encoder[Event]): Source[ServerSentEvent, NotUsed] = {
       val toDrop = offset match {
         case NoOffset    => 0

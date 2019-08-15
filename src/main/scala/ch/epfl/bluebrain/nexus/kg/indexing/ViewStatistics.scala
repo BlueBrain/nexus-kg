@@ -47,7 +47,7 @@ object ViewStatistics {
       discardedEvents: Long,
       totalEvents: Long,
       lastEventDateTime: Option[Instant],
-      lastProcessedEventDateTime: Option[Instant],
+      lastProcessedEventDateTime: Option[Instant]
   ): ViewStatistics =
     ViewStatistics(
       processedEvents = processedEvents,

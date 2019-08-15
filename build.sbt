@@ -25,28 +25,29 @@ scalafmt: {
  */
 
 // Dependency versions
-val adminVersion                = "1.1.1"
-val commonsVersion              = "0.17.0"
-val storageVersion              = "1.1.1"
-val sourcingVersion             = "0.16.3"
+val adminVersion                = "4cd725a9"
+val commonsVersion              = "0.17.3"
+val storageVersion              = "5e16c0b2"
+val sourcingVersion             = "0.16.4"
 val akkaVersion                 = "2.5.23"
 val akkaCorsVersion             = "0.4.1"
-val akkaHttpVersion             = "10.1.9"
+val akkaHttpVersion             = "10.1.8"
 val akkaPersistenceInMemVersion = "2.5.15.2"
 val akkaPersistenceCassVersion  = "0.99"
-val alpakkaVersion              = "1.1.0"
+val alpakkaVersion              = "1.1.1"
 val catsVersion                 = "1.6.1"
-val catsEffectVersion           = "1.3.1"
+val catsEffectVersion           = "1.4.0"
 val circeVersion                = "0.11.1"
 val journalVersion              = "3.0.19"
 val logbackVersion              = "1.2.3"
-val mockitoVersion              = "1.5.12"
+val mockitoVersion              = "1.5.13"
 val monixVersion                = "3.0.0-RC3"
 val pureconfigVersion           = "0.11.1"
 val shapelessVersion            = "2.3.3"
 val scalaTestVersion            = "3.0.8"
 val kryoVersion                 = "0.5.2"
 val s3mockVersion               = "0.2.5"
+val apacheCommonsVersion        = "3.9"
 
 // Dependencies modules
 lazy val adminClient          = "ch.epfl.bluebrain.nexus" %% "admin-client"               % adminVersion
@@ -75,6 +76,7 @@ lazy val catsEffect           = "org.typelevel"           %% "cats-effect"      
 lazy val circeCore            = "io.circe"                %% "circe-core"                 % circeVersion
 lazy val journalCore          = "io.verizon.journal"      %% "core"                       % journalVersion
 lazy val mockito              = "org.mockito"             %% "mockito-scala"              % mockitoVersion
+lazy val apacheCommons        = "org.apache.commons"      % "commons-lang3"               % apacheCommonsVersion
 lazy val logbackClassic       = "ch.qos.logback"          % "logback-classic"             % logbackVersion
 lazy val monixEval            = "io.monix"                %% "monix-eval"                 % monixVersion
 lazy val pureconfig           = "com.github.pureconfig"   %% "pureconfig"                 % pureconfigVersion
@@ -101,6 +103,7 @@ lazy val kg = project
       akkaSlf4j,
       akkaCluster,
       alpakkaS3,
+      apacheCommons,
       catsCore,
       catsEffect,
       circeCore,

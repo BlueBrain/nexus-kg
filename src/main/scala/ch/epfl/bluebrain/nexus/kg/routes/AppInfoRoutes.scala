@@ -62,12 +62,14 @@ object AppInfoRoutes {
 
   }
 
-  final case class HealthStatusGroup(cassandra: CassandraHealthStatus,
-                                     cluster: ClusterHealthStatus,
-                                     iam: IamHealthStatus,
-                                     admin: AdminHealthStatus,
-                                     elasticSearch: ElasticSearchHealthStatus,
-                                     sparql: SparqlHealthStatus) {
+  final case class HealthStatusGroup(
+      cassandra: CassandraHealthStatus,
+      cluster: ClusterHealthStatus,
+      iam: IamHealthStatus,
+      admin: AdminHealthStatus,
+      elasticSearch: ElasticSearchHealthStatus,
+      sparql: SparqlHealthStatus
+  ) {
     def check: Task[Health] =
       for {
         cassUp          <- cassandra.check
@@ -76,13 +78,14 @@ object AppInfoRoutes {
         adminUp         <- admin.check
         elasticSearchUp <- elasticSearch.check
         sparqlUp        <- sparql.check
-      } yield
-        Health(Status(cassUp),
-               Status(clusterUp),
-               Status(iamUp),
-               Status(adminUp),
-               Status(elasticSearchUp),
-               Status(sparqlUp))
+      } yield Health(
+        Status(cassUp),
+        Status(clusterUp),
+        Status(iamUp),
+        Status(adminUp),
+        Status(elasticSearchUp),
+        Status(sparqlUp)
+      )
   }
 
   /**
@@ -95,12 +98,14 @@ object AppInfoRoutes {
     * @param elasticSearch the ElasticSearch indexer status
     * @param sparql        the SparQL indexer status
     */
-  final case class Health(cassandra: Status,
-                          cluster: Status,
-                          iam: Status,
-                          admin: Status,
-                          elasticSearch: Status,
-                          sparql: Status)
+  final case class Health(
+      cassandra: Status,
+      cluster: Status,
+      iam: Status,
+      admin: Status,
+      elasticSearch: Status,
+      sparql: Status
+  )
 
   /**
     * A service description.
