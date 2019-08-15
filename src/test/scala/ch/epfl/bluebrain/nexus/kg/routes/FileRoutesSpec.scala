@@ -168,7 +168,7 @@ class FileRoutesSpec
       b match {
         case FileDescription(_, filename, mediaType) => a.filename == filename && a.mediaType == mediaType
         case _                                       => false
-    }
+      }
 
     val resource =
       ResourceF.simpleF(id, Json.obj(), created = user, updated = user, schema = fileRef)
