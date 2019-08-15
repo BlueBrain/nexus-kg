@@ -15,12 +15,10 @@ import ch.epfl.bluebrain.nexus.commons.test.{ActorSystemFixture, Randomness, Res
 import ch.epfl.bluebrain.nexus.iam.client.types.Permission
 import ch.epfl.bluebrain.nexus.kg.KgError
 import ch.epfl.bluebrain.nexus.kg.KgError.DownstreamServiceError
-import ch.epfl.bluebrain.nexus.kg.config.AppConfig._
 import ch.epfl.bluebrain.nexus.kg.resources.file.File.{Digest, FileAttributes, FileDescription}
 import ch.epfl.bluebrain.nexus.kg.resources.{Id, ProjectRef}
 import ch.epfl.bluebrain.nexus.kg.storage.Storage.{S3Credentials, S3Settings, S3Storage}
 import ch.epfl.bluebrain.nexus.rdf.syntax._
-import ch.epfl.bluebrain.nexus.sourcing.akka.SourcingConfig.RetryStrategyConfig
 import com.amazonaws.auth.{AWSStaticCredentialsProvider, AnonymousAWSCredentials}
 import com.amazonaws.client.builder.AwsClientBuilder.EndpointConfiguration
 import com.amazonaws.services.s3.{AmazonS3, AmazonS3ClientBuilder}
@@ -29,7 +27,6 @@ import org.scalatest._
 
 import scala.collection.JavaConverters._
 import scala.collection.mutable
-import scala.concurrent.duration._
 
 class S3StorageOperationsSpec
     extends ActorSystemFixture("S3StorageOperationsSpec")
@@ -47,21 +44,10 @@ class S3StorageOperationsSpec
   private val region  = "fake-region"
   private val bucket  = "bucket"
   private val s3mock  = S3Mock(port)
-  private val read    = Permission.unsafe("resources/read")
-  private val write   = Permission.unsafe("files/write")
   private val readS3  = Permission.unsafe("s3/read")
   private val writeS3 = Permission.unsafe("s3/write")
 
   private var client: AmazonS3 = _
-
-  private implicit val sc: StorageConfig = StorageConfig(
-    DiskStorageConfig(Paths.get("/tmp"), "SHA-256", read, write, false, 1024L),
-    RemoteDiskStorageConfig("http://example.com", None, "SHA-256", read, write, true, 1024L),
-    S3StorageConfig("MD5", readS3, writeS3, true, 1024L),
-    "password",
-    "salt",
-    RetryStrategyConfig("linear", 300 millis, 5 minutes, 100, 0.2, 1 second)
-  )
 
   private val keys  = Set("http.proxyHost", "http.proxyPort", "https.proxyHost", "https.proxyPort", "http.nonProxyHosts")
   private val props = mutable.Map[String, String]()

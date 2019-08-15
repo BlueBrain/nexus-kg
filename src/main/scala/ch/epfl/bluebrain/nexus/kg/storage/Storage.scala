@@ -10,7 +10,7 @@ import akka.stream.alpakka.s3
 import akka.stream.alpakka.s3.{ApiVersion, MemoryBufferType}
 import cats.effect.Effect
 import ch.epfl.bluebrain.nexus.commons.rdf.instances._
-import ch.epfl.bluebrain.nexus.iam.client.types.{AuthToken, Permission}
+import ch.epfl.bluebrain.nexus.iam.client.types.Permission
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig._
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary.nxv
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection.InvalidResourceFormat
@@ -29,7 +29,6 @@ import ch.epfl.bluebrain.nexus.storage.client.StorageClient
 import ch.epfl.bluebrain.nexus.storage.client.config.StorageClientConfig
 import com.amazonaws.auth._
 import com.amazonaws.regions.AwsRegionProvider
-import javax.crypto.SecretKey
 
 import scala.collection.JavaConverters._
 import scala.util.Try
@@ -127,6 +126,11 @@ sealed trait Storage { self =>
     */
   def encrypt(implicit config: StorageConfig): Storage
 
+  /**
+    * @return a new storage with the same values as the current but decrypting the sensitive information
+    */
+  def decrypt(implicit config: StorageConfig): Storage
+
 }
 
 object Storage {
@@ -162,6 +166,7 @@ object Storage {
 
     def reference: StorageReference                      = DiskStorageReference(id, rev)
     def encrypt(implicit config: StorageConfig): Storage = this
+    def decrypt(implicit config: StorageConfig): Storage = this
   }
 
   object DiskStorage {
@@ -219,15 +224,15 @@ object Storage {
 
     def reference: StorageReference = RemoteDiskStorageReference(id, rev)
 
-    def decryptAuthToken(implicit aesKey: SecretKey): Option[AuthToken] =
-      credentials.map(cred => AuthToken(cred.decrypt))
-
     def client[F[_]: Effect](implicit as: ActorSystem): StorageClient[F] = {
       implicit val config = StorageClientConfig(url"$endpoint".value)
       StorageClient[F]
     }
 
     def encrypt(implicit config: StorageConfig): Storage = copy(credentials = credentials.map(_.encrypt))
+
+    def decrypt(implicit config: StorageConfig): Storage = copy(credentials = credentials.map(_.decrypt))
+
   }
 
   /**
@@ -263,6 +268,12 @@ object Storage {
       copy(settings = settings.copy(credentials = settings.credentials.map {
         case S3Credentials(ak, as) => S3Credentials(ak.encrypt, as.encrypt)
       }))
+
+    def decrypt(implicit config: StorageConfig): Storage =
+      copy(settings = settings.copy(credentials = settings.credentials.map {
+        case S3Credentials(ak, as) => S3Credentials(ak.decrypt, as.decrypt)
+      }))
+
   }
 
   private implicit val permissionEncoder: NodeEncoder[Permission] = node =>
@@ -286,13 +297,12 @@ object Storage {
     }
 
     /**
-      * @param aesKey the AES key to decrypt credentials
       * @return these settings converted to an instance of [[akka.stream.alpakka.s3.S3Settings]]
       */
-    def toAlpakka(implicit aesKey: SecretKey): s3.S3Settings = {
+    def toAlpakka: s3.S3Settings = {
       val credsProvider = credentials match {
         case Some(S3Credentials(accessKey, secretKey)) =>
-          new AWSStaticCredentialsProvider(new BasicAWSCredentials(accessKey.decrypt, secretKey.decrypt))
+          new AWSStaticCredentialsProvider(new BasicAWSCredentials(accessKey, secretKey))
         case None => new AWSStaticCredentialsProvider(new AnonymousAWSCredentials)
       }
 
@@ -483,7 +493,7 @@ object Storage {
     }
 
     object Verify {
-      implicit final def apply[F[_]: Effect](implicit as: ActorSystem, config: StorageConfig): Verify[F] = {
+      implicit final def apply[F[_]: Effect](implicit as: ActorSystem): Verify[F] = {
         case s: DiskStorage       => new DiskStorageOperations.VerifyDiskStorage[F](s)
         case s: RemoteDiskStorage => new RemoteDiskStorageOperations.Verify(s, s.client)
         case s: S3Storage         => new S3StorageOperations.Verify[F](s)
@@ -501,7 +511,7 @@ object Storage {
     }
 
     object Fetch {
-      implicit final def apply[F[_]: Effect](implicit as: ActorSystem, config: StorageConfig): Fetch[F, AkkaSource] = {
+      implicit final def apply[F[_]: Effect](implicit as: ActorSystem): Fetch[F, AkkaSource] = {
         case _: DiskStorage       => new DiskStorageOperations.FetchDiskFile[F]
         case s: RemoteDiskStorage => new RemoteDiskStorageOperations.Fetch(s, s.client)
         case s: S3Storage         => new S3StorageOperations.Fetch(s)
@@ -519,7 +529,7 @@ object Storage {
     }
 
     object Save {
-      implicit final def apply[F[_]: Effect](implicit as: ActorSystem, config: StorageConfig): Save[F, AkkaSource] = {
+      implicit final def apply[F[_]: Effect](implicit as: ActorSystem): Save[F, AkkaSource] = {
         case s: DiskStorage       => new DiskStorageOperations.SaveDiskFile(s)
         case s: RemoteDiskStorage => new RemoteDiskStorageOperations.Save(s, s.client)
         case s: S3Storage         => new S3StorageOperations.Save(s)
@@ -536,7 +546,7 @@ object Storage {
     }
 
     object Link {
-      implicit final def apply[F[_]: Effect](implicit as: ActorSystem, config: StorageConfig): Link[F] = {
+      implicit final def apply[F[_]: Effect](implicit as: ActorSystem): Link[F] = {
         case _: DiskStorage       => new DiskStorageOperations.LinkDiskFile()
         case s: RemoteDiskStorage => new RemoteDiskStorageOperations.Link(s, s.client)
         case s: S3Storage         => new S3StorageOperations.Link(s)
@@ -553,7 +563,7 @@ object Storage {
     }
 
     object FetchDigest {
-      implicit final def apply[F[_]: Effect](implicit as: ActorSystem, config: StorageConfig): FetchDigest[F] = {
+      implicit final def apply[F[_]: Effect](implicit as: ActorSystem): FetchDigest[F] = {
         case _: DiskStorage       => new DiskStorageOperations.FetchDigest()
         case _: S3Storage         => new S3StorageOperations.FetchDigest()
         case s: RemoteDiskStorage => new RemoteDiskStorageOperations.FetchDigest(s, s.client)
