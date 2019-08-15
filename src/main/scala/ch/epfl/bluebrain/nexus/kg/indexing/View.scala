@@ -95,9 +95,10 @@ sealed trait View extends Product with Serializable {
     * For the case of ''AggregateView of ViewRef[ProjectLabel]'',
     * the conversion is successful when the the mapping ''projectLabel -> projectRef'' and the viewId exists on the ''cache''
     */
-  def referenced[F[_]](caller: Caller, acls: AccessControlLists)(implicit projectCache: ProjectCache[F],
-                                                                 viewCache: ViewCache[F],
-                                                                 F: Monad[F]): EitherT[F, Rejection, View] =
+  def referenced[F[_]](
+      caller: Caller,
+      acls: AccessControlLists
+  )(implicit projectCache: ProjectCache[F], viewCache: ViewCache[F], F: Monad[F]): EitherT[F, Rejection, View] =
     this match {
       case v: AggregateView[_] =>
         v.value match {
@@ -181,7 +182,8 @@ object View {
         implicit projectCache: ProjectCache[F],
         viewCache: ViewCache[F],
         caller: Caller,
-        acls: AccessControlLists): F[Set[T]] =
+        acls: AccessControlLists
+    ): F[Set[T]] =
       viewRefs.toList.foldM(Set.empty[T]) {
         case (acc, ViewRef(ref, id)) =>
           (viewCache.getBy[T](ref, id) -> projectCache.getLabel(ref)).mapN {
@@ -245,8 +247,8 @@ object View {
           case Right(labels) =>
             Right(AggregateElasticSearchView(labels, res.id.parent, uuid, res.id.value, res.rev, res.deprecated))
           case Left(_) =>
-            viewRefs[ProjectRef](cursorList).map(refs =>
-              AggregateElasticSearchView(refs, res.id.parent, uuid, res.id.value, res.rev, res.deprecated))
+            viewRefs[ProjectRef](cursorList)
+              .map(refs => AggregateElasticSearchView(refs, res.id.parent, uuid, res.id.value, res.rev, res.deprecated))
         }
       }
 
@@ -257,8 +259,8 @@ object View {
           case Right(labels) =>
             Right(AggregateSparqlView(labels, res.id.parent, uuid, res.id.value, res.rev, res.deprecated))
           case Left(_) =>
-            viewRefs[ProjectRef](cursorList).map(refs =>
-              AggregateSparqlView(refs, res.id.parent, uuid, res.id.value, res.rev, res.deprecated))
+            viewRefs[ProjectRef](cursorList)
+              .map(refs => AggregateSparqlView(refs, res.id.parent, uuid, res.id.value, res.rev, res.deprecated))
         }
       }
 
@@ -316,9 +318,11 @@ object View {
       *         when the index couldn't be created wrapped in an [[Either]]. The either is then wrapped in the
       *         effect type ''F''
       */
-    def createIndex[F[_]](implicit elasticSearch: ElasticSearchClient[F],
-                          config: ElasticSearchConfig,
-                          F: MonadError[F, Throwable]): F[Unit] =
+    def createIndex[F[_]](
+        implicit elasticSearch: ElasticSearchClient[F],
+        config: ElasticSearchConfig,
+        F: MonadError[F, Throwable]
+    ): F[Unit] =
       elasticSearch
         .createIndex(index)
         .flatMap(_ => elasticSearch.updateMapping(index, mapping))
@@ -389,8 +393,10 @@ object View {
       * @param pagination the pagination for the query
       * @tparam F the effect type
       */
-    def incoming[F[_]: Async](id: AbsoluteIri, pagination: FromPagination)(implicit client: BlazegraphClient[F],
-                                                                           config: SparqlConfig): F[LinkResults] =
+    def incoming[F[_]: Async](
+        id: AbsoluteIri,
+        pagination: FromPagination
+    )(implicit client: BlazegraphClient[F], config: SparqlConfig): F[LinkResults] =
       client.copy(namespace = index).queryRaw(replace(incomingQuery, id, pagination)).map(toSparqlLinks)
 
     /**
@@ -403,7 +409,8 @@ object View {
       */
     def outgoing[F[_]: Async](id: AbsoluteIri, pagination: FromPagination, includeExternalLinks: Boolean)(
         implicit client: BlazegraphClient[F],
-        config: SparqlConfig): F[LinkResults] =
+        config: SparqlConfig
+    ): F[LinkResults] =
       if (includeExternalLinks)
         client
           .copy(namespace = index)
@@ -469,12 +476,14 @@ object View {
       * Fetches each View from the ViewRefs and checks its deprecation status. It also checks if the permission for the project where the view is located
       * for the current client is ''views/query''.
       */
-    def queryableIndices[F[_]](implicit projectCache: ProjectCache[F],
-                               viewCache: ViewCache[F],
-                               acls: AccessControlLists,
-                               caller: Caller,
-                               config: ElasticSearchConfig,
-                               F: Monad[F]): F[Set[String]] =
+    def queryableIndices[F[_]](
+        implicit projectCache: ProjectCache[F],
+        viewCache: ViewCache[F],
+        acls: AccessControlLists,
+        caller: Caller,
+        config: ElasticSearchConfig,
+        F: Monad[F]
+    ): F[Set[String]] =
       value match {
         case `Set[ViewRef[ProjectRef]]`(viewRefs) => queryableViews[F, ElasticSearchView](viewRefs).map(_.map(_.index))
         case _                                    => F.pure(Set.empty)
@@ -504,11 +513,13 @@ object View {
       * Fetches each View from the ViewRefs and checks its deprecation status. It also checks if the permission for the project where the view is located
       * for the current client is ''views/query''.
       */
-    def queryableViews[F[_]](implicit projectCache: ProjectCache[F],
-                             viewCache: ViewCache[F],
-                             acls: AccessControlLists,
-                             caller: Caller,
-                             F: Monad[F]): F[Set[SparqlView]] =
+    def queryableViews[F[_]](
+        implicit projectCache: ProjectCache[F],
+        viewCache: ViewCache[F],
+        acls: AccessControlLists,
+        caller: Caller,
+        F: Monad[F]
+    ): F[Set[SparqlView]] =
       value match {
         case `Set[ViewRef[ProjectRef]]`(viewRefs) => queryableViews[F, SparqlView](viewRefs)
         case _                                    => F.pure(Set.empty)

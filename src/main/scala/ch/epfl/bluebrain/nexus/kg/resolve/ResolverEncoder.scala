@@ -34,7 +34,8 @@ object ResolverEncoder {
         val projTriples: Set[Triple] = projectsString.map(p => (rootNode, nxv.projects, p): Triple)
         RootedGraph(
           rootNode,
-          r.mainTriples(nxv.CrossProject) ++ r.triplesFor(identities) ++ r.triplesFor(resTypes) ++ projTriples)
+          r.mainTriples(nxv.CrossProject) ++ r.triplesFor(identities) ++ r.triplesFor(resTypes) ++ projTriples
+        )
     }
 
   implicit def resolverGraphEncoderEither(implicit config: IamClientConfig): GraphEncoder[EncoderResult, Resolver] =

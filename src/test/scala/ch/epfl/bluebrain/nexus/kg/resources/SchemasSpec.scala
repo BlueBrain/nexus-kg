@@ -43,7 +43,7 @@ class SchemasSpec
     with TestHelper
     with Inspectors {
 
-  override implicit def patienceConfig: PatienceConfig = PatienceConfig(6 seconds, 15 milliseconds)
+  override implicit def patienceConfig: PatienceConfig = PatienceConfig(7 seconds, 15 milliseconds)
 
   private implicit val appConfig              = Settings(system).appConfig
   private implicit val clock: Clock           = Clock.fixed(Instant.ofEpochSecond(3600), ZoneId.systemDefault())
@@ -70,21 +70,23 @@ class SchemasSpec
     val id                        = Iri.absolute(s"http://example.com/$genUUID").right.value
     lazy val resId                = Id(projectRef, id)
     val voc                       = Iri.absolute(s"http://example.com/voc/").right.value
-    implicit lazy val project = Project(resId.value,
-                                        "proj",
-                                        "org",
-                                        None,
-                                        base,
-                                        voc,
-                                        Map.empty,
-                                        projectRef.id,
-                                        genUUID,
-                                        1L,
-                                        deprecated = false,
-                                        Instant.EPOCH,
-                                        subject.id,
-                                        Instant.EPOCH,
-                                        subject.id)
+    implicit lazy val project = Project(
+      resId.value,
+      "proj",
+      "org",
+      None,
+      base,
+      voc,
+      Map.empty,
+      projectRef.id,
+      genUUID,
+      1L,
+      deprecated = false,
+      Instant.EPOCH,
+      subject.id,
+      Instant.EPOCH,
+      subject.id
+    )
     val schema = resolverSchema deepMerge Json.obj("@id" -> Json.fromString(id.asString))
 
   }
@@ -95,18 +97,22 @@ class SchemasSpec
 
       "create a new schema" in new Base {
         val resource = schemas.create(schema).value.accepted
-        resource shouldEqual ResourceF.simpleF(Id(projectRef, resource.id.value),
-                                               schema,
-                                               schema = shaclRef,
-                                               types = Set(nxv.Schema))
+        resource shouldEqual ResourceF.simpleF(
+          Id(projectRef, resource.id.value),
+          schema,
+          schema = shaclRef,
+          types = Set(nxv.Schema)
+        )
       }
 
       "create a new schema with the id passed on the call" in new Base {
         val resource = schemas.create(resId, schema).value.accepted
-        resource shouldEqual ResourceF.simpleF(Id(projectRef, resource.id.value),
-                                               schema,
-                                               schema = shaclRef,
-                                               types = Set(nxv.Schema))
+        resource shouldEqual ResourceF.simpleF(
+          Id(projectRef, resource.id.value),
+          schema,
+          schema = shaclRef,
+          types = Set(nxv.Schema)
+        )
       }
 
       "prevent to create a new schema with the id passed on the call not matching the @id on the payload" in new Base {
@@ -120,7 +126,8 @@ class SchemasSpec
       "update a schema" in new Base {
         schemas.create(resId, schema).value.accepted shouldBe a[Resource]
         val update = schema deepMerge Json.obj(
-          "@type" -> Json.arr(Json.fromString("nxv:Schema"), Json.fromString("nxv:Resolver")))
+          "@type" -> Json.arr(Json.fromString("nxv:Schema"), Json.fromString("nxv:Resolver"))
+        )
 
         schemas.update(resId, 1L, update).value.accepted shouldEqual
           ResourceF.simpleF(resId, update, 2L, schema = shaclRef, types = Set(nxv.Schema, nxv.Resolver))
@@ -142,12 +149,13 @@ class SchemasSpec
         schemas.update(viewSchemaId, 1L, viewSchemaWithImports).value.accepted shouldBe a[Resource]
 
         val viewSchemaWithOwnImports = viewSchemaWithId deepMerge Json.obj(
-          "imports" -> Json.fromString(viewSchemaId.value.asString))
+          "imports" -> Json.fromString(viewSchemaId.value.asString)
+        )
         schemas.update(viewSchemaId, 2L, viewSchemaWithOwnImports).value.accepted shouldBe a[Resource]
       }
 
       "prevent to update a schema that does not exists" in new Base {
-        schemas.update(resId, 1L, schema).value.rejected[NotFound] shouldEqual NotFound(resId.ref, Some(1L))
+        schemas.update(resId, 1L, schema).value.rejected[NotFound] shouldEqual NotFound(resId.ref)
       }
     }
 

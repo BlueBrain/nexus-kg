@@ -19,7 +19,8 @@ import shapeless.{TypeCase, Typeable}
 class ViewCache[F[_]: Timer] private (projectToCache: ConcurrentHashMap[UUID, ViewProjectCache[F]])(
     implicit as: ActorSystem,
     F: Async[F],
-    config: KeyValueStoreConfig) {
+    config: KeyValueStoreConfig
+) {
 
   /**
     * Fetches views for the provided project.
@@ -112,7 +113,8 @@ private class ViewProjectCache[F[_]] private (store: KeyValueStore[F, AbsoluteIr
 private object ViewProjectCache {
 
   def apply[F[_]: Timer](
-      project: ProjectRef)(implicit as: ActorSystem, config: KeyValueStoreConfig, F: Async[F]): ViewProjectCache[F] = {
+      project: ProjectRef
+  )(implicit as: ActorSystem, config: KeyValueStoreConfig, F: Async[F]): ViewProjectCache[F] = {
     import ch.epfl.bluebrain.nexus.kg.instances.kgErrorMonadError
     new ViewProjectCache(KeyValueStore.distributed(s"view-${project.id}", (_, view) => view.rev, mapError))(F)
   }

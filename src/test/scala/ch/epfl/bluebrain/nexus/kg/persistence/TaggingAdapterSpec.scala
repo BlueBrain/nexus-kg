@@ -26,17 +26,21 @@ class TaggingAdapterSpec extends WordSpecLike with Matchers with Inspectors with
     val id      = Id(ProjectRef(genUUID), nxv.projects)
 
     val mapping = Map(
-      Set(s"type=${nxv.Schema.value.show}",
-          s"type=${nxv.Resource.value.show}",
-          s"project=${id.parent.id}",
-          s"org=${orgRef.show}",
-          "event") ->
+      Set(
+        s"type=${nxv.Schema.value.show}",
+        s"type=${nxv.Resource.value.show}",
+        s"project=${id.parent.id}",
+        s"org=${orgRef.show}",
+        "event"
+      ) ->
         Created(id, orgRef, Ref(shaclSchemaUri), Set(nxv.Schema, nxv.Resource), genJson(), clock.instant(), Anonymous),
-      Set(s"type=${nxv.Resolver.value.show}",
-          s"type=${nxv.Resource.value.show}",
-          s"project=${id.parent.id}",
-          s"org=${orgRef.show}",
-          "event") ->
+      Set(
+        s"type=${nxv.Resolver.value.show}",
+        s"type=${nxv.Resource.value.show}",
+        s"project=${id.parent.id}",
+        s"org=${orgRef.show}",
+        "event"
+      ) ->
         Updated(id, orgRef, 1L, Set(nxv.Resource, nxv.Resolver), genJson(), clock.instant(), Anonymous),
       Set(s"type=${nxv.Resource.value.show}", s"project=${id.parent.id}", s"org=${orgRef.show}", "event") ->
         Deprecated(id, orgRef, 1L, Set(nxv.Resource), clock.instant(), Anonymous),

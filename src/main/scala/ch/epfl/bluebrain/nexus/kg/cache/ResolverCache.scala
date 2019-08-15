@@ -16,7 +16,8 @@ import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 class ResolverCache[F[_]: Timer] private (projectToCache: ConcurrentHashMap[UUID, ResolverProjectCache[F]])(
     implicit as: ActorSystem,
     F: Async[F],
-    config: KeyValueStoreConfig) {
+    config: KeyValueStoreConfig
+) {
 
   /**
     * Fetches resolvers for the provided project.
@@ -68,12 +69,13 @@ private class ResolverProjectCache[F[_]] private (store: KeyValueStore[F, Absolu
 
 private object ResolverProjectCache {
 
-  def apply[F[_]: Timer](project: ProjectRef)(implicit as: ActorSystem,
-                                              config: KeyValueStoreConfig,
-                                              F: Async[F]): ResolverProjectCache[F] = {
+  def apply[F[_]: Timer](
+      project: ProjectRef
+  )(implicit as: ActorSystem, config: KeyValueStoreConfig, F: Async[F]): ResolverProjectCache[F] = {
     import ch.epfl.bluebrain.nexus.kg.instances.kgErrorMonadError
     new ResolverProjectCache(
-      KeyValueStore.distributed(s"resolver-${project.id}", (_, resolver) => resolver.rev, mapError))(F)
+      KeyValueStore.distributed(s"resolver-${project.id}", (_, resolver) => resolver.rev, mapError)
+    )(F)
   }
 
 }

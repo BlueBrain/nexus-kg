@@ -17,12 +17,14 @@ import scala.concurrent.Future
 
 package object routes {
 
-  private[routes] def completeWithFormat(fetched: Future[Either[Rejection, (StatusCode, ResourceV)]])(
-      implicit format: NonBinaryOutputFormat): Route =
+  private[routes] def completeWithFormat(
+      fetched: Future[Either[Rejection, (StatusCode, ResourceV)]]
+  )(implicit format: NonBinaryOutputFormat): Route =
     completeWithFormat(EitherT(fetched))
 
-  private def completeWithFormat(fetched: EitherT[Future, Rejection, (StatusCode, ResourceV)])(
-      implicit format: NonBinaryOutputFormat): Route =
+  private def completeWithFormat(
+      fetched: EitherT[Future, Rejection, (StatusCode, ResourceV)]
+  )(implicit format: NonBinaryOutputFormat): Route =
     format match {
       case f: JsonLDOutputFormat =>
         implicit val format = f

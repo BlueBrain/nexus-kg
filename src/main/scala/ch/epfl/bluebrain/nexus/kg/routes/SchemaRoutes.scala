@@ -26,12 +26,14 @@ import kamon.instrumentation.akka.http.TracingDirectives.operationName
 import monix.eval.Task
 import monix.execution.Scheduler.Implicits.global
 
-class SchemaRoutes private[routes] (schemas: Schemas[Task], tags: Tags[Task])(implicit acls: AccessControlLists,
-                                                                              caller: Caller,
-                                                                              project: Project,
-                                                                              viewCache: ViewCache[Task],
-                                                                              indexers: Clients[Task],
-                                                                              config: AppConfig) {
+class SchemaRoutes private[routes] (schemas: Schemas[Task], tags: Tags[Task])(
+    implicit acls: AccessControlLists,
+    caller: Caller,
+    project: Project,
+    viewCache: ViewCache[Task],
+    indexers: Clients[Task],
+    config: AppConfig
+) {
 
   import indexers._
 

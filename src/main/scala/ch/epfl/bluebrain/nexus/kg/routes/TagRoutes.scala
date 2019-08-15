@@ -26,7 +26,8 @@ class TagRoutes private[routes] (resourceType: String, tags: Tags[Task], schema:
     implicit acls: AccessControlLists,
     caller: Caller,
     project: Project,
-    config: AppConfig) {
+    config: AppConfig
+) {
 
   /**
     * Routes for tags when the id is specified.

@@ -14,7 +14,9 @@ import ch.epfl.bluebrain.nexus.commons.shacl.ShaclEngine
 import ch.epfl.bluebrain.nexus.commons.sparql.client.BlazegraphClient
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity.Subject
 import ch.epfl.bluebrain.nexus.kg.KgError.InternalError
+import ch.epfl.bluebrain.nexus.kg.cache.StorageCache
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig
+import ch.epfl.bluebrain.nexus.kg.config.AppConfig.StorageConfig
 import ch.epfl.bluebrain.nexus.kg.config.Contexts._
 import ch.epfl.bluebrain.nexus.kg.config.Schemas._
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary._
@@ -39,7 +41,12 @@ import ch.epfl.bluebrain.nexus.rdf.syntax._
 import io.circe.Json
 import org.apache.jena.rdf.model.Model
 
-class Storages[F[_]: Timer](repo: Repo[F])(implicit F: Effect[F], materializer: Materializer[F], config: AppConfig) {
+class Storages[F[_]: Timer](repo: Repo[F])(
+    implicit F: Effect[F],
+    materializer: Materializer[F],
+    config: AppConfig,
+    cache: StorageCache[F]
+) {
 
   /**
     * Creates a new storage attempting to extract the id from the source. If a primary node of the resulting graph
@@ -64,8 +71,10 @@ class Storages[F[_]: Timer](repo: Repo[F])(implicit F: Effect[F], materializer: 
     * @param source the source representation in json-ld format
     * @return either a rejection or the newly created resource in the F context
     */
-  def create(id: ResId,
-             source: Json)(implicit subject: Subject, verify: Verify[F], project: Project): RejOrResource[F] =
+  def create(
+      id: ResId,
+      source: Json
+  )(implicit subject: Subject, verify: Verify[F], project: Project): RejOrResource[F] =
     materializer(source.addContext(storageCtxUri), id.value).flatMap {
       case Value(_, _, graph) => create(id, graph)
     }
@@ -78,18 +87,20 @@ class Storages[F[_]: Timer](repo: Repo[F])(implicit F: Effect[F], materializer: 
     * @param source    the new source representation in json-ld format
     * @return either a rejection or the updated resource in the F context
     */
-  def update(id: ResId, rev: Long, source: Json)(implicit subject: Subject,
-                                                 verify: Verify[F],
-                                                 project: Project): RejOrResource[F] =
+  def update(
+      id: ResId,
+      rev: Long,
+      source: Json
+  )(implicit subject: Subject, verify: Verify[F], project: Project): RejOrResource[F] =
     for {
-      _        <- repo.get(id, rev, Some(storageRef)).toRight(NotFound(id.ref, Some(rev)))
       matValue <- materializer(source.addContext(storageCtxUri), id.value)
       typedGraph = addStorageType(id.value, matValue.graph)
       types      = typedGraph.rootTypes.map(_.value)
       _       <- validateShacl(typedGraph)
       storage <- storageValidation(id, typedGraph, 1L, types)
-      json    <- jsonForRepo(storage)
-      updated <- repo.update(id, rev, types, json)
+      json    <- jsonForRepo(storage.encrypt)
+      updated <- repo.update(id, storageRef, rev, types, json)
+      _       <- EitherT.right(cache.put(storage)(updated.updated))
     } yield updated
 
   /**
@@ -100,7 +111,7 @@ class Storages[F[_]: Timer](repo: Repo[F])(implicit F: Effect[F], materializer: 
     * @return Some(resource) in the F context when found and None in the F context when not found
     */
   def deprecate(id: ResId, rev: Long)(implicit subject: Subject): RejOrResource[F] =
-    repo.get(id, rev, Some(storageRef)).toRight(NotFound(id.ref, Some(rev))).flatMap(_ => repo.deprecate(id, rev))
+    repo.deprecate(id, storageRef, rev)
 
   /**
     * Fetches the latest revision of a storage.
@@ -108,9 +119,9 @@ class Storages[F[_]: Timer](repo: Repo[F])(implicit F: Effect[F], materializer: 
     * @param id the id of the resolver
     * @return Some(storage) in the F context when found and None in the F context when not found
     */
-  def fetchStorage(id: ResId)(implicit project: Project): EitherT[F, Rejection, TimedStorage] = {
-    val repoOrNotFound = repo.get(id, Some(storageRef)).toRight(notFound(id.ref))
-    repoOrNotFound.flatMap(fetch(_, dropKeys = false)).subflatMap(r => Storage(r, encrypt = false).map(_ -> r.updated))
+  def fetchStorage(id: ResId)(implicit project: Project, config: StorageConfig): EitherT[F, Rejection, TimedStorage] = {
+    val repoOrNotFound = repo.get(id, Some(storageRef)).toRight(notFound(id.ref, schema = Some(storageRef)))
+    repoOrNotFound.flatMap(fetch(_, dropKeys = false)).subflatMap(r => Storage(r).map(_.decrypt -> r.updated))
   }
 
   /**
@@ -120,7 +131,10 @@ class Storages[F[_]: Timer](repo: Repo[F])(implicit F: Effect[F], materializer: 
     * @return Some(resource) in the F context when found and None in the F context when not found
     */
   def fetch(id: ResId)(implicit project: Project): RejOrResourceV[F] =
-    repo.get(id, Some(storageRef)).toRight(notFound(id.ref)).flatMap(fetch(_, dropKeys = true))
+    repo
+      .get(id, Some(storageRef))
+      .toRight(notFound(id.ref, schema = Some(storageRef)))
+      .flatMap(fetch(_, dropKeys = true))
 
   /**
     * Fetches the provided revision of a storage
@@ -130,7 +144,10 @@ class Storages[F[_]: Timer](repo: Repo[F])(implicit F: Effect[F], materializer: 
     * @return Some(resource) in the F context when found and None in the F context when not found
     */
   def fetch(id: ResId, rev: Long)(implicit project: Project): RejOrResourceV[F] =
-    repo.get(id, rev, Some(storageRef)).toRight(notFound(id.ref, Some(rev))).flatMap(fetch(_, dropKeys = true))
+    repo
+      .get(id, rev, Some(storageRef))
+      .toRight(notFound(id.ref, Some(rev), schema = Some(storageRef)))
+      .flatMap(fetch(_, dropKeys = true))
 
   /**
     * Fetches the provided tag of a storage.
@@ -140,7 +157,10 @@ class Storages[F[_]: Timer](repo: Repo[F])(implicit F: Effect[F], materializer: 
     * @return Some(resource) in the F context when found and None in the F context when not found
     */
   def fetch(id: ResId, tag: String)(implicit project: Project): RejOrResourceV[F] =
-    repo.get(id, tag, Some(storageRef)).toRight(notFound(id.ref, tagOpt = Some(tag))).flatMap(fetch(_, dropKeys = true))
+    repo
+      .get(id, tag, Some(storageRef))
+      .toRight(notFound(id.ref, tag = Some(tag), schema = Some(storageRef)))
+      .flatMap(fetch(_, dropKeys = true))
 
   /**
     * Lists storages on the given project
@@ -152,7 +172,8 @@ class Storages[F[_]: Timer](repo: Repo[F])(implicit F: Effect[F], materializer: 
     */
   def list(view: Option[ElasticSearchView], params: SearchParams, pagination: Pagination)(
       implicit tc: HttpClient[F, JsonResults],
-      elasticSearch: ElasticSearchClient[F]): F[JsonResults] =
+      elasticSearch: ElasticSearchClient[F]
+  ): F[JsonResults] =
     listResources(view, params.copy(schema = Some(storageSchemaUri)), pagination)
 
   /**
@@ -164,7 +185,8 @@ class Storages[F[_]: Timer](repo: Repo[F])(implicit F: Effect[F], materializer: 
     * @return search results in the F context
     */
   def listIncoming(id: AbsoluteIri, view: Option[SparqlView], pagination: FromPagination)(
-      implicit sparql: BlazegraphClient[F]): F[LinkResults] =
+      implicit sparql: BlazegraphClient[F]
+  ): F[LinkResults] =
     incoming(id, view, pagination)
 
   /**
@@ -176,10 +198,12 @@ class Storages[F[_]: Timer](repo: Repo[F])(implicit F: Effect[F], materializer: 
     * @param includeExternalLinks flag to decide whether or not to include external links (not Nexus managed) in the query result
     * @return search results in the F context
     */
-  def listOutgoing(id: AbsoluteIri,
-                   view: Option[SparqlView],
-                   pagination: FromPagination,
-                   includeExternalLinks: Boolean)(implicit sparql: BlazegraphClient[F]): F[LinkResults] =
+  def listOutgoing(
+      id: AbsoluteIri,
+      view: Option[SparqlView],
+      pagination: FromPagination,
+      includeExternalLinks: Boolean
+  )(implicit sparql: BlazegraphClient[F]): F[LinkResults] =
     outgoing(id, view, pagination, includeExternalLinks)
 
   private def fetch(resource: Resource, dropKeys: Boolean)(implicit project: Project): RejOrResourceV[F] =
@@ -190,18 +214,20 @@ class Storages[F[_]: Timer](repo: Repo[F])(implicit F: Effect[F], materializer: 
       resourceV.map(_.copy(graph = RootedGraph(graph.rootNode, finalGraph)))
     }
 
-  private def create(id: ResId, graph: RootedGraph)(implicit subject: Subject,
-                                                    project: Project,
-                                                    verify: Verify[F]): RejOrResource[F] = {
+  private def create(
+      id: ResId,
+      graph: RootedGraph
+  )(implicit subject: Subject, project: Project, verify: Verify[F]): RejOrResource[F] = {
     val typedGraph = addStorageType(id.value, graph)
     val types      = typedGraph.rootTypes.map(_.value)
 
     for {
-      _        <- validateShacl(typedGraph)
-      storage  <- storageValidation(id, typedGraph, 1L, types)
-      json     <- jsonForRepo(storage)
-      resource <- repo.create(id, OrganizationRef(project.organizationUuid), storageRef, types, json)
-    } yield resource
+      _       <- validateShacl(typedGraph)
+      storage <- storageValidation(id, typedGraph, 1L, types)
+      json    <- jsonForRepo(storage.encrypt)
+      created <- repo.create(id, OrganizationRef(project.organizationUuid), storageRef, types, json)
+      _       <- EitherT.right(cache.put(storage)(created.updated))
+    } yield created
   }
 
   private def addStorageType(id: AbsoluteIri, graph: RootedGraph): RootedGraph =
@@ -214,16 +240,18 @@ class Storages[F[_]: Timer](repo: Repo[F])(implicit F: Effect[F], materializer: 
       case Some(r)                => EitherT.leftT(InvalidResource(storageRef, r))
       case _ =>
         EitherT(
-          F.raiseError(InternalError(s"Unexpected error while attempting to validate schema '$storageSchemaUri'")))
+          F.raiseError(InternalError(s"Unexpected error while attempting to validate schema '$storageSchemaUri'"))
+        )
     }
   }
 
   private def storageValidation(resId: ResId, graph: RootedGraph, rev: Long, types: Set[AbsoluteIri])(
-      implicit verify: Verify[F]): EitherT[F, Rejection, Storage] = {
+      implicit verify: Verify[F]
+  ): EitherT[F, Rejection, Storage] = {
     val resource =
       ResourceF.simpleV(resId, Value(Json.obj(), Json.obj(), graph), rev = rev, types = types, schema = storageRef)
 
-    EitherT.fromEither[F](Storage(resource, encrypt = true)).flatMap { storage =>
+    EitherT.fromEither[F](Storage(resource)).flatMap { storage =>
       EitherT(storage.isValid.apply).map(_ => storage).leftMap(msg => InvalidResourceFormat(resId.value.ref, msg))
     }
   }
@@ -244,6 +272,10 @@ object Storages {
     * @tparam F the monadic effect type
     * @return a new [[Storages]] for the provided F type
     */
-  final def apply[F[_]: Timer: Effect: Materializer](implicit config: AppConfig, repo: Repo[F]): Storages[F] =
+  final def apply[F[_]: Timer: Effect: Materializer](
+      implicit config: AppConfig,
+      repo: Repo[F],
+      cache: StorageCache[F]
+  ): Storages[F] =
     new Storages[F](repo)
 }

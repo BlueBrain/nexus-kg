@@ -1,7 +1,5 @@
 package ch.epfl.bluebrain.nexus.kg.storage
 
-import java.nio.file.Paths
-
 import akka.http.scaladsl.model.ContentTypes._
 import akka.http.scaladsl.model.Uri
 import akka.stream.{ActorMaterializer, Materializer}
@@ -10,9 +8,7 @@ import ch.epfl.bluebrain.nexus.commons.test.io.IOEitherValues
 import ch.epfl.bluebrain.nexus.commons.test.{ActorSystemFixture, Resources}
 import ch.epfl.bluebrain.nexus.iam.client.types.{AuthToken, Permission}
 import ch.epfl.bluebrain.nexus.kg.TestHelper
-import ch.epfl.bluebrain.nexus.kg.config.AppConfig._
 import ch.epfl.bluebrain.nexus.kg.resources.file.File.{Digest, FileAttributes, FileDescription}
-import ch.epfl.bluebrain.nexus.kg.resources.syntax._
 import ch.epfl.bluebrain.nexus.kg.resources.{Id, ProjectRef}
 import ch.epfl.bluebrain.nexus.kg.storage.Storage.RemoteDiskStorage
 import ch.epfl.bluebrain.nexus.storage.client.StorageClient
@@ -35,20 +31,12 @@ class RemoteDiskStorageOperationsSpec
 
   private implicit val mt: Materializer = ActorMaterializer()
 
-  private implicit val sc: StorageConfig = StorageConfig(
-    DiskStorageConfig(Paths.get("/tmp"), "SHA-256", read, write, false, 1024L),
-    RemoteDiskStorageConfig("http://example.com", None, "SHA-256", read, write, true, 1024L),
-    S3StorageConfig("MD5", read, write, true, 1024L),
-    "password",
-    "salt"
-  )
-
   sealed trait Ctx {
     val cred                              = genString()
     implicit val token: Option[AuthToken] = Some(AuthToken(cred))
     val path                              = Uri.Path(s"${genString()}/${genString()}")
     // format: off
-    val storage = RemoteDiskStorage(ProjectRef(genUUID), genIri, 1L, false, false, "SHA-256", endpoint, Some(cred.encrypt), genString(), Permission.unsafe(genString()), Permission.unsafe(genString()), 1024L)
+    val storage = RemoteDiskStorage(ProjectRef(genUUID), genIri, 1L, false, false, "SHA-256", endpoint, Some(cred), genString(), Permission.unsafe(genString()), Permission.unsafe(genString()), 1024L)
     val attributes = FileAttributes(s"$endpoint/${storage.folder}/$path", path, s"${genString()}.json", `application/json`, 12L, Digest("SHA-256", genString()))
     // format: on
   }
@@ -91,9 +79,12 @@ class RemoteDiskStorageOperationsSpec
       val destRelativePath = Uri.Path(mangle(storage.ref, attributes.uuid, attributes.filename))
       client.moveFile(storage.folder, sourcePath, destRelativePath) shouldReturn
         IO(
-          StorageFileAttributes(attributes.location,
-                                attributes.bytes,
-                                StorageDigest(attributes.digest.algorithm, attributes.digest.value)))
+          StorageFileAttributes(
+            attributes.location,
+            attributes.bytes,
+            StorageDigest(attributes.digest.algorithm, attributes.digest.value)
+          )
+        )
       val link = new RemoteDiskStorageOperations.Link[IO](storage, client)
       link
         .apply(id, FileDescription(attributes.uuid, attributes.filename, attributes.mediaType), sourcePath)

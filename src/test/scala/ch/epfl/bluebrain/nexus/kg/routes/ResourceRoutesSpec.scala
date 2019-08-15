@@ -81,6 +81,7 @@ class ResourceRoutesSpec
   private implicit val storageCache  = mock[StorageCache[Task]]
   private implicit val resources     = mock[Resources[Task]]
   private implicit val tagsRes       = mock[Tags[Task]]
+  private implicit val initializer   = mock[ProjectInitializer[Task]]
 
   private implicit val cacheAgg = Caches(projectCache, viewCache, resolverCache, storageCache)
 
@@ -115,8 +116,10 @@ class ResourceRoutesSpec
 
     val json = Json.obj("key" -> Json.fromString(genString()))
 
-    val defaultCtxValue = Json.obj("@base" -> Json.fromString("http://example.com/base/"),
-                                   "@vocab" -> Json.fromString("http://example.com/voc/"))
+    val defaultCtxValue = Json.obj(
+      "@base"  -> Json.fromString("http://example.com/base/"),
+      "@vocab" -> Json.fromString("http://example.com/voc/")
+    )
 
     val jsonWithCtx = json deepMerge Json.obj("@context" -> defaultCtxValue)
 
@@ -124,9 +127,11 @@ class ResourceRoutesSpec
       response(unconstrainedRef) deepMerge Json.obj(
         "_self" -> Json.fromString(s"http://127.0.0.1:8080/v1/resources/$organization/$project/_/nxv:$genUuid"),
         "_incoming" -> Json.fromString(
-          s"http://127.0.0.1:8080/v1/resources/$organization/$project/_/nxv:$genUuid/incoming"),
+          s"http://127.0.0.1:8080/v1/resources/$organization/$project/_/nxv:$genUuid/incoming"
+        ),
         "_outgoing" -> Json.fromString(
-          s"http://127.0.0.1:8080/v1/resources/$organization/$project/_/nxv:$genUuid/outgoing")
+          s"http://127.0.0.1:8080/v1/resources/$organization/$project/_/nxv:$genUuid/outgoing"
+        )
       )
 
     val resource =
@@ -135,11 +140,10 @@ class ResourceRoutesSpec
     // format: off
     val resourceValue = Value(jsonWithCtx, defaultCtxValue, jsonWithCtx.deepMerge(Json.obj("@id" -> Json.fromString(id.value.asString))).asGraph(id.value).right.value)
     // format: on
-
     val resourceV =
       ResourceF.simpleV(id, resourceValue, created = user, updated = user, schema = unconstrainedRef)
 
-    resources.fetch(id, MetadataOptions()) shouldReturn EitherT.rightT[Task, Rejection](resourceV)
+    resources.fetchSchema(id) shouldReturn EitherT.rightT[Task, Rejection](unconstrainedRef)
   }
 
   "The resources routes" should {
@@ -208,7 +212,8 @@ class ResourceRoutesSpec
       tagsRes.create(id, 1L, tagJson, unconstrainedRef) shouldReturn EitherT.rightT[Task, Rejection](resource)
 
       Post(s"/v1/resources/$organization/$project/resource/$urlEncodedId/tags?rev=1", tagJson) ~> addCredentials(
-        oauthToken) ~> routes ~> check {
+        oauthToken
+      ) ~> routes ~> check {
         status shouldEqual StatusCodes.Created
         responseAs[Json] should equalIgnoreArrayOrder(resourceResponse())
       }
@@ -249,15 +254,16 @@ class ResourceRoutesSpec
           .value
           .removeKeys("@context")
 
-      Get(s"/v1/resources/$organization/$project/resource/$urlEncodedId?rev=1") ~> addCredentials(oauthToken) ~> Accept(
-        MediaRanges.`*/*`) ~> routes ~> check {
-        status shouldEqual StatusCodes.OK
-        responseAs[Json].removeKeys("@context") should equalIgnoreArrayOrder(expected)
-      }
-      Get(s"/v1/resources/$organization/$project/_/$urlEncodedId?rev=1") ~> addCredentials(oauthToken) ~> Accept(
-        MediaRanges.`*/*`) ~> routes ~> check {
-        status shouldEqual StatusCodes.OK
-        responseAs[Json].removeKeys("@context") should equalIgnoreArrayOrder(expected)
+      val endpoints = List(
+        s"/v1/resources/${projectMeta.organizationUuid}/${projectMeta.uuid}/_/$urlEncodedId?rev=1",
+        s"/v1/resources/$organization/$project/resource/$urlEncodedId?rev=1",
+        s"/v1/resources/$organization/$project/_/$urlEncodedId?rev=1"
+      )
+      forAll(endpoints) { endpoint =>
+        Get(endpoint) ~> addCredentials(oauthToken) ~> Accept(MediaRanges.`*/*`) ~> routes ~> check {
+          status shouldEqual StatusCodes.OK
+          responseAs[Json].removeKeys("@context") should equalIgnoreArrayOrder(expected)
+        }
       }
     }
 
@@ -270,15 +276,16 @@ class ResourceRoutesSpec
           .value
           .removeKeys("@context")
 
-      Get(s"/v1/resources/$organization/$project/resource/$urlEncodedId?tag=some") ~> addCredentials(oauthToken) ~> Accept(
-        MediaRanges.`*/*`) ~> routes ~> check {
-        status shouldEqual StatusCodes.OK
-        responseAs[Json].removeKeys("@context") should equalIgnoreArrayOrder(expected)
-      }
-      Get(s"/v1/resources/$organization/$project/_/$urlEncodedId?tag=some") ~> addCredentials(oauthToken) ~> Accept(
-        MediaRanges.`*/*`) ~> routes ~> check {
-        status shouldEqual StatusCodes.OK
-        responseAs[Json].removeKeys("@context") should equalIgnoreArrayOrder(expected)
+      val endpoints = List(
+        s"/v1/resources/${projectMeta.organizationUuid}/${projectMeta.uuid}/_/$urlEncodedId?tag=some",
+        s"/v1/resources/$organization/$project/resource/$urlEncodedId?tag=some",
+        s"/v1/resources/$organization/$project/_/$urlEncodedId?tag=some"
+      )
+      forAll(endpoints) { endpoint =>
+        Get(endpoint) ~> addCredentials(oauthToken) ~> Accept(MediaRanges.`*/*`) ~> routes ~> check {
+          status shouldEqual StatusCodes.OK
+          responseAs[Json].removeKeys("@context") should equalIgnoreArrayOrder(expected)
+        }
       }
     }
 
@@ -316,7 +323,8 @@ class ResourceRoutesSpec
       viewCache.getDefaultSparql(projectRef) shouldReturn Task(Some(defaultSparqlView))
       resources.listIncoming(id.value, Some(defaultSparqlView), FromPagination(1, 10)) shouldReturn Task(links)
       Get(s"/v1/resources/$organization/$project/resource/$urlEncodedId/incoming?from=1&size=10") ~> addCredentials(
-        oauthToken) ~> routes ~> check {
+        oauthToken
+      ) ~> routes ~> check {
         status shouldEqual StatusCodes.OK
         val next =
           s"http://127.0.0.1:8080/v1/resources/$organization/$project/resource/$urlEncodedIdNoColon/incoming?from=11&size=10"
@@ -329,8 +337,8 @@ class ResourceRoutesSpec
       resources.listOutgoing(id.value, Some(defaultSparqlView), FromPagination(5, 10), includeExternalLinks = true) shouldReturn
         Task(links)
       Get(
-        s"/v1/resources/$organization/$project/resource/$urlEncodedId/outgoing?from=5&size=10&includeExternalLinks=true") ~> addCredentials(
-        oauthToken) ~> routes ~> check {
+        s"/v1/resources/$organization/$project/resource/$urlEncodedId/outgoing?from=5&size=10&includeExternalLinks=true"
+      ) ~> addCredentials(oauthToken) ~> routes ~> check {
         status shouldEqual StatusCodes.OK
         val next =
           s"http://127.0.0.1:8080/v1/resources/$organization/$project/resource/$urlEncodedIdNoColon/outgoing?from=15&size=10&includeExternalLinks=true"
@@ -343,8 +351,8 @@ class ResourceRoutesSpec
       resources.listOutgoing(id.value, Some(defaultSparqlView), FromPagination(1, 10), includeExternalLinks = false) shouldReturn
         Task(links)
       Get(
-        s"/v1/resources/$organization/$project/resource/$urlEncodedId/outgoing?from=1&size=10&includeExternalLinks=false") ~> addCredentials(
-        oauthToken) ~> routes ~> check {
+        s"/v1/resources/$organization/$project/resource/$urlEncodedId/outgoing?from=1&size=10&includeExternalLinks=false"
+      ) ~> addCredentials(oauthToken) ~> routes ~> check {
         status shouldEqual StatusCodes.OK
         val next =
           s"http://127.0.0.1:8080/v1/resources/$organization/$project/resource/$urlEncodedIdNoColon/outgoing?from=11&size=10&includeExternalLinks=false"
@@ -354,9 +362,11 @@ class ResourceRoutesSpec
 
     "list resources of a schema" in new Context {
       val resultElem = Json.obj("one" -> Json.fromString("two"))
-      val expectedList: JsonResults = UnscoredQueryResults(1L,
-                                                           List(UnscoredQueryResult(resultElem)),
-                                                           Some(Json.arr(Json.fromString("some")).noSpaces))
+      val expectedList: JsonResults = UnscoredQueryResults(
+        1L,
+        List(UnscoredQueryResult(resultElem)),
+        Some(Json.arr(Json.fromString("some")).noSpaces)
+      )
       viewCache.getDefaultElasticSearch(projectRef) shouldReturn Task(Some(defaultEsView))
       val params     = SearchParams(schema = Some(unconstrainedSchemaUri), deprecated = Some(false))
       val pagination = Pagination(20)
@@ -371,7 +381,8 @@ class ResourceRoutesSpec
       )
 
       Get(s"/v1/resources/$organization/$project/resource?deprecated=false") ~> addCredentials(oauthToken) ~> Accept(
-        MediaRanges.`*/*`) ~> routes ~> check {
+        MediaRanges.`*/*`
+      ) ~> routes ~> check {
         status shouldEqual StatusCodes.OK
         responseAs[Json].removeKeys("@context") shouldEqual expected
       }
@@ -390,25 +401,29 @@ class ResourceRoutesSpec
       val expected = Json.obj("_total" -> Json.fromLong(1L), "_results" -> Json.arr(resultElem))
 
       Get(s"/v1/resources/$organization/$project?deprecated=false") ~> addCredentials(oauthToken) ~> Accept(
-        MediaRanges.`*/*`) ~> routes ~> check {
+        MediaRanges.`*/*`
+      ) ~> routes ~> check {
         status shouldEqual StatusCodes.OK
         responseAs[Json].removeKeys("@context") shouldEqual expected.deepMerge(
           Json.obj(
             "_next" -> Json.fromString(
               s"http://127.0.0.1:8080/v1/resources/$organization/$project?deprecated=false&after=%5B%22two%22%5D"
             )
-          ))
+          )
+        )
       }
 
       Get(s"/v1/resources/$organization/$project/_?deprecated=false") ~> addCredentials(oauthToken) ~> Accept(
-        MediaRanges.`*/*`) ~> routes ~> check {
+        MediaRanges.`*/*`
+      ) ~> routes ~> check {
         status shouldEqual StatusCodes.OK
         responseAs[Json].removeKeys("@context") shouldEqual expected.deepMerge(
           Json.obj(
             "_next" -> Json.fromString(
               s"http://127.0.0.1:8080/v1/resources/$organization/$project/_?deprecated=false&after=%5B%22two%22%5D"
             )
-          ))
+          )
+        )
       }
     }
 
@@ -426,25 +441,29 @@ class ResourceRoutesSpec
       val expected = Json.obj("_total" -> Json.fromLong(1L), "_results" -> Json.arr(resultElem))
 
       Get(s"/v1/resources/$organization/$project?deprecated=false&after=%5B%22one%22%5D") ~> addCredentials(oauthToken) ~> Accept(
-        MediaRanges.`*/*`) ~> routes ~> check {
+        MediaRanges.`*/*`
+      ) ~> routes ~> check {
         status shouldEqual StatusCodes.OK
         responseAs[Json].removeKeys("@context") shouldEqual expected.deepMerge(
           Json.obj(
             "_next" -> Json.fromString(
               s"http://127.0.0.1:8080/v1/resources/$organization/$project?deprecated=false&after=%5B%22two%22%5D"
             )
-          ))
+          )
+        )
       }
 
       Get(s"/v1/resources/$organization/$project/_?deprecated=false&after=%5B%22one%22%5D") ~> addCredentials(
-        oauthToken) ~> Accept(MediaRanges.`*/*`) ~> routes ~> check {
+        oauthToken
+      ) ~> Accept(MediaRanges.`*/*`) ~> routes ~> check {
         status shouldEqual StatusCodes.OK
         responseAs[Json].removeKeys("@context") shouldEqual expected.deepMerge(
           Json.obj(
             "_next" -> Json.fromString(
               s"http://127.0.0.1:8080/v1/resources/$organization/$project/_?deprecated=false&after=%5B%22two%22%5D"
             )
-          ))
+          )
+        )
       }
     }
   }

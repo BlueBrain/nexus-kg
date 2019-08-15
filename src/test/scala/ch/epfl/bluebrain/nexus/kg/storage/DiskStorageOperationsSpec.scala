@@ -11,8 +11,11 @@ import ch.epfl.bluebrain.nexus.kg.config.AppConfig._
 import ch.epfl.bluebrain.nexus.kg.resources.file.File.FileDescription
 import ch.epfl.bluebrain.nexus.kg.resources.{Id, ProjectRef}
 import ch.epfl.bluebrain.nexus.kg.{KgError, TestHelper}
+import ch.epfl.bluebrain.nexus.sourcing.akka.SourcingConfig.RetryStrategyConfig
 import org.mockito.IdiomaticMockito
 import org.scalatest.{BeforeAndAfter, Matchers, WordSpecLike}
+
+import scala.concurrent.duration._
 
 class DiskStorageOperationsSpec
     extends ActorSystemFixture("DiskStorageOperationsSpec")
@@ -29,7 +32,8 @@ class DiskStorageOperationsSpec
     RemoteDiskStorageConfig("http://example.com", None, "SHA-256", read, write, true, 1024L),
     S3StorageConfig("MD5", read, write, true, 1024L),
     "password",
-    "salt"
+    "salt",
+    RetryStrategyConfig("linear", 300 millis, 5 minutes, 100, 0.2, 1 second)
   )
 
   private val project  = ProjectRef(genUUID)

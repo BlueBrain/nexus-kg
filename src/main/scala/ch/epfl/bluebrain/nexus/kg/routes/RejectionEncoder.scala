@@ -28,7 +28,8 @@ sealed trait RejectionEncoder[A] {
 object RejectionEncoder {
 
   final implicit def rejectionEncoder(
-      implicit outputFormat: JsonLDOutputFormat = Compacted): RejectionEncoder[ResourceV] =
+      implicit outputFormat: JsonLDOutputFormat = Compacted
+  ): RejectionEncoder[ResourceV] =
     new RejectionEncoder[ResourceV] {
       override def apply(value: ResourceV): Either[Rejection, Json] =
         ResourceEncoder.json(value).left.map(marshallerErrorToRejectiton(value.id.value, _))

@@ -11,7 +11,7 @@ import ch.epfl.bluebrain.nexus.commons.test
 import ch.epfl.bluebrain.nexus.commons.test.io.{IOEitherValues, IOOptionValues}
 import ch.epfl.bluebrain.nexus.commons.test.ActorSystemFixture
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity._
-import ch.epfl.bluebrain.nexus.kg.KgError.RemoteFileNotFound
+import ch.epfl.bluebrain.nexus.kg.KgError.{InternalError, RemoteFileNotFound}
 import ch.epfl.bluebrain.nexus.kg.TestHelper
 import ch.epfl.bluebrain.nexus.kg.cache.StorageCache
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig._
@@ -21,14 +21,16 @@ import ch.epfl.bluebrain.nexus.kg.config.Vocabulary._
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection._
 import ch.epfl.bluebrain.nexus.kg.resources.file.File.{Digest, FileDescription, StoredSummary}
 import ch.epfl.bluebrain.nexus.kg.storage.Storage
-import ch.epfl.bluebrain.nexus.kg.storage.Storage.StorageOperations.{Fetch, Link, Save}
-import ch.epfl.bluebrain.nexus.kg.storage.Storage.{DiskStorage, FetchFile, LinkFile, SaveFile}
+import ch.epfl.bluebrain.nexus.kg.storage.Storage.StorageOperations.{Fetch, FetchDigest, Link, Save}
+import ch.epfl.bluebrain.nexus.kg.storage.Storage.{DiskStorage, FetchFile, FetchFileDigest, LinkFile, SaveFile}
 import ch.epfl.bluebrain.nexus.rdf.Iri
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
+import ch.epfl.bluebrain.nexus.storage.client.StorageClientError
 import io.circe.Json
 import org.mockito.{ArgumentMatchersSugar, IdiomaticMockito, Mockito}
 import org.scalactic.Equality
 import org.scalatest._
+import akka.http.scaladsl.model.StatusCodes.InternalServerError
 
 import scala.concurrent.ExecutionContext
 import scala.concurrent.duration._
@@ -59,6 +61,7 @@ class FilesSpec
 
   private implicit val repo                           = Repo[IO].ioValue
   private val saveFile: SaveFile[IO, String]          = mock[SaveFile[IO, String]]
+  private val fetchDigest: FetchFileDigest[IO]        = mock[FetchFileDigest[IO]]
   private val fetchFile: FetchFile[IO, String]        = mock[FetchFile[IO, String]]
   private val linkFile: LinkFile[IO]                  = mock[LinkFile[IO]]
   private implicit val storageCache: StorageCache[IO] = mock[StorageCache[IO]]
@@ -70,6 +73,7 @@ class FilesSpec
     Mockito.reset(saveFile)
     Mockito.reset(fetchFile)
     Mockito.reset(linkFile)
+    Mockito.reset(fetchDigest)
   }
 
   trait Base {
@@ -97,6 +101,9 @@ class FilesSpec
 
     implicit val save: Save[IO, String] = (st: Storage) => if (st == storage) saveFile else throw new RuntimeException
 
+    implicit val fetchD: FetchDigest[IO] = (st: Storage) =>
+      if (st == storage) fetchDigest else throw new RuntimeException
+
     implicit val link: Link[IO] = (st: Storage) => if (st == storage) linkFile else throw new RuntimeException
 
     implicit val fetch: Fetch[IO, String] = (st: Storage) =>
@@ -106,7 +113,7 @@ class FilesSpec
       b match {
         case FileDescription(_, filename, mediaType) => a.filename == filename && a.mediaType == mediaType
         case _                                       => false
-    }
+      }
   }
 
   "A Files bundle" when {
@@ -130,6 +137,14 @@ class FilesSpec
         resp shouldEqual expected
       }
 
+      "prevent creating a file that already exists" in new Base {
+        saveFile(resId, desc, source) shouldReturn IO.pure(attributes)
+        files.create(resId, storage, desc, source).value.accepted
+
+        val desc2 = desc.copy(filename = genString())
+        files.create(resId, storage, desc2, source).value.rejected[ResourceAlreadyExists]
+      }
+
       "prevent creating a new File when save method fails" in new Base {
         saveFile(resId, desc, source) shouldReturn IO.raiseError(new RuntimeException("Error I/O"))
         whenReady(files.create(resId, storage, desc, source).value.unsafeToFuture().failed) {
@@ -137,6 +152,90 @@ class FilesSpec
         }
       }
 
+    }
+
+    "performing digest update operations computed from the storage" should {
+
+      "update a file digest" in new Base {
+
+        saveFile(resId, desc, source) shouldReturn IO.pure(attributes.copy(digest = Digest.empty))
+        fetchDigest(path) shouldReturn IO.pure(attributes.digest)
+
+        files.create(resId, storage, desc, source).value.accepted shouldBe a[Resource]
+        files.updateDigestIfEmpty(resId).value.accepted shouldEqual
+          ResourceF
+            .simpleF(resId, value, 2L, schema = fileRef, types = types)
+            .copy(file = Some(storage.reference -> attributes))
+      }
+
+      "prevent updating a file digest when returned digest is not computed" in new Base {
+
+        saveFile(resId, desc, source) shouldReturn IO.pure(attributes.copy(digest = Digest.empty))
+        fetchDigest(path) shouldReturn IO.pure(Digest.empty)
+
+        files.create(resId, storage, desc, source).value.accepted shouldBe a[Resource]
+        files.updateDigestIfEmpty(resId).value.rejected[FileDigestNotComputed]
+      }
+
+      "prevent updating a file digest when the digest is already computed" in new Base {
+
+        saveFile(resId, desc, source) shouldReturn IO.pure(attributes)
+
+        files.create(resId, storage, desc, source).value.accepted shouldBe a[Resource]
+        files.updateDigestIfEmpty(resId).value.rejected[FileDigestAlreadyExists]
+      }
+
+      "prevent updating a file digest when file does not exist" in new Base {
+        files.updateDigestIfEmpty(resId).value.rejected[NotFound] shouldEqual NotFound(
+          resId.ref,
+          schemaOpt = Some(fileRef)
+        )
+      }
+
+      "prevent updating a file digest when digest fetch traises a StorageClientError" in new Base {
+        saveFile(resId, desc, source) shouldReturn IO.pure(attributes.copy(digest = Digest.empty))
+        fetchDigest(path) shouldReturn IO.raiseError(StorageClientError.UnknownError(InternalServerError, ""))
+
+        files.create(resId, storage, desc, source).value.accepted shouldBe a[Resource]
+        files.updateDigestIfEmpty(resId).value.failed[InternalError]
+
+      }
+    }
+
+    "performing digest update operations passed by the client" should {
+
+      def digestJson(digest: Digest): Json =
+        Json.obj(
+          "value"     -> Json.fromString(digest.value),
+          "algorithm" -> Json.fromString(digest.algorithm),
+          "@type"     -> Json.fromString(nxv.UpdateDigest.prefix)
+        )
+
+      "update a file digest" in new Base {
+        saveFile(resId, desc, source) shouldReturn IO.pure(attributes.copy(digest = Digest.empty))
+        files.create(resId, storage, desc, source).value.accepted shouldBe a[Resource]
+
+        files.updateDigest(resId, storage, 1L, digestJson(attributes.digest)).value.accepted shouldEqual
+          ResourceF
+            .simpleF(resId, value, 2L, schema = fileRef, types = types)
+            .copy(file = Some(storage.reference -> attributes))
+      }
+
+      "prevent updating a file digest when the revision is wrong" in new Base {
+        saveFile(resId, desc, source) shouldReturn IO.pure(attributes.copy(digest = Digest.empty))
+        files.create(resId, storage, desc, source).value.accepted shouldBe a[Resource]
+        files
+          .updateDigest(resId, storage, 3L, digestJson(attributes.digest))
+          .value
+          .rejected[IncorrectRev] shouldEqual IncorrectRev(resId.ref, 3L, 1L)
+      }
+
+      "prevent updating a file digest when file does not exist" in new Base {
+        files
+          .updateDigest(resId, storage, 1L, digestJson(attributes.digest))
+          .value
+          .rejected[NotFound] shouldEqual NotFound(resId.ref)
+      }
     }
 
     "performing update operations" should {
@@ -153,6 +252,17 @@ class FilesSpec
           ResourceF
             .simpleF(resId, value, 2L, schema = fileRef, types = types)
             .copy(file = Some(storage.reference -> attributesUpdated))
+      }
+
+      "prevent updating a file which digest hasn't been computed yet" in new Base {
+        val updatedSource     = genString()
+        val attributesUpdated = desc.process(StoredSummary(location, path, 100L, Digest.empty))
+
+        saveFile(resId, desc, source) shouldReturn IO.pure(attributes.copy(digest = Digest.empty))
+        saveFile(resId, desc, updatedSource) shouldReturn IO.pure(attributesUpdated)
+
+        files.create(resId, storage, desc, source).value.accepted shouldBe a[Resource]
+        files.update(resId, storage, 1L, desc, updatedSource).value.rejected[FileDigestNotComputed]
       }
 
       "prevent updating a file that does not exist" in new Base {
@@ -205,11 +315,14 @@ class FilesSpec
       }
 
       "prevent updating a link that does not exist" in new Base {
+        saveFile(resId, desc, source) shouldReturn IO.pure(attributes)
+
+        files.create(resId, storage, desc, source).value.accepted shouldBe a[Resource]
+
         linkFile(eqTo(resId), eqTo(desc), eqTo(path)) shouldReturn IO.raiseError(RemoteFileNotFound(location))
-        files
-          .updateLink(resId, storage, 1L, fileLink)
-          .value
-          .failed[RemoteFileNotFound] shouldEqual RemoteFileNotFound(location)
+
+        files.updateLink(resId, storage, 1L, fileLink).value.failed[RemoteFileNotFound] shouldEqual
+          RemoteFileNotFound(location)
       }
     }
 
@@ -256,7 +369,7 @@ class FilesSpec
       }
 
       "return NotFound when the provided file does not exists" in new Base {
-        files.fetch(resId).value.rejected[NotFound] shouldEqual NotFound(resId.ref)
+        files.fetch(resId).value.rejected[NotFound] shouldEqual NotFound(resId.ref, schemaOpt = Some(fileRef))
       }
     }
   }

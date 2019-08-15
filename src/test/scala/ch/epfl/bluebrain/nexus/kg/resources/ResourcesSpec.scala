@@ -30,6 +30,7 @@ import ch.epfl.bluebrain.nexus.kg.resolve.Resolver.InProjectResolver
 import ch.epfl.bluebrain.nexus.kg.resolve.{Materializer, ProjectResolution, Resolver, StaticResolution}
 import ch.epfl.bluebrain.nexus.kg.resources.Ref.Latest
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection._
+import ch.epfl.bluebrain.nexus.kg.resources.syntax._
 import ch.epfl.bluebrain.nexus.kg.resources.ResourceF.Value
 import ch.epfl.bluebrain.nexus.rdf.Vocabulary.xsd
 import ch.epfl.bluebrain.nexus.rdf.instances._
@@ -87,26 +88,29 @@ class ResourcesSpec
     val id                        = Iri.absolute(s"http://example.com/$genUUID").right.value
     val resId                     = Id(projectRef, id)
     val voc                       = Iri.absolute(s"http://example.com/voc/").right.value
-    implicit val project = Project(resId.value,
-                                   "proj",
-                                   "org",
-                                   None,
-                                   base,
-                                   voc,
-                                   Map.empty,
-                                   projectRef.id,
-                                   genUUID,
-                                   1L,
-                                   deprecated = false,
-                                   Instant.EPOCH,
-                                   subject.id,
-                                   Instant.EPOCH,
-                                   subject.id)
+    implicit val project = Project(
+      resId.value,
+      "proj",
+      "org",
+      None,
+      base,
+      voc,
+      Map.empty,
+      projectRef.id,
+      genUUID,
+      1L,
+      deprecated = false,
+      Instant.EPOCH,
+      subject.id,
+      Instant.EPOCH,
+      subject.id
+    )
     val schemaRef = Ref(unconstrainedSchemaUri)
 
     val defaultCtx = Json.obj(
-      "@context" -> Json.obj("@base" -> Json.fromString(project.base.asString),
-                             "@vocab" -> Json.fromString(project.vocab.asString)))
+      "@context" -> Json
+        .obj("@base" -> Json.fromString(project.base.asString), "@vocab" -> Json.fromString(project.vocab.asString))
+    )
 
     def resourceV(json: Json, rev: Long = 1L): ResourceV = {
       val defaultCtxValue = defaultCtx.contextValue deepMerge resourceCtx.contextValue
@@ -116,7 +120,8 @@ class ResourcesSpec
         .value
       val resourceV = ResourceF.simpleV(resId, Value(json, defaultCtxValue, graph), rev, schema = schemaRef)
       resourceV.copy(
-        value = resourceV.value.copy(graph = RootedGraph(resId.value, graph.triples ++ resourceV.metadata())))
+        value = resourceV.value.copy(graph = RootedGraph(resId.value, graph.triples ++ resourceV.metadata()))
+      )
     }
 
   }
@@ -129,8 +134,10 @@ class ResourcesSpec
         val genId  = genIri
         val genRes = Id(projectRef, genId)
         val json =
-          Json.obj("@context" -> Json.obj("nxv" -> Json.fromString(nxv.base.toString)),
-                   "@id"      -> Json.fromString(genId.show))
+          Json.obj(
+            "@context" -> Json.obj("nxv" -> Json.fromString(nxv.base.toString)),
+            "@id"      -> Json.fromString(genId.show)
+          )
         resources.create(schemaRef, json).value.accepted shouldEqual
           ResourceF.simpleF(genRes, json, schema = schemaRef)
       }
@@ -158,16 +165,20 @@ class ResourcesSpec
       }
 
       "create a new resource validated against empty schema (resource schema) with the id passed on the call and the payload only containing @context and @id" in new Base {
-        val json = Json.obj("@context" -> Json.obj("nxv" -> Json.fromString(nxv.base.toString)),
-                            "@id" -> Json.fromString(resId.value.asString))
+        val json = Json.obj(
+          "@context" -> Json.obj("nxv" -> Json.fromString(nxv.base.toString)),
+          "@id"      -> Json.fromString(resId.value.asString)
+        )
         val resource = resources.create(resId, schemaRef, json).value.accepted
         resource shouldEqual ResourceF.simpleF(Id(projectRef, resource.id.value), json, schema = schemaRef)
       }
 
       "prevent to create a new resource validated against empty schema (resource schema) with the id passed on the call not matching the @id on the payload" in new Base {
         val genId = genIri
-        val json = Json.obj("@context" -> Json.obj("nxv" -> Json.fromString(nxv.base.toString)),
-                            "@id" -> Json.fromString(genId.show))
+        val json = Json.obj(
+          "@context" -> Json.obj("nxv" -> Json.fromString(nxv.base.toString)),
+          "@id"      -> Json.fromString(genId.show)
+        )
         resources.create(resId, schemaRef, json).value.rejected[IncorrectId] shouldEqual IncorrectId(resId.ref)
       }
 
@@ -176,7 +187,8 @@ class ResourcesSpec
         val json =
           Json.obj("@id" -> Json.fromString(genId), "@context" -> Json.obj("key" -> Json.fromString(genIri.asString)))
         resources.create(schemaRef, json).value.rejected[InvalidJsonLD] shouldEqual InvalidJsonLD(
-          s"The provided @id value '$genId' is not a valid Iri")
+          s"The provided @id value '$genId' is not a valid Iri"
+        )
       }
 
       "prevent to create a resource with non existing schema" in new Base {
@@ -210,17 +222,9 @@ class ResourcesSpec
           ResourceF.simpleF(resId, expected, 2L, schema = schemaRef)
       }
 
-      "prevent to update a resource when the provided schema does not match the created schema" in new Base {
-        val json = Json.obj("one" -> Json.fromString("two"))
-        resources.create(resId, unconstrainedRef, json).value.accepted shouldBe a[Resource]
-        val otherSchema = Ref(genIri)
-        resources.update(resId, 1L, otherSchema, json).value.rejected[NotFound] shouldEqual
-          NotFound(resId.ref, Some(1L))
-      }
-
       "prevent to update a resource  that does not exists" in new Base {
         resources.update(resId, 1L, unconstrainedRef, Json.obj()).value.rejected[NotFound] shouldEqual
-          NotFound(resId.ref, Some(1L))
+          NotFound(resId.ref)
       }
     }
 
@@ -237,7 +241,8 @@ class ResourcesSpec
       "prevent deprecating a resource when the provided schema does not match the created schema" in new Base {
         resources.create(resId, schemaRef, json).value.accepted shouldBe a[Resource]
         val otherSchema = Ref(genIri)
-        resources.deprecate(resId, 1L, otherSchema).value.rejected[NotFound] shouldEqual NotFound(resId.ref, Some(1L))
+        resources.deprecate(resId, 1L, otherSchema).value.rejected[NotFound] shouldEqual
+          NotFound(resId.ref, schemaOpt = Some(otherSchema))
       }
     }
 
@@ -267,7 +272,8 @@ class ResourcesSpec
       "return NotFound when the provided schema does not match the created schema" in new Base {
         resources.create(resId, schemaRef, json).value.accepted shouldBe a[Resource]
         val otherSchema = Ref(genIri)
-        resources.fetch(resId, otherSchema).value.rejected[NotFound] shouldEqual NotFound(otherSchema)
+        resources.fetch(resId, otherSchema).value.rejected[NotFound] shouldEqual
+          NotFound(resId.value.ref, schemaOpt = Some(otherSchema))
       }
     }
 
@@ -311,10 +317,13 @@ class ResourcesSpec
         val view = SparqlView.default(projectRef)
         when(client.copy(namespace = view.index)).thenReturn(client)
         val query =
-          contentOf("/blazegraph/incoming.txt",
-                    Map(quote("{id}") -> resId.value.asString, quote("{size}") -> "10", quote("{offset}") -> "1"))
+          contentOf(
+            "/blazegraph/incoming.txt",
+            Map(quote("{id}") -> resId.value.asString, quote("{size}") -> "10", quote("{offset}") -> "1")
+          )
         client.queryRaw(query) shouldReturn IO(
-          SparqlResults(Head(List.empty), Bindings(List(binding1, binding2, binding3))))
+          SparqlResults(Head(List.empty), Bindings(List(binding1, binding2, binding3)))
+        )
         val results = resources.listIncoming(resId.value, Some(view), FromPagination(1, 10)).ioValue
         results.total shouldEqual 10
         results.results.toSet shouldEqual expected
@@ -324,10 +333,13 @@ class ResourcesSpec
         val view = SparqlView.default(projectRef)
         when(client.copy(namespace = view.index)).thenReturn(client)
         val query =
-          contentOf("/blazegraph/outgoing_include_external.txt",
-                    Map(quote("{id}") -> resId.value.asString, quote("{size}") -> "10", quote("{offset}") -> "1"))
+          contentOf(
+            "/blazegraph/outgoing_include_external.txt",
+            Map(quote("{id}") -> resId.value.asString, quote("{size}") -> "10", quote("{offset}") -> "1")
+          )
         client.queryRaw(query) shouldReturn IO(
-          SparqlResults(Head(List.empty), Bindings(List(binding1, binding2, binding3))))
+          SparqlResults(Head(List.empty), Bindings(List(binding1, binding2, binding3)))
+        )
         val results =
           resources.listOutgoing(resId.value, Some(view), FromPagination(1, 10), includeExternalLinks = true).ioValue
         results.total shouldEqual 10

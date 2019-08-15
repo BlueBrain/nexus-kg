@@ -52,7 +52,8 @@ object HealthStatus {
       Task.pure(
         !cluster.isTerminated &&
           cluster.state.leader.isDefined && cluster.state.members.nonEmpty &&
-          !cluster.state.members.exists(_.status != MemberStatus.Up) && cluster.state.unreachable.isEmpty)
+          !cluster.state.members.exists(_.status != MemberStatus.Up) && cluster.state.unreachable.isEmpty
+      )
   }
 
   class IamHealthStatus(client: IamClient[Task]) extends HealthStatus {

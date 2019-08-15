@@ -22,11 +22,13 @@ import monix.eval.Task
   * @param aclCache         the acl cache
   * @tparam F the monadic effect type
   */
-class ProjectResolution[F[_]](repo: Repo[F],
-                              resolverCache: ResolverCache[F],
-                              projectCache: ProjectCache[F],
-                              staticResolution: Resolution[F],
-                              aclCache: AclsCache[F])(implicit F: Monad[F]) {
+class ProjectResolution[F[_]](
+    repo: Repo[F],
+    resolverCache: ResolverCache[F],
+    projectCache: ProjectCache[F],
+    staticResolution: Resolution[F],
+    aclCache: AclsCache[F]
+)(implicit F: Monad[F]) {
 
   private val logger = Logger[this.type]
 
@@ -60,8 +62,9 @@ class ProjectResolution[F[_]](repo: Repo[F],
       case r: InProjectResolver => Some(F.pure(InProjectResolution[F](r.ref, repo)))
       case r @ CrossProjectResolver(_, `Set[ProjectRef]`(projects), _, _, _, _, _, _) =>
         Some(
-          aclCache.list.map(
-            MultiProjectResolution(repo, F.pure(projects), r.resourceTypes, r.identities, projectCache, _)))
+          aclCache.list
+            .map(MultiProjectResolution(repo, F.pure(projects), r.resourceTypes, r.identities, projectCache, _))
+        )
       case other =>
         logger.error(s"A corrupted resolver was found in the cache '$other'")
         None
@@ -93,10 +96,12 @@ object ProjectResolution {
     * @param aclCache      the acl cache
     * @return a new [[ProjectResolution]] for the effect type [[Task]]
     */
-  def task(repo: Repo[Task],
-           resolverCache: ResolverCache[Task],
-           projectCache: ProjectCache[Task],
-           aclCache: AclsCache[Task]): ProjectResolution[Task] =
+  def task(
+      repo: Repo[Task],
+      resolverCache: ResolverCache[Task],
+      projectCache: ProjectCache[Task],
+      aclCache: AclsCache[Task]
+  ): ProjectResolution[Task] =
     new ProjectResolution(repo, resolverCache, projectCache, StaticResolution[Task](iriResolution), aclCache)
 
 }

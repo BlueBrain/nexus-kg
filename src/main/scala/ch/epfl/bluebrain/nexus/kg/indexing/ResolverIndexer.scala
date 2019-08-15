@@ -16,9 +16,11 @@ import ch.epfl.bluebrain.nexus.sourcing.projections._
 import ch.epfl.bluebrain.nexus.sourcing.retry.Retry
 import journal.Logger
 
-private class ResolverIndexerMapping[F[_]: Timer](resolvers: Resolvers[F])(implicit projectCache: ProjectCache[F],
-                                                                           F: MonadError[F, Throwable],
-                                                                           indexing: IndexingConfig) {
+private class ResolverIndexerMapping[F[_]: Timer](resolvers: Resolvers[F])(
+    implicit projectCache: ProjectCache[F],
+    F: MonadError[F, Throwable],
+    indexing: IndexingConfig
+) {
 
   private implicit val retry: Retry[F, Throwable] = Retry[F, Throwable](indexing.retry.retryStrategy)
   private implicit val log: Logger                = Logger[this.type]
@@ -54,7 +56,8 @@ object ResolverIndexer {
       projectCache: ProjectCache[F],
       as: ActorSystem,
       F: Effect[F],
-      config: AppConfig): StreamSupervisor[F, ProjectionProgress] = {
+      config: AppConfig
+  ): StreamSupervisor[F, ProjectionProgress] = {
 
     val kgErrorMonadError = ch.epfl.bluebrain.nexus.kg.instances.kgErrorMonadError
 
@@ -72,7 +75,8 @@ object ResolverIndexer {
         .offset(Volatile)
         .mapping(mapper.apply)
         .index(_.traverse(resolverCache.put) >> F.unit)
-        .build)
+        .build
+    )
   }
 
   /**
@@ -85,7 +89,7 @@ object ResolverIndexer {
       implicit
       projectCache: ProjectCache[F],
       as: ActorSystem,
-      config: AppConfig,
+      config: AppConfig
   ): F[StreamSupervisor[F, ProjectionProgress]] =
     Effect[F].delay(start(resolvers, resolverCache))
 

@@ -83,16 +83,18 @@ class ViewSpec
 
       "return an SparqlView" in {
         val resource = simpleV(id, sparqlview, types = Set(nxv.View, nxv.SparqlView))
-        View(resource).right.value shouldEqual SparqlView(Set.empty,
-                                                          Set.empty,
-                                                          None,
-                                                          false,
-                                                          true,
-                                                          projectRef,
-                                                          iri,
-                                                          UUID.fromString("247d223b-1d38-4c6e-8fed-f9a8c2ccb4a1"),
-                                                          resource.rev,
-                                                          resource.deprecated)
+        View(resource).right.value shouldEqual SparqlView(
+          Set.empty,
+          Set.empty,
+          None,
+          false,
+          true,
+          projectRef,
+          iri,
+          UUID.fromString("247d223b-1d38-4c6e-8fed-f9a8c2ccb4a1"),
+          resource.rev,
+          resource.deprecated
+        )
 
       }
 
@@ -126,7 +128,8 @@ class ViewSpec
           UUID.fromString("3aa14a1a-81e7-4147-8306-136d8270bb01"),
           iri,
           resource.rev,
-          resource.deprecated)
+          resource.deprecated
+        )
       }
 
       "return an AggregateSparqlView from ProjectLabel ViewRef" in {
@@ -142,7 +145,8 @@ class ViewSpec
           UUID.fromString("3aa14a1a-81e7-4147-8306-136d8270bb01"),
           iri,
           resource.rev,
-          resource.deprecated)
+          resource.deprecated
+        )
       }
 
       "return an AggregateElasticSearchView from ProjectRef ViewRef" in {
@@ -151,10 +155,14 @@ class ViewSpec
         val resource =
           simpleV(id, aggElasticSearchViewRefs, types = Set(nxv.View, nxv.AggregateElasticSearchView))
         val views = Set(
-          ViewRef(ProjectRef(UUID.fromString("64b202b4-1060-42b5-9b4f-8d6a9d0d9113")),
-                  url"http://example.com/id2".value),
-          ViewRef(ProjectRef(UUID.fromString("d23d9578-255b-4e46-9e65-5c254bc9ad0a")),
-                  url"http://example.com/id3".value)
+          ViewRef(
+            ProjectRef(UUID.fromString("64b202b4-1060-42b5-9b4f-8d6a9d0d9113")),
+            url"http://example.com/id2".value
+          ),
+          ViewRef(
+            ProjectRef(UUID.fromString("d23d9578-255b-4e46-9e65-5c254bc9ad0a")),
+            url"http://example.com/id3".value
+          )
         )
         View(resource).right.value shouldEqual AggregateElasticSearchView(
           views,
@@ -162,15 +170,18 @@ class ViewSpec
           UUID.fromString("3aa14a1a-81e7-4147-8306-136d8270bb01"),
           iri,
           resource.rev,
-          resource.deprecated)
+          resource.deprecated
+        )
       }
 
       "run incoming method on a SparqlView" in {
         val view = SparqlView(Set.empty, Set.empty, None, true, false, projectRef, iri, UUID.randomUUID(), 1L, false)
         when(client.copy(namespace = view.index)).thenReturn(client)
         val query =
-          contentOf("/blazegraph/incoming.txt",
-                    Map(quote("{id}") -> "http://example.com/id", quote("{size}") -> "100", quote("{offset}") -> "0"))
+          contentOf(
+            "/blazegraph/incoming.txt",
+            Map(quote("{id}") -> "http://example.com/id", quote("{size}") -> "100", quote("{offset}") -> "0")
+          )
         client.queryRaw(query) shouldReturn IO(SparqlResults.empty)
         view.incoming[IO](url"http://example.com/id".value, FromPagination(0, 100)).ioValue shouldEqual
           UnscoredQueryResults(0, List.empty[UnscoredQueryResult[SparqlLink]])
@@ -180,8 +191,10 @@ class ViewSpec
         val view = SparqlView(Set.empty, Set.empty, None, true, false, projectRef, iri, UUID.randomUUID(), 1L, false)
         when(client.copy(namespace = view.index)).thenReturn(client)
         val query =
-          contentOf("/blazegraph/outgoing_include_external.txt",
-                    Map(quote("{id}") -> "http://example.com/id2", quote("{size}") -> "100", quote("{offset}") -> "10"))
+          contentOf(
+            "/blazegraph/outgoing_include_external.txt",
+            Map(quote("{id}") -> "http://example.com/id2", quote("{size}") -> "100", quote("{offset}") -> "10")
+          )
         client.queryRaw(query) shouldReturn IO(SparqlResults.empty)
         view
           .outgoing[IO](url"http://example.com/id2".value, FromPagination(10, 100), includeExternalLinks = true)
@@ -193,8 +206,10 @@ class ViewSpec
         val view = SparqlView(Set.empty, Set.empty, None, true, false, projectRef, iri, UUID.randomUUID(), 1L, false)
         when(client.copy(namespace = view.index)).thenReturn(client)
         val query =
-          contentOf("/blazegraph/outgoing_scoped.txt",
-                    Map(quote("{id}") -> "http://example.com/id2", quote("{size}") -> "100", quote("{offset}") -> "10"))
+          contentOf(
+            "/blazegraph/outgoing_scoped.txt",
+            Map(quote("{id}") -> "http://example.com/id2", quote("{size}") -> "100", quote("{offset}") -> "10")
+          )
         client.queryRaw(query) shouldReturn IO(SparqlResults.empty)
         view
           .outgoing[IO](url"http://example.com/id2".value, FromPagination(10, 100), includeExternalLinks = false)
@@ -244,9 +259,11 @@ class ViewSpec
 
       "fail on SparqlView when invalid payload" in {
         val resource =
-          simpleV(id,
-                  jsonContentOf("/view/sparqlview-wrong.json").appendContextOf(viewCtx),
-                  types = Set(nxv.View, nxv.ElasticSearchView))
+          simpleV(
+            id,
+            jsonContentOf("/view/sparqlview-wrong.json").appendContextOf(viewCtx),
+            types = Set(nxv.View, nxv.ElasticSearchView)
+          )
         View(resource).left.value shouldBe a[InvalidResourceFormat]
       }
     }

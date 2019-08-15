@@ -121,6 +121,7 @@ object Vocabulary {
     val paths = PrefixMapping.prefix("paths")
 
     // @type platform ids
+    val UpdateDigest               = PrefixMapping.prefix("UpdateDigest")
     val Schema                     = PrefixMapping.prefix("Schema")
     val File                       = PrefixMapping.prefix("File")
     val Resource                   = PrefixMapping.prefix("Resource")

@@ -53,6 +53,16 @@ package object resources {
   type RejOrResourceV[F[_]] = EitherT[F, Rejection, ResourceV]
 
   /**
+    * Rejection or schema reference wrapped in F[_]
+    */
+  type RejOrSchema[F[_]] = EitherT[F, Rejection, Ref]
+
+  /**
+    * Rejection or json wrapped in F[_]
+    */
+  type RejOrSource[F[_]] = EitherT[F, Rejection, Json]
+
+  /**
     * Rejection or resource representation with a "source" wrapped in F[_]
     */
   type RejOrResource[F[_]] = EitherT[F, Rejection, Resource]
@@ -89,13 +99,16 @@ package object resources {
 
   implicit def toSubject(implicit caller: Caller): Subject = caller.subject
 
-  private[resources] def listResources[F[_]: Timer](view: Option[ElasticSearchView],
-                                                    params: SearchParams,
-                                                    pagination: Pagination)(
+  private[resources] def listResources[F[_]: Timer](
+      view: Option[ElasticSearchView],
+      params: SearchParams,
+      pagination: Pagination
+  )(
       implicit F: Effect[F],
       config: AppConfig,
       tc: HttpClient[F, JsonResults],
-      elasticSearch: ElasticSearchClient[F]): F[JsonResults] = {
+      elasticSearch: ElasticSearchClient[F]
+  ): F[JsonResults] = {
     import ch.epfl.bluebrain.nexus.kg.instances.elasticErrorMonadError
     implicit val retryer = Retry[F, ElasticSearchServerOrUnexpectedFailure](config.elasticSearch.query.retryStrategy)
 
@@ -105,23 +118,23 @@ package object resources {
       .retry
   }
 
-  private[resources] def incoming[F[_]: Timer](id: AbsoluteIri, view: Option[SparqlView], pagination: FromPagination)(
-      implicit F: Effect[F],
-      config: AppConfig,
-      client: BlazegraphClient[F]): F[LinkResults] = {
+  private[resources] def incoming[F[_]: Timer](
+      id: AbsoluteIri,
+      view: Option[SparqlView],
+      pagination: FromPagination
+  )(implicit F: Effect[F], config: AppConfig, client: BlazegraphClient[F]): F[LinkResults] = {
     import ch.epfl.bluebrain.nexus.kg.instances.sparqlErrorMonadError
     implicit val retryer = Retry[F, SparqlServerOrUnexpectedFailure](config.sparql.query.retryStrategy)
 
     view.map(_.incoming(id, pagination)).getOrElse(F.pure[LinkResults](UnscoredQueryResults(0L, List.empty))).retry
   }
 
-  private[resources] def outgoing[F[_]: Timer](id: AbsoluteIri,
-                                               view: Option[SparqlView],
-                                               pagination: FromPagination,
-                                               includeExternalLinks: Boolean)(
-      implicit F: Effect[F],
-      config: AppConfig,
-      client: BlazegraphClient[F]): F[LinkResults] = {
+  private[resources] def outgoing[F[_]: Timer](
+      id: AbsoluteIri,
+      view: Option[SparqlView],
+      pagination: FromPagination,
+      includeExternalLinks: Boolean
+  )(implicit F: Effect[F], config: AppConfig, client: BlazegraphClient[F]): F[LinkResults] = {
     import ch.epfl.bluebrain.nexus.kg.instances.sparqlErrorMonadError
     implicit val retryer = Retry[F, SparqlServerOrUnexpectedFailure](config.sparql.query.retryStrategy)
 

@@ -39,12 +39,14 @@ import ch.epfl.bluebrain.nexus.rdf.syntax._
 import io.circe.Json
 import org.apache.jena.rdf.model.Model
 
-class Views[F[_]: Timer](repo: Repo[F])(implicit F: Effect[F],
-                                        materializer: Materializer[F],
-                                        config: AppConfig,
-                                        projectCache: ProjectCache[F],
-                                        viewCache: ViewCache[F],
-                                        esClient: ElasticSearchClient[F]) {
+class Views[F[_]: Timer](repo: Repo[F])(
+    implicit F: Effect[F],
+    materializer: Materializer[F],
+    config: AppConfig,
+    projectCache: ProjectCache[F],
+    viewCache: ViewCache[F],
+    esClient: ElasticSearchClient[F]
+) {
 
   /**
     * Creates a new view attempting to extract the id from the source. If a primary node of the resulting graph
@@ -65,15 +67,21 @@ class Views[F[_]: Timer](repo: Repo[F])(implicit F: Effect[F],
   /**
     * Creates a new view.
     *
-    * @param id     the id of the view
-    * @param source the source representation in json-ld format
+    * @param id          the id of the view
+    * @param source      the source representation in json-ld format
+    * @param extractUuid flag to decide whether to extract the uuid from the payload or to generate one
     * @return either a rejection or the newly created resource in the F context
     */
-  def create(id: ResId,
-             source: Json)(implicit acls: AccessControlLists, caller: Caller, project: Project): RejOrResource[F] =
-    materializer(transform(source), id.value).flatMap {
+  def create(
+      id: ResId,
+      source: Json,
+      extractUuid: Boolean = false
+  )(implicit acls: AccessControlLists, caller: Caller, project: Project): RejOrResource[F] = {
+    val sourceUuid = if (extractUuid) extractUuidFrom(source) else uuid()
+    materializer(transform(source, sourceUuid), id.value).flatMap {
       case Value(_, _, graph) => create(id, graph)
     }
+  }
 
   /**
     * Updates an existing view.
@@ -83,18 +91,21 @@ class Views[F[_]: Timer](repo: Repo[F])(implicit F: Effect[F],
     * @param source    the new source representation in json-ld format
     * @return either a rejection or the updated resource in the F context
     */
-  def update(id: ResId, rev: Long, source: Json)(implicit acls: AccessControlLists,
-                                                 caller: Caller,
-                                                 project: Project): RejOrResource[F] =
+  def update(
+      id: ResId,
+      rev: Long,
+      source: Json
+  )(implicit acls: AccessControlLists, caller: Caller, project: Project): RejOrResource[F] =
     for {
-      _        <- repo.get(id, rev, Some(viewRef)).toRight(NotFound(id.ref, Some(rev)))
-      matValue <- materializer(transform(source, extractUuidFrom(source)), id.value)
+      curr     <- repo.get(id, Some(viewRef)).toRight(notFound(id.ref, schema = Some(viewRef)))
+      matValue <- materializer(transform(source, extractUuidFrom(curr.value)), id.value)
       typedGraph = addViewType(id.value, matValue.graph)
       types      = typedGraph.rootTypes.map(_.value)
       _       <- validateShacl(typedGraph)
       view    <- viewValidation(id, typedGraph, 1L, types)
       json    <- jsonForRepo(view)
-      updated <- repo.update(id, rev, types, json)
+      updated <- repo.update(id, viewRef, rev, types, json)
+      _       <- EitherT.right(viewCache.put(view))
     } yield updated
 
   /**
@@ -105,7 +116,7 @@ class Views[F[_]: Timer](repo: Repo[F])(implicit F: Effect[F],
     * @return Some(resource) in the F context when found and None in the F context when not found
     */
   def deprecate(id: ResId, rev: Long)(implicit subject: Subject): RejOrResource[F] =
-    repo.get(id, rev, Some(viewRef)).toRight(NotFound(id.ref, Some(rev))).flatMap(_ => repo.deprecate(id, rev))
+    repo.deprecate(id, viewRef, rev)
 
   /**
     * Fetches the latest revision of a view.
@@ -115,7 +126,7 @@ class Views[F[_]: Timer](repo: Repo[F])(implicit F: Effect[F],
     */
   def fetchView(id: ResId)(implicit project: Project): EitherT[F, Rejection, View] =
     for {
-      resource  <- repo.get(id, Some(viewRef)).toRight(notFound(id.ref))
+      resource  <- repo.get(id, Some(viewRef)).toRight(notFound(id.ref, schema = Some(viewRef)))
       resourceV <- materializer.withMeta(resource)
       view      <- EitherT.fromEither[F](View(resourceV))
     } yield view
@@ -127,7 +138,7 @@ class Views[F[_]: Timer](repo: Repo[F])(implicit F: Effect[F],
     * @return Some(resource) in the F context when found and None in the F context when not found
     */
   def fetch(id: ResId)(implicit project: Project): RejOrResourceV[F] =
-    repo.get(id, Some(viewRef)).toRight(notFound(id.ref)).flatMap(fetch)
+    repo.get(id, Some(viewRef)).toRight(notFound(id.ref, schema = Some(viewRef))).flatMap(fetch)
 
   /**
     * Fetches the provided revision of a view
@@ -137,7 +148,7 @@ class Views[F[_]: Timer](repo: Repo[F])(implicit F: Effect[F],
     * @return Some(resource) in the F context when found and None in the F context when not found
     */
   def fetch(id: ResId, rev: Long)(implicit project: Project): RejOrResourceV[F] =
-    repo.get(id, rev, Some(viewRef)).toRight(notFound(id.ref, Some(rev))).flatMap(fetch)
+    repo.get(id, rev, Some(viewRef)).toRight(notFound(id.ref, Some(rev), schema = Some(viewRef))).flatMap(fetch)
 
   /**
     * Fetches the provided tag of a view.
@@ -147,7 +158,7 @@ class Views[F[_]: Timer](repo: Repo[F])(implicit F: Effect[F],
     * @return Some(resource) in the F context when found and None in the F context when not found
     */
   def fetch(id: ResId, tag: String)(implicit project: Project): RejOrResourceV[F] =
-    repo.get(id, tag, Some(viewRef)).toRight(notFound(id.ref, tagOpt = Some(tag))).flatMap(fetch)
+    repo.get(id, tag, Some(viewRef)).toRight(notFound(id.ref, tag = Some(tag), schema = Some(viewRef))).flatMap(fetch)
 
   /**
     * Lists views on the given project
@@ -158,7 +169,8 @@ class Views[F[_]: Timer](repo: Repo[F])(implicit F: Effect[F],
     * @return search results in the F context
     */
   def list(view: Option[ElasticSearchView], params: SearchParams, pagination: Pagination)(
-      implicit tc: HttpClient[F, JsonResults]): F[JsonResults] =
+      implicit tc: HttpClient[F, JsonResults]
+  ): F[JsonResults] =
     listResources[F](view, params.copy(schema = Some(viewSchemaUri)), pagination)
 
   /**
@@ -170,7 +182,8 @@ class Views[F[_]: Timer](repo: Repo[F])(implicit F: Effect[F],
     * @return search results in the F context
     */
   def listIncoming(id: AbsoluteIri, view: Option[SparqlView], pagination: FromPagination)(
-      implicit sparql: BlazegraphClient[F]): F[LinkResults] =
+      implicit sparql: BlazegraphClient[F]
+  ): F[LinkResults] =
     incoming(id, view, pagination)
 
   /**
@@ -182,27 +195,31 @@ class Views[F[_]: Timer](repo: Repo[F])(implicit F: Effect[F],
     * @param includeExternalLinks flag to decide whether or not to include external links (not Nexus managed) in the query result
     * @return search results in the F context
     */
-  def listOutgoing(id: AbsoluteIri,
-                   view: Option[SparqlView],
-                   pagination: FromPagination,
-                   includeExternalLinks: Boolean)(implicit sparql: BlazegraphClient[F]): F[LinkResults] =
+  def listOutgoing(
+      id: AbsoluteIri,
+      view: Option[SparqlView],
+      pagination: FromPagination,
+      includeExternalLinks: Boolean
+  )(implicit sparql: BlazegraphClient[F]): F[LinkResults] =
     outgoing(id, view, pagination, includeExternalLinks)
 
   private def fetch(resource: Resource)(implicit project: Project): RejOrResourceV[F] =
     materializer.withMeta(resource).flatMap(outputResource)
 
-  private def create(id: ResId, graph: RootedGraph)(implicit acls: AccessControlLists,
-                                                    project: Project,
-                                                    caller: Caller): RejOrResource[F] = {
+  private def create(
+      id: ResId,
+      graph: RootedGraph
+  )(implicit acls: AccessControlLists, project: Project, caller: Caller): RejOrResource[F] = {
     val typedGraph = addViewType(id.value, graph)
     val types      = typedGraph.rootTypes.map(_.value)
 
     for {
-      _        <- validateShacl(typedGraph)
-      view     <- viewValidation(id, typedGraph, 1L, types)
-      json     <- jsonForRepo(view)
-      resource <- repo.create(id, OrganizationRef(project.organizationUuid), viewRef, types, json)
-    } yield resource
+      _       <- validateShacl(typedGraph)
+      view    <- viewValidation(id, typedGraph, 1L, types)
+      json    <- jsonForRepo(view)
+      created <- repo.create(id, OrganizationRef(project.organizationUuid), viewRef, types, json)
+      _       <- EitherT.right(viewCache.put(view))
+    } yield created
   }
 
   private def addViewType(id: AbsoluteIri, graph: RootedGraph): RootedGraph =
@@ -220,7 +237,8 @@ class Views[F[_]: Timer](repo: Repo[F])(implicit F: Effect[F],
 
   private def viewValidation(resId: ResId, graph: RootedGraph, rev: Long, types: Set[AbsoluteIri])(
       implicit acls: AccessControlLists,
-      caller: Caller): EitherT[F, Rejection, View] = {
+      caller: Caller
+  ): EitherT[F, Rejection, View] = {
     val resource =
       ResourceF.simpleV(resId, Value(Json.obj(), Json.obj(), graph), rev = rev, types = types, schema = viewRef)
     EitherT.fromEither[F](View(resource)).flatMap {
@@ -258,9 +276,11 @@ class Views[F[_]: Timer](repo: Repo[F])(implicit F: Effect[F],
         view.labeled.flatMap { labeledView =>
           val graph = labeledView.asGraph[CId]
           val value =
-            Value(originalResource.value.source,
-                  viewCtx.contextValue,
-                  RootedGraph(graph.rootNode, graph.triples ++ originalResource.metadata()))
+            Value(
+              originalResource.value.source,
+              viewCtx.contextValue,
+              RootedGraph(graph.rootNode, graph.triples ++ originalResource.metadata())
+            )
           EitherT.rightT(originalResource.copy(value = value))
         }
       case _ => EitherT.rightT(originalResource)
@@ -276,6 +296,7 @@ object Views {
     */
   final def apply[F[_]: Timer: Effect: ProjectCache: ViewCache: ElasticSearchClient: Materializer](
       implicit config: AppConfig,
-      repo: Repo[F]): Views[F] =
+      repo: Repo[F]
+  ): Views[F] =
     new Views[F](repo)
 }

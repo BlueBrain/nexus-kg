@@ -17,6 +17,7 @@ import ch.epfl.bluebrain.nexus.commons.search.QueryResults
 import ch.epfl.bluebrain.nexus.commons.sparql.client.{BlazegraphClient, SparqlResults}
 import ch.epfl.bluebrain.nexus.commons.http.JsonLdCirceSupport._
 import ch.epfl.bluebrain.nexus.iam.client.IamClient
+import ch.epfl.bluebrain.nexus.kg.async.ProjectViewCoordinator
 import ch.epfl.bluebrain.nexus.kg.cache._
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig._
 import ch.epfl.bluebrain.nexus.kg.config.Settings
@@ -110,6 +111,7 @@ object Main {
     implicit val projectCache                     = cache.project
     implicit val viewCache                        = cache.view
     implicit val storageCache                     = cache.storage
+    implicit val resolverCache                    = cache.resolver
     import indexers.elasticSearch
 
     val resources: Resources[Task] = Resources[Task]
@@ -139,9 +141,13 @@ object Main {
         import ch.epfl.bluebrain.nexus.kg.serializers.Serializer._
         Projections[Task, Event].runSyncUnsafe(10 seconds)(Scheduler.global, CanBlock.permit)
       }
+      val projectCoordinator = ProjectViewCoordinator(resources, cache)
+      implicit val projectInitializer =
+        new ProjectInitializer[Task](storages, views, resolvers, files, projectCoordinator)
 
-      val projectCoordinator = Indexing.start(resources, storages, views, resolvers, indexers.adminClient)
-      val routes: Route      = Routes(resources, resolvers, views, storages, schemas, files, tags, projectCoordinator)
+      Indexing.start(storages, views, resolvers, indexers.adminClient, projectInitializer, projectCoordinator)
+
+      val routes: Route = Routes(resources, resolvers, views, storages, schemas, files, tags, projectCoordinator)
 
       val httpBinding = {
         Http().bindAndHandle(routes, appConfig.http.interface, appConfig.http.port)

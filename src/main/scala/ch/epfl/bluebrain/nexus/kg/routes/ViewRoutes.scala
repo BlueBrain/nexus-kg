@@ -37,9 +37,11 @@ import kamon.instrumentation.akka.http.TracingDirectives.operationName
 import monix.eval.Task
 import monix.execution.Scheduler.Implicits.global
 
-class ViewRoutes private[routes] (views: Views[Task],
-                                  tags: Tags[Task],
-                                  projectViewCoordinator: ProjectViewCoordinator[Task])(
+class ViewRoutes private[routes] (
+    views: Views[Task],
+    tags: Tags[Task],
+    projectViewCoordinator: ProjectViewCoordinator[Task]
+)(
     implicit acls: AccessControlLists,
     caller: Caller,
     project: Project,
@@ -47,7 +49,8 @@ class ViewRoutes private[routes] (views: Views[Task],
     viewCache: ViewCache[Task],
     indexers: Clients[Task],
     config: AppConfig,
-    um: FromEntityUnmarshaller[String]) {
+    um: FromEntityUnmarshaller[String]
+) {
 
   private val emptyEsList: Json = jsonContentOf("/elasticsearch/empty-list.json")
 
