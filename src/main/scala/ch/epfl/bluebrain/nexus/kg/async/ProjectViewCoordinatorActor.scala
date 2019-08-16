@@ -173,6 +173,9 @@ private abstract class ProjectViewCoordinatorActor(viewCache: ViewCache[Task])(
     }
 
     def startView(view: SingleView, restartOffset: Boolean) = {
+      log.info(
+        s"View '${view.id}' is going to be started at revision '${view.rev}' for project '${project.projectLabel.show}'. restartOffset: $restartOffset"
+      )
       val ref = startCoordinator(view, project, restartOffset)
       children += view -> ref
     }
@@ -190,6 +193,9 @@ private abstract class ProjectViewCoordinatorActor(viewCache: ViewCache[Task])(
               .foreach {
                 case (oldView, ref) =>
                   startView(view, restartOffset)
+                  log.info(
+                    s"View '${oldView.id}' is going to be stopped at revision '${oldView.rev}' for project '${project.projectLabel.show}' because view with revision '${view.rev}' is going to be started . restartOffset: $restartOffset"
+                  )
                   stopView(oldView, ref)
               }
           case _ =>
@@ -197,19 +203,35 @@ private abstract class ProjectViewCoordinatorActor(viewCache: ViewCache[Task])(
 
       case ViewsRemoved(_, views) =>
         children.filterKeys(v => views.exists(_.id == v.id)).foreach {
-          case (v, ref) => stopView(v, ref)
+          case (v, ref) =>
+            log.info(
+              s"View '${v.id}' is going to be stopped at revision '${v.rev}' for project '${project.projectLabel.show}' because it was removed from the cache."
+            )
+            stopView(v, ref)
         }
 
       case ProjectChanges(_, newProject) =>
         context.become(initialized(newProject))
         children.foreach {
           case (view, ref) =>
+            log.info(
+              s"View '${view.id}' is going to be stopped at revision '${view.rev}' for project '${project.projectLabel.show}' because the project has changes that require restart of the view."
+            )
             stopView(view, ref).map(_ => self ! ViewsAddedOrModified(project.uuid, restartOffset = true, Set(view)))
         }
 
       case Stop(_) =>
-        children.foreach { case (view, ref) => stopView(view, ref, deleteIndices = false) }
+        children.foreach {
+          case (view, ref) =>
+            log.info(
+              s"View '${view.id}' is going to be stopped at revision '${view.rev}' for project '${project.projectLabel.show}' because the project or organization has been deprecated."
+            )
+            stopView(view, ref, deleteIndices = false)
+        }
+
       case FetchProgress(_, view: SingleView) => val _ = viewProgress(view).runToFuture pipeTo sender()
+
+      case _ => //ignore
     }
   }
 
