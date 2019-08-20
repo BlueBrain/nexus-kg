@@ -145,7 +145,8 @@ object Main {
       implicit val projectInitializer =
         new ProjectInitializer[Task](storages, views, resolvers, files, projectCoordinator)
 
-      Indexing.start(storages, views, resolvers, indexers.adminClient, projectInitializer, projectCoordinator)
+      implicit val adminClinet = clients.adminClient
+      Indexing.start(storages, views, resolvers, projectCoordinator)
 
       val routes: Route = Routes(resources, resolvers, views, storages, schemas, files, tags, projectCoordinator)
 

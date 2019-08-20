@@ -3,7 +3,8 @@ package ch.epfl.bluebrain.nexus.kg.indexing
 import java.time.{Clock, Instant, ZoneId}
 
 import cats.data.EitherT
-import cats.effect.{IO, Timer}
+import cats.effect.IO
+import ch.epfl.bluebrain.nexus.admin.client.AdminClient
 import ch.epfl.bluebrain.nexus.admin.client.types.Project
 import ch.epfl.bluebrain.nexus.commons.test
 import ch.epfl.bluebrain.nexus.commons.test.ActorSystemFixture
@@ -39,17 +40,18 @@ class ResolverIndexerMappingSpec
 
   override implicit val patienceConfig: PatienceConfig = PatienceConfig(3 seconds, 15 milliseconds)
 
-  private implicit val appConfig          = Settings(system).appConfig
-  private implicit val indexingConfig     = appConfig.keyValueStore.indexing
-  private implicit val ioTimer: Timer[IO] = IO.timer(system.dispatcher)
+  private implicit val appConfig = Settings(system).appConfig
+  private implicit val token     = appConfig.iam.serviceAccountToken
+  private implicit val kgError   = ch.epfl.bluebrain.nexus.kg.instances.kgErrorMonadError[IO]
 
   private val resolvers             = mock[Resolvers[IO]]
+  private implicit val admin        = mock[AdminClient[IO]]
+  private implicit val initializer  = mock[ProjectInitializer[IO]]
   private implicit val projectCache = mock[ProjectCache[IO]]
   private val mapper                = new ResolverIndexerMapping(resolvers)
 
   before {
-    Mockito.reset(resolvers)
-    Mockito.reset(projectCache)
+    Mockito.reset(resolvers, projectCache)
   }
 
   "An Resolver event mapping function" when {
