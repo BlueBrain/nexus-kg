@@ -15,6 +15,8 @@ import com.github.ghik.silencer.silent
 
 object RemoteDiskStorageOperations {
 
+  private implicit def toDigest(digest: StorageDigest): Digest = Digest(digest.algorithm, digest.value)
+
   /**
     * [[VerifyStorage]] implementation for [[RemoteDiskStorage]]
     *
@@ -56,9 +58,8 @@ object RemoteDiskStorageOperations {
     override def apply(id: ResId, fileDesc: FileDescription, source: AkkaSource): F[FileAttributes] = {
       val relativePath = Uri.Path(mangle(storage.ref, fileDesc.uuid, fileDesc.filename))
       client.createFile(storage.folder, relativePath, source).map {
-        case StorageFileAttributes(location, bytes, StorageDigest(algorithm, hash)) =>
-          val dig = Digest(algorithm, hash)
-          FileAttributes(fileDesc.uuid, location, relativePath, fileDesc.filename, fileDesc.mediaType, bytes, dig)
+        case StorageFileAttributes(location, bytes, dig, mediaType) =>
+          FileAttributes(fileDesc.uuid, location, relativePath, fileDesc.filename, mediaType, bytes, dig)
       }
     }
   }
@@ -75,9 +76,8 @@ object RemoteDiskStorageOperations {
     override def apply(id: ResId, fileDesc: FileDescription, path: Uri.Path): F[FileAttributes] = {
       val destRelativePath = Uri.Path(mangle(storage.ref, fileDesc.uuid, fileDesc.filename))
       client.moveFile(storage.folder, path, destRelativePath).map {
-        case StorageFileAttributes(location, bytes, StorageDigest(algorithm, hash)) =>
-          val dig = Digest(algorithm, hash)
-          FileAttributes(fileDesc.uuid, location, destRelativePath, fileDesc.filename, fileDesc.mediaType, bytes, dig)
+        case StorageFileAttributes(location, bytes, dig, mediaType) =>
+          FileAttributes(fileDesc.uuid, location, destRelativePath, fileDesc.filename, mediaType, bytes, dig)
       }
     }
   }
@@ -94,9 +94,7 @@ object RemoteDiskStorageOperations {
     implicit val cred = storage.credentials.map(AuthToken)
 
     override def apply(relativePath: Uri.Path): F[Digest] =
-      client.getDigest(storage.folder, relativePath).map {
-        case StorageDigest(algorithm, value) => Digest(algorithm, value)
-      }
+      client.getDigest(storage.folder, relativePath).map(toDigest)
   }
 
 }

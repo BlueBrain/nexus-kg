@@ -82,7 +82,8 @@ class RemoteDiskStorageOperationsSpec
           StorageFileAttributes(
             attributes.location,
             attributes.bytes,
-            StorageDigest(attributes.digest.algorithm, attributes.digest.value)
+            StorageDigest(attributes.digest.algorithm, attributes.digest.value),
+            attributes.mediaType
           )
         )
       val link = new RemoteDiskStorageOperations.Link[IO](storage, client)
