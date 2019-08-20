@@ -59,7 +59,8 @@ object RemoteDiskStorageOperations {
       val relativePath = Uri.Path(mangle(storage.ref, fileDesc.uuid, fileDesc.filename))
       client.createFile(storage.folder, relativePath, source).map {
         case StorageFileAttributes(location, bytes, dig, mediaType) =>
-          FileAttributes(fileDesc.uuid, location, relativePath, fileDesc.filename, mediaType, bytes, dig)
+          val usedMediaType = fileDesc.mediaType.getOrElse(mediaType)
+          FileAttributes(fileDesc.uuid, location, relativePath, fileDesc.filename, usedMediaType, bytes, dig)
       }
     }
   }
@@ -77,7 +78,8 @@ object RemoteDiskStorageOperations {
       val destRelativePath = Uri.Path(mangle(storage.ref, fileDesc.uuid, fileDesc.filename))
       client.moveFile(storage.folder, path, destRelativePath).map {
         case StorageFileAttributes(location, bytes, dig, mediaType) =>
-          FileAttributes(fileDesc.uuid, location, destRelativePath, fileDesc.filename, mediaType, bytes, dig)
+          val usedMediaType = fileDesc.mediaType.getOrElse(mediaType)
+          FileAttributes(fileDesc.uuid, location, destRelativePath, fileDesc.filename, usedMediaType, bytes, dig)
       }
     }
   }

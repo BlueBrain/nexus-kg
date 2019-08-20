@@ -75,7 +75,7 @@ object DiskStorageOperations {
                   case _ =>
                     Future.failed(
                       KgError.InternalError(
-                        s"I/O error writing file with contentType '${fileDesc.mediaType}' and filename '${fileDesc.filename}'"
+                        s"I/O error writing file with contentType '${fileDesc.defaultMediaType}' and filename '${fileDesc.filename}'"
                       )
                     )
                 }

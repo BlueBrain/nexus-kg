@@ -88,7 +88,7 @@ class RemoteDiskStorageOperationsSpec
         )
       val link = new RemoteDiskStorageOperations.Link[IO](storage, client)
       link
-        .apply(id, FileDescription(attributes.uuid, attributes.filename, attributes.mediaType), sourcePath)
+        .apply(id, FileDescription(attributes.uuid, attributes.filename, Some(attributes.mediaType)), sourcePath)
         .ioValue shouldEqual attributes.copy(path = destRelativePath)
     }
   }

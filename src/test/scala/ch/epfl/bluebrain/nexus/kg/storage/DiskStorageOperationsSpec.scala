@@ -13,7 +13,7 @@ import ch.epfl.bluebrain.nexus.kg.resources.{Id, ProjectRef}
 import ch.epfl.bluebrain.nexus.kg.{KgError, TestHelper}
 import ch.epfl.bluebrain.nexus.sourcing.akka.SourcingConfig.RetryStrategyConfig
 import org.mockito.IdiomaticMockito
-import org.scalatest.{BeforeAndAfter, Matchers, WordSpecLike}
+import org.scalatest.{BeforeAndAfter, Matchers, OptionValues, WordSpecLike}
 
 import scala.concurrent.duration._
 
@@ -25,7 +25,8 @@ class DiskStorageOperationsSpec
     with IdiomaticMockito
     with IOEitherValues
     with Resources
-    with TestHelper {
+    with TestHelper
+    with OptionValues {
 
   private implicit val sc: StorageConfig = StorageConfig(
     DiskStorageConfig(Paths.get("/tmp"), "SHA-256", read, write, false, 1024L),
@@ -44,7 +45,7 @@ class DiskStorageOperationsSpec
   private def consume(source: AkkaSource): String =
     source.runFold("")(_ ++ _.utf8String)(ActorMaterializer()).futureValue
 
-  "RemoteDiskStorageOperations" should {
+  "DiskStorageOperations" should {
 
     "verify when the storage exists" in {
       val verify = new DiskStorageOperations.VerifyDiskStorage[IO](storage)
@@ -59,7 +60,7 @@ class DiskStorageOperationsSpec
       val attr = save.apply(resId, fileDesc, source).ioValue
       attr.bytes shouldEqual 16L
       attr.filename shouldEqual fileDesc.filename
-      attr.mediaType shouldEqual fileDesc.mediaType
+      attr.mediaType shouldEqual fileDesc.mediaType.value
       attr.location shouldEqual Uri(s"file:///tmp/${mangle(project, attr.uuid, "my%20file.txt")}")
       attr.path shouldEqual attr.location.path.tail.tail.tail
       val fetched = fetch.apply(attr).ioValue
