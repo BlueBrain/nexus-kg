@@ -4,6 +4,8 @@ import akka.actor.ActorSystem
 import cats.MonadError
 import cats.effect.{Effect, Timer}
 import cats.implicits._
+import ch.epfl.bluebrain.nexus.admin.client.AdminClient
+import ch.epfl.bluebrain.nexus.iam.client.types.AuthToken
 import ch.epfl.bluebrain.nexus.kg.KgError
 import ch.epfl.bluebrain.nexus.kg.cache.{ProjectCache, StorageCache}
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig
@@ -13,18 +15,18 @@ import ch.epfl.bluebrain.nexus.kg.resources.Storages.TimedStorage
 import ch.epfl.bluebrain.nexus.kg.resources._
 import ch.epfl.bluebrain.nexus.sourcing.projections.ProgressStorage.Volatile
 import ch.epfl.bluebrain.nexus.sourcing.projections._
-import ch.epfl.bluebrain.nexus.sourcing.retry.Retry
 import journal.Logger
 
-private class StorageIndexerMapping[F[_]: Timer](storages: Storages[F])(
+private class StorageIndexerMapping[F[_]](storages: Storages[F])(
     implicit projectCache: ProjectCache[F],
-    F: MonadError[F, Throwable],
-    indexing: IndexingConfig,
+    adminClient: AdminClient[F],
+    projectInitializer: ProjectInitializer[F],
+    serviceAccountToken: Option[AuthToken],
+    F: MonadError[F, KgError],
     storageConfig: StorageConfig
 ) {
 
-  private implicit val retry: Retry[F, Throwable] = Retry[F, Throwable](indexing.retry.retryStrategy)
-  private implicit val log                        = Logger[this.type]
+  private implicit val log = Logger[this.type]
 
   /**
     * Fetches the storage which corresponds to the argument event. If the resource is not found, or it's not
@@ -33,7 +35,7 @@ private class StorageIndexerMapping[F[_]: Timer](storages: Storages[F])(
     * @param event event to be mapped to a storage
     */
   def apply(event: Event): F[Option[TimedStorage]] =
-    fetchProject(event.id.parent).flatMap { implicit project =>
+    fetchProject(event.organization, event.id.parent, event.subject).flatMap { implicit project =>
       storages.fetchStorage(event.id).value.map {
         case Left(err) =>
           log.error(s"Error on event '${event.id.show} (rev = ${event.rev})', cause: '${err.msg}'")
@@ -57,14 +59,22 @@ object StorageIndexer {
       projectCache: ProjectCache[F],
       as: ActorSystem,
       F: Effect[F],
+      projectInitializer: ProjectInitializer[F],
+      adminClient: AdminClient[F],
       config: AppConfig
   ): StreamSupervisor[F, ProjectionProgress] = {
 
-    val kgErrorMonadError = ch.epfl.bluebrain.nexus.kg.instances.kgErrorMonadError
+    val kgErrorMonadError        = ch.epfl.bluebrain.nexus.kg.instances.kgErrorMonadError
+    val indexing: IndexingConfig = config.keyValueStore.indexing
 
-    implicit val indexing: IndexingConfig = config.keyValueStore.indexing
-
-    val mapper = new StorageIndexerMapping[F](storages)
+    val mapper = new StorageIndexerMapping(storages)(
+      projectCache,
+      adminClient,
+      projectInitializer,
+      config.iam.serviceAccountToken,
+      kgErrorMonadError,
+      config.storage
+    )
     TagProjection.start(
       ProjectionConfig
         .builder[F]
@@ -89,6 +99,8 @@ object StorageIndexer {
   final def delay[F[_]: Timer: Effect](storages: Storages[F], storageCache: StorageCache[F])(
       implicit
       projectCache: ProjectCache[F],
+      projectInitializer: ProjectInitializer[F],
+      adminClient: AdminClient[F],
       as: ActorSystem,
       config: AppConfig
   ): F[StreamSupervisor[F, ProjectionProgress]] =

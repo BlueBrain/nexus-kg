@@ -143,7 +143,7 @@ object S3StorageOperations {
                   location,
                   key,
                   fileDesc.filename,
-                  fileDesc.mediaType,
+                  fileDesc.defaultMediaType,
                   meta.contentLength,
                   dig
                 )

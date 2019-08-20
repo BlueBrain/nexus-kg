@@ -20,10 +20,14 @@ private class Indexing(
     storages: Storages[Task],
     views: Views[Task],
     resolvers: Resolvers[Task],
+    coordinator: ProjectViewCoordinator[Task]
+)(
+    implicit cache: Caches[Task],
     adminClient: AdminClient[Task],
-    coordinator: ProjectViewCoordinator[Task],
-    projectInitializer: ProjectInitializer[Task]
-)(implicit cache: Caches[Task], as: ActorSystem, config: AppConfig) {
+    projectInitializer: ProjectInitializer[Task],
+    as: ActorSystem,
+    config: AppConfig
+) {
 
   private val logger = Logger[this.type]
 
@@ -96,11 +100,15 @@ object Indexing {
       storages: Storages[Task],
       views: Views[Task],
       resolvers: Resolvers[Task],
+      coordinator: ProjectViewCoordinator[Task]
+  )(
+      implicit cache: Caches[Task],
       adminClient: AdminClient[Task],
       projectInitializer: ProjectInitializer[Task],
-      coordinator: ProjectViewCoordinator[Task]
-  )(implicit cache: Caches[Task], config: AppConfig, as: ActorSystem): Unit = {
-    val indexing = new Indexing(storages, views, resolvers, adminClient, coordinator, projectInitializer)
+      config: AppConfig,
+      as: ActorSystem
+  ): Unit = {
+    val indexing = new Indexing(storages, views, resolvers, coordinator)
     indexing.startAdminStream()
     indexing.startResolverStream()
     indexing.startViewStream()

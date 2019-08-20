@@ -3,9 +3,10 @@ package ch.epfl.bluebrain.nexus.kg.resources.file
 import java.security.MessageDigest
 import java.util.UUID
 
+import akka.http.scaladsl.model.ContentTypes.`application/octet-stream`
 import akka.http.scaladsl.model.Uri.Path
 import akka.http.scaladsl.model.Uri.Path.{Empty, Segment, SingleSlash}
-import akka.http.scaladsl.model.{ContentType, ContentTypes, Uri}
+import akka.http.scaladsl.model.{ContentType, Uri}
 import ch.epfl.bluebrain.nexus.commons.rdf.instances._
 import ch.epfl.bluebrain.nexus.iam.client.types.Permission
 import ch.epfl.bluebrain.nexus.kg.config.Contexts._
@@ -81,21 +82,18 @@ object File {
     * @param filename  the original filename of the file
     * @param mediaType the media type of the file
     */
-  final case class FileDescription(uuid: UUID, filename: String, mediaType: ContentType) {
+  final case class FileDescription(uuid: UUID, filename: String, mediaType: Option[ContentType]) {
+    lazy val defaultMediaType: ContentType = mediaType.getOrElse(`application/octet-stream`)
     def process(stored: StoredSummary): FileAttributes =
-      FileAttributes(uuid, stored.location, stored.path, filename, mediaType, stored.bytes, stored.digest)
+      FileAttributes(uuid, stored.location, stored.path, filename, defaultMediaType, stored.bytes, stored.digest)
   }
 
   object FileDescription {
     def apply(filename: String, mediaType: ContentType): FileDescription =
-      FileDescription(UUID.randomUUID, filename, mediaType)
+      FileDescription(UUID.randomUUID, filename, Some(mediaType))
 
     def from(link: LinkDescription): FileDescription =
-      FileDescription(
-        UUID.randomUUID,
-        link.filename.getOrElse(getFilename(link.path)),
-        link.mediaType.getOrElse(ContentTypes.`application/octet-stream`)
-      )
+      FileDescription(UUID.randomUUID, link.filename.getOrElse(getFilename(link.path)), link.mediaType)
 
     @tailrec
     private def getFilename(path: Path): String = path match {

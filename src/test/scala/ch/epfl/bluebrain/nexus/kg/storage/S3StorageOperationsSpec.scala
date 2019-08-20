@@ -110,7 +110,7 @@ class S3StorageOperationsSpec
 
       val resid    = Id(projectRef, base + "files" + "id")
       val fileUuid = UUID.randomUUID
-      val desc     = FileDescription(fileUuid, "my s3.json", `text/plain(UTF-8)`)
+      val desc     = FileDescription(fileUuid, "my s3.json", Some(`text/plain(UTF-8)`))
       val filePath = "/storage/s3.json"
       val path     = Paths.get(getClass.getResource(filePath).toURI)
       val attr     = save(resid, desc, FileIO.fromPath(path)).ioValue
@@ -165,7 +165,7 @@ class S3StorageOperationsSpec
 
       val resid    = Id(projectRef, base + "files" + "id")
       val fileUuid = UUID.randomUUID
-      val desc     = FileDescription(fileUuid, "my s3.json", `text/plain(UTF-8)`)
+      val desc     = FileDescription(fileUuid, "my s3.json", Some(`text/plain(UTF-8)`))
       val key      = Uri.Path("some/key/my s3.json")
       val location = Uri(s"$address/$bucket/$key")
       val attr     = link(resid, desc, key).ioValue
@@ -210,7 +210,7 @@ class S3StorageOperationsSpec
 
       val resid    = Id(projectRef, base + "files" + "id")
       val fileUuid = UUID.randomUUID
-      val desc     = FileDescription(fileUuid, "my s3.json", `text/plain(UTF-8)`)
+      val desc     = FileDescription(fileUuid, "my s3.json", Some(`text/plain(UTF-8)`))
       val filePath = "/storage/s3.json"
       val path     = Paths.get(getClass.getResource(filePath).toURI)
       val upload   = save(resid, desc, FileIO.fromPath(path)).failed[DownstreamServiceError]
@@ -219,7 +219,7 @@ class S3StorageOperationsSpec
       val key      = Uri.Path(mangle(projectRef, fileUuid, "my s3.json"))
       val location = Uri(s"http://s3.amazonaws.com/foobar/$key")
       val digest   = Digest("MD5", "5d3c675f85ffb2da9a8141ccd45bd6c6")
-      val attr     = FileAttributes(fileUuid, location, key, desc.filename, desc.mediaType, 263L, digest)
+      val attr     = FileAttributes(fileUuid, location, key, desc.filename, `text/plain(UTF-8)`, 263L, digest)
       val download = fetch(attr).failed[DownstreamServiceError]
       download.msg shouldEqual s"Error fetching S3 object with key '$key' in bucket 'foobar': The specified bucket does not exist"
     }
@@ -282,7 +282,7 @@ class S3StorageOperationsSpec
 
       val resid    = Id(projectRef, base + "files" + "id")
       val fileUuid = UUID.randomUUID
-      val desc     = FileDescription(fileUuid, "my s3.json", `text/plain(UTF-8)`)
+      val desc     = FileDescription(fileUuid, "my s3.json", Some(`text/plain(UTF-8)`))
       val filePath = "/storage/s3.json"
       val path     = Paths.get(getClass.getResource(filePath).toURI)
       val attr     = save(resid, desc, FileIO.fromPath(path)).ioValue
