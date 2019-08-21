@@ -2,7 +2,7 @@ package ch.epfl.bluebrain.nexus.kg.indexing
 
 import java.util.Properties
 
-import akka.actor.ActorSystem
+import akka.actor.{ActorRef, ActorSystem, Props}
 import akka.http.scaladsl.model.Uri
 import cats.Monad
 import cats.effect.{Effect, Timer}
@@ -76,6 +76,7 @@ object SparqlIndexer {
     */
   final def start[F[_]: Timer](view: SparqlView, resources: Resources[F], project: Project, restartOffset: Boolean)(
       implicit as: ActorSystem,
+      actorInitializer: (Props, String) => ActorRef,
       ul: UntypedHttpClient[F],
       P: Projections[F, Event],
       F: Effect[F],
@@ -121,6 +122,7 @@ object SparqlIndexer {
         .builder[F]
         .name(s"sparql-indexer-${view.index}")
         .tag(s"project=${view.ref.id}")
+        .actorOf(actorInitializer)
         .plugin(config.persistence.queryJournalPlugin)
         .retry[SparqlServerOrUnexpectedFailure](indexing.retry.retryStrategy)(sparqlErrorMonadError)
         .batch(indexing.batch, indexing.batchTimeout)
@@ -143,28 +145,5 @@ object SparqlIndexer {
         .build
     )
   }
-
-  /**
-    * Starts the index process for an sparql client
-    *
-    * @param view          the view for which to start the index
-    * @param resources     the resources operations
-    * @param project       the project to which the resource belongs
-    * @param restartOffset a flag to decide whether to restart from the beginning or to resume from the previous offset
-    */
-  final def delay[F[_]: Timer: Effect](
-      view: SparqlView,
-      resources: Resources[F],
-      project: Project,
-      restartOffset: Boolean
-  )(
-      implicit as: ActorSystem,
-      ul: UntypedHttpClient[F],
-      uclRs: HttpClient[F, SparqlResults],
-      config: AppConfig,
-      P: Projections[F, Event]
-  ): F[StreamSupervisor[F, ProjectionProgress]] =
-    Effect[F].delay(start(view, resources, project, restartOffset))
-
   // $COVERAGE-ON$
 }

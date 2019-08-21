@@ -286,6 +286,7 @@ object AppConfig {
   val iriResolution: Map[AbsoluteIri, Json] = Map(
     tagCtxUri         -> tagCtx,
     digestCtxUri      -> digestCtx,
+    statisticsCtxUri  -> statisticsCtx,
     resourceCtxUri    -> resourceCtx,
     shaclCtxUri       -> shaclCtx,
     resolverCtxUri    -> resolverCtx,

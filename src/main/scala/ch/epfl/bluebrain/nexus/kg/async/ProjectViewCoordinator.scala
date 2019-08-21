@@ -15,7 +15,7 @@ import ch.epfl.bluebrain.nexus.kg.async.ProjectViewCoordinatorActor.Msg._
 import ch.epfl.bluebrain.nexus.kg.cache.Caches
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig
 import ch.epfl.bluebrain.nexus.kg.indexing.View.SingleView
-import ch.epfl.bluebrain.nexus.kg.indexing.ViewStatistics
+import ch.epfl.bluebrain.nexus.kg.indexing.Statistics
 import ch.epfl.bluebrain.nexus.kg.resources.syntax._
 import ch.epfl.bluebrain.nexus.kg.resources.{Event, OrganizationRef, ProjectRef, Resources}
 import ch.epfl.bluebrain.nexus.sourcing.projections.Projections
@@ -31,26 +31,17 @@ import monix.execution.Scheduler.Implicits.global
   */
 class ProjectViewCoordinator[F[_]](cache: Caches[F], ref: ActorRef)(implicit config: AppConfig, F: Async[F]) {
 
+  private implicit val timeout: Timeout = config.sourcing.askTimeout
+
   /**
     * Fetches view statistics for a given view.
     *
     * @param project  project to which the view belongs.
     * @param view     the view to fetch the statistics for.
-    * @return [[ViewStatistics]] wrapped in [[F]]
+    * @return [[Statistics]] wrapped in [[F]]
     */
-  def viewStatistics(project: Project, view: SingleView): F[ViewStatistics] = {
-    implicit val timeout: Timeout = config.sourcing.askTimeout
-    IO.fromFuture(IO(ref ? FetchProgress(project.uuid, view))).to[F].map {
-      case p: ViewProgress =>
-        ViewStatistics(
-          processedEvents = p.processedEvents,
-          discardedEvents = p.discardedEvents,
-          totalEvents = p.totalEvents,
-          lastEventDateTime = p.lastEvent,
-          lastProcessedEventDateTime = p.lastProcessedEvent
-        )
-    }
-  }
+  def statistics(project: Project, view: SingleView): F[Statistics] =
+    IO.fromFuture(IO(ref ? FetchProgress(project.uuid, view))).to[F].map { case s: Statistics => s }
 
   /**
     * Starts the project view coordinator for the provided project sending a Start message to the

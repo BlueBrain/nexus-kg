@@ -21,7 +21,7 @@ import ch.epfl.bluebrain.nexus.kg.directives.PathDirectives._
 import ch.epfl.bluebrain.nexus.kg.directives.ProjectDirectives._
 import ch.epfl.bluebrain.nexus.kg.directives.QueryDirectives._
 import ch.epfl.bluebrain.nexus.kg.indexing.View._
-import ch.epfl.bluebrain.nexus.kg.indexing.{View, ViewStatistics}
+import ch.epfl.bluebrain.nexus.kg.indexing.{Statistics, View}
 import ch.epfl.bluebrain.nexus.kg.marshallers.instances._
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection.{NoStatsForAggregateView, NotFound}
 import ch.epfl.bluebrain.nexus.kg.resources._
@@ -238,8 +238,8 @@ class ViewRoutes private[routes] (
     (get & pathPrefix(IdSegment / "statistics") & pathEndOrSingleSlash) { id =>
       operationName(s"/${config.http.prefix}/views/{}/{}/{}/statistics") {
         hasPermission(read).apply {
-          val result: Task[Either[Rejection, ViewStatistics]] = viewCache.getBy[View](project.ref, id).flatMap {
-            case Some(view: SingleView) => projectViewCoordinator.viewStatistics(project, view).map(Right(_))
+          val result: Task[Either[Rejection, Statistics]] = viewCache.getBy[View](project.ref, id).flatMap {
+            case Some(view: SingleView) => projectViewCoordinator.statistics(project, view).map(Right(_))
             case Some(_)                => Task.pure(Left(NoStatsForAggregateView))
             case None                   => Task.pure(Left(NotFound(id.ref)))
           }
