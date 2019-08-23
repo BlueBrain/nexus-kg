@@ -249,7 +249,10 @@ private abstract class ProjectViewCoordinatorActor(viewCache: ViewCache[Task])(
 
       case FetchProgress(_, view: SingleView) => val _ = viewProgress(view).runToFuture pipeTo sender()
 
-      case _ => //ignore
+      case _: Start => //ignore, it has already been started
+
+      case other => log.error("Unexpected message received '{}'", other)
+
     }
   }
 

@@ -1,0 +1,69 @@
+{
+  "@id": "random",
+  "@type": "Pipeline",
+  "configurations": [
+    {
+      "@type": "BlazeGraphNamespace",
+      "@id": "http://bg.id"
+    }
+  ],
+  "actions": {
+    "start": [
+      {
+        "@type": "CreateNamespace",
+        "reference": "http://bg.id"
+      }
+    ],
+    "reStart": [
+      {
+        "@type": "DeleteNamespace",
+        "reference": "http://bg.id"
+      }
+    ]
+  },
+  "stages": [
+    {
+      "@type": "ProjectEvents"
+    },
+    {
+      "@type": "ToResource",
+      "tag": "{tag}"
+    },
+    {
+      "@type": "Match",
+      "stages": [
+        {
+          "when": {
+            "@type": "ResourceFilter",
+            "deprecated": false,
+            "types": [],
+            "schemas": []
+          },
+          "stages": [
+            {
+              "@type": "DeleteFromBlazegraph",
+              "reference": "http://bg.id",
+              "keep": "left"
+            },
+            {
+              "@type": "InsertIntoBlazegraph",
+              "reference": "http://bg.id"
+            }
+          ]
+        },
+        {
+          "when": {
+            "@type": "ResourceFilter",
+            "deprecated": true
+          },
+          "stages": [
+            {
+              "@type": "DeleteFromBlazegraph",
+              "reference": "http://bg.id"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

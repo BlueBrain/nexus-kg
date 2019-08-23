@@ -1,0 +1,228 @@
+{
+  "@type": "Pipeline",
+  "configurations": [
+    {
+      "@type": "BlazeGraphNamespace",
+      "endpoint": "http://blazegraph.bbp-nexus-production.svc",
+      "username": "{username}",
+      "password": "{password}",
+      "@id": "http://bg2.id"
+    },
+    {
+      "@type": "BlazeGraphNamespace",
+      "endpoint": "http://blazegraph.bbp-nexus-production.svc",
+      "username": "{username}",
+      "password": "{password}",
+      "@id": "http://bg.id"
+    },
+    {
+      "@type": "ElasticSearchIndex",
+      "endpoint": "http://elasticsearch.bbp-nexus-production.svc",
+      "username": "{username}",
+      "password": "{password}",
+      "mapping": {},
+      "@id": "http://elastic.id",
+      "//endpoint": "http://nexus/v1/pipelines/{org}/{proj}/{pipeline_id}/{elastic_id}/_search"
+    }
+  ],
+  "actions": {
+    "start": [
+      {
+        "@type": "CreateNamespace",
+        "reference": "http://bg.id"
+      },
+      {
+        "@type": "CreateNamespace",
+        "reference": "http://bg2.id"
+      },
+      {
+        "@type": "CreateIndex",
+        "reference": "http://elastic.id"
+      }
+    ],
+    "reStart": [
+      {
+        "@type": "DeleteNamespace",
+        "reference": "http://bg.id"
+      },
+      {
+        "@type": "DeleteNamespace",
+        "reference": "http://bg2.id"
+      },
+      {
+        "@type": "DeleteIndex",
+        "reference": "http://elastic.id"
+      }
+    ]
+  },
+  "stages": [
+    {
+      "@type": "Parallel",
+      "stages": [
+        {
+          "name": "EventsFromCurrentProject",
+          "stages": [
+            {
+              "@type": "ProjectEvents"
+            },
+            {
+              "@type": "ToResource",
+              "tag": "{tag}"
+            },
+            {
+              "@type": "ResourceFilter",
+              "deprecated": false,
+              "types": [],
+              "schemas": []
+            },
+            {
+              "@type": "ToJson",
+              "includeMetadata": false
+            }
+          ]
+        },
+        {
+          "name": "EventsFromProjectX",
+          "stages": [
+            {
+              "@type": "ProjectEvents",
+              "organisation": "{org}",
+              "project": "{proj}"
+            },
+            {
+              "@type": "ToResource",
+              "tag": "{tag}"
+            },
+            {
+              "@type": "ResourceFilter",
+              "deprecated": false,
+              "types": [],
+              "schemas": []
+            },
+            {
+              "@type": "ToJson",
+              "includeMetadata": false
+            }
+          ]
+        },
+        {
+          "name": "EventsFromRemoteProject",
+          "stages": [
+            {
+              "@type": "RemoteProjectEvents",
+              "endpoint": "https://other.nexus.com/v1",
+              "organisation": "{org}",
+              "project": "{proj}",
+              "token": "{token}"
+            },
+            {
+              "@type": "ToResource",
+              "tag": "{tag}"
+            },
+            {
+              "@type": "ResourceFilter",
+              "deprecated": false,
+              "types": [],
+              "schemas": []
+            },
+            {
+              "@type": "ToJson",
+              "includeMetadata": false
+            }
+          ]
+        },
+        {
+          "name": "DocumentsFromSomeCSV",
+          "stages": [
+            {
+              "@type": "CSVFile",
+              "resourceId": "https://some/id",
+              "rev": 4,
+              "organisation": "{org}",
+              "project": "{proj}",
+              "identifier": "generate",
+              "dropNull": true,
+              "header": {
+                "@type": "ExplicitMapping",
+                "values": [
+                  {
+                    "name": "name",
+                    "@type": "xsd:string"
+                  },
+                  {
+                    "name": "address",
+                    "@type": "xsd:string"
+                  },
+                  {
+                    "name": "age",
+                    "@type": "xsd:int"
+                  },
+                  {
+                    "name": "deceased",
+                    "@type": "xsd:boolean"
+                  }
+                ]
+              }
+            },
+            {
+              "@type": "TabularToJson"
+            },
+            {
+              "@type": "ApplyContext",
+              "resourceId": "https://some/id"
+            }
+          ]
+        }
+      ],
+      "mergeStrategy": "ByTimestamp"
+    },
+    {
+      "@type": "ToRDFGraph"
+    },
+    {
+      "@type": "ToBlazeGraph",
+      "reference": "http://bg2.id"
+    },
+    {
+      "@type": "BlazeGraphConstruct",
+      "reference": "http://bg2.id",
+      "query": "CONSTRUCT ...."
+    },
+    {
+      "@type": "ToBlazeGraph",
+      "reference": "http://bg2.id"
+    },
+    {
+      "@type": "BlazeGraphConstruct",
+      "reference": "http://bg2.id",
+      "query": "CONSTRUCT ...."
+    },
+    {
+      "@type": "Parallel",
+      "stages": [
+        {
+          "name": "IndexToBlazeGraph",
+          "stages": [
+            {
+              "@type": "ToBlazeGraph",
+              "reference": "http://bg.id"
+            }
+          ]
+        },
+        {
+          "name": "IndexToElasticSearch",
+          "stages": [
+            {
+              "@type": "ApplyContext",
+              "resourceId": "https://some/id"
+            },
+            {
+              "@type": "ToElasticSearch",
+              "reference": "http://elastic.id"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

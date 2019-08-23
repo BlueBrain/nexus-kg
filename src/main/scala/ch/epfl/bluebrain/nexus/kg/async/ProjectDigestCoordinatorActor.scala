@@ -56,7 +56,9 @@ private abstract class ProjectDigestCoordinatorActor(implicit val config: AppCon
 
     case FetchProgress(_) => val _ = progress.runToFuture pipeTo sender()
 
-    case _ => //ignore
+    case _: Start => //ignore, it has already been started
+
+    case other => log.error("Unexpected message received '{}'", other)
   }
 
   def startCoordinator(project: Project, restartOffset: Boolean): StreamSupervisor[Task, ProjectionProgress]
