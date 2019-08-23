@@ -24,7 +24,7 @@ import ch.epfl.bluebrain.nexus.kg.async.ProjectViewCoordinatorActor.OffsetSyntax
 import ch.epfl.bluebrain.nexus.kg.cache.ViewCache
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig
 import ch.epfl.bluebrain.nexus.kg.indexing.View.{ElasticSearchView, SingleView, SparqlView}
-import ch.epfl.bluebrain.nexus.kg.indexing.{ElasticSearchIndexer, SparqlIndexer, View}
+import ch.epfl.bluebrain.nexus.kg.indexing.{ElasticSearchIndexer, SparqlIndexer, Statistics, View}
 import ch.epfl.bluebrain.nexus.kg.resources.syntax._
 import ch.epfl.bluebrain.nexus.kg.resources.{Event, Resources}
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
@@ -73,13 +73,13 @@ private abstract class ProjectViewCoordinatorActor(viewCache: ViewCache[Task])(
       stash()
   }
 
-  private def viewProgress(view: SingleView): Task[ViewProgress] = {
+  private def viewProgress(view: SingleView): Task[Statistics] = {
     val viewProgress    = children.get(view).map(projectionProgress).getOrElse(Task.pure(NoProgress))
     val projectProgress = projectStream.map(projectionProgress).getOrElse(Task.pure(NoProgress))
     for {
       vp <- viewProgress
       pp <- projectProgress
-    } yield ViewProgress(
+    } yield Statistics(
       vp.processedCount,
       vp.discardedCount,
       pp.processedCount,
@@ -111,6 +111,7 @@ private abstract class ProjectViewCoordinatorActor(viewCache: ViewCache[Task])(
         .builder[Task]
         .name(s"project-event-count-${project.uuid}")
         .tag(s"project=${project.uuid}")
+        .actorOf(context.actorOf)
         .plugin(config.persistence.queryJournalPlugin)
         .retry[ElasticSearchServerOrUnexpectedFailure](indexing.retry.retryStrategy)(elasticErrorMonadError)
         .batch(indexing.batch, indexing.batchTimeout)
@@ -174,7 +175,11 @@ private abstract class ProjectViewCoordinatorActor(viewCache: ViewCache[Task])(
 
     def startView(view: SingleView, restartOffset: Boolean) = {
       log.info(
-        s"View '${view.id}' is going to be started at revision '${view.rev}' for project '${project.projectLabel.show}'. restartOffset: $restartOffset"
+        "View '{}' is going to be started at revision '{}' for project '{}'. restartOffset: {}",
+        view.id,
+        view.rev,
+        project.projectLabel.show,
+        restartOffset
       )
       val ref = startCoordinator(view, project, restartOffset)
       children += view -> ref
@@ -194,7 +199,11 @@ private abstract class ProjectViewCoordinatorActor(viewCache: ViewCache[Task])(
                 case (oldView, ref) =>
                   startView(view, restartOffset)
                   log.info(
-                    s"View '${oldView.id}' is going to be stopped at revision '${oldView.rev}' for project '${project.projectLabel.show}' because view with revision '${view.rev}' is going to be started . restartOffset: $restartOffset"
+                    "View '{}' is going to be stopped at revision '{}' for project '{}' because another view is going to be started. restartOffset: {}",
+                    oldView.id,
+                    oldView.rev,
+                    project.projectLabel.show,
+                    restartOffset
                   )
                   stopView(oldView, ref)
               }
@@ -205,7 +214,10 @@ private abstract class ProjectViewCoordinatorActor(viewCache: ViewCache[Task])(
         children.filterKeys(v => views.exists(_.id == v.id)).foreach {
           case (v, ref) =>
             log.info(
-              s"View '${v.id}' is going to be stopped at revision '${v.rev}' for project '${project.projectLabel.show}' because it was removed from the cache."
+              "View '{}' is going to be stopped at revision '{}' for project '{}' because it was removed from the cache.",
+              v.id,
+              v.rev,
+              project.projectLabel.show
             )
             stopView(v, ref)
         }
@@ -215,7 +227,10 @@ private abstract class ProjectViewCoordinatorActor(viewCache: ViewCache[Task])(
         children.foreach {
           case (view, ref) =>
             log.info(
-              s"View '${view.id}' is going to be stopped at revision '${view.rev}' for project '${project.projectLabel.show}' because the project has changes that require restart of the view."
+              "View '{}' is going to be stopped at revision '{}' for project '{}' because the project has changes that require restart of the view.",
+              view.id,
+              view.rev,
+              project.projectLabel.show
             )
             stopView(view, ref).map(_ => self ! ViewsAddedOrModified(project.uuid, restartOffset = true, Set(view)))
         }
@@ -224,14 +239,20 @@ private abstract class ProjectViewCoordinatorActor(viewCache: ViewCache[Task])(
         children.foreach {
           case (view, ref) =>
             log.info(
-              s"View '${view.id}' is going to be stopped at revision '${view.rev}' for project '${project.projectLabel.show}' because the project or organization has been deprecated."
+              "View '{}' is going to be stopped at revision '{}' for project '{}' because the project or organization has been deprecated.",
+              view.id,
+              view.rev,
+              project.projectLabel.show
             )
             stopView(view, ref, deleteIndices = false)
         }
 
       case FetchProgress(_, view: SingleView) => val _ = viewProgress(view).runToFuture pipeTo sender()
 
-      case _ => //ignore
+      case _: Start => //ignore, it has already been started
+
+      case other => log.error("Unexpected message received '{}'", other)
+
     }
   }
 
@@ -254,14 +275,6 @@ object ProjectViewCoordinatorActor {
     final case class ViewsRemoved(uuid: UUID, views: Set[SingleView])                                 extends Msg
     final case class ProjectChanges(uuid: UUID, project: Project)                                     extends Msg
     final case class FetchProgress(uuid: UUID, view: View)                                            extends Msg
-
-    final case class ViewProgress(
-        processedEvents: Long,
-        discardedEvents: Long,
-        totalEvents: Long,
-        lastProcessedEvent: Option[Instant],
-        lastEvent: Option[Instant]
-    )
   }
 
   private[async] def shardExtractor(shards: Int): ExtractShardId = {
@@ -299,8 +312,8 @@ object ProjectViewCoordinatorActor {
       new ProjectViewCoordinatorActor(viewCache) {
         private implicit val retry: Retry[Task, Throwable] = Retry(config.keyValueStore.indexing.retry.retryStrategy)
 
-        private val sparql = config.sparql
-
+        private val sparql                                                 = config.sparql
+        private implicit val actorInitializer: (Props, String) => ActorRef = context.actorOf
         override def startCoordinator(
             view: SingleView,
             project: Project,

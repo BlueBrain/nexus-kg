@@ -8,7 +8,7 @@ import ch.epfl.bluebrain.nexus.iam.client.types.Identity.Subject
 import ch.epfl.bluebrain.nexus.iam.client.types.{AccessControlLists, Caller}
 import ch.epfl.bluebrain.nexus.kg.KgError
 import ch.epfl.bluebrain.nexus.kg.KgError.InternalError
-import ch.epfl.bluebrain.nexus.kg.async.ProjectViewCoordinator
+import ch.epfl.bluebrain.nexus.kg.async.{ProjectDigestCoordinator, ProjectViewCoordinator}
 import ch.epfl.bluebrain.nexus.kg.cache.Caches
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig._
@@ -22,11 +22,10 @@ import ch.epfl.bluebrain.nexus.kg.resolve.Resolver.InProjectResolver
 import ch.epfl.bluebrain.nexus.kg.resolve.ResolverEncoder._
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection.ResourceAlreadyExists
 import ch.epfl.bluebrain.nexus.kg.resources.syntax._
+import ch.epfl.bluebrain.nexus.kg.storage.Storage
 import ch.epfl.bluebrain.nexus.kg.storage.Storage.DiskStorage
 import ch.epfl.bluebrain.nexus.kg.storage.StorageEncoder._
-import ch.epfl.bluebrain.nexus.kg.storage.{FileDigestProjection, Storage}
 import ch.epfl.bluebrain.nexus.rdf.syntax._
-import ch.epfl.bluebrain.nexus.sourcing.projections.Projections
 import ch.epfl.bluebrain.nexus.sourcing.retry.Retry
 import ch.epfl.bluebrain.nexus.sourcing.retry.syntax._
 import io.circe.Json
@@ -36,9 +35,9 @@ class ProjectInitializer[F[_]: Timer](
     storages: Storages[F],
     views: Views[F],
     resolvers: Resolvers[F],
-    files: Files[F],
-    coordinator: ProjectViewCoordinator[F]
-)(implicit F: Effect[F], cache: Caches[F], config: AppConfig, projections: Projections[F, Event], as: ActorSystem) {
+    viewCoordinator: ProjectViewCoordinator[F],
+    digestCoordinator: ProjectDigestCoordinator[F]
+)(implicit F: Effect[F], cache: Caches[F], config: AppConfig, as: ActorSystem) {
   private val logger      = Logger[this.type]
   private val revK        = nxv.rev.prefix
   private val deprecatedK = nxv.deprecated.prefix
@@ -69,14 +68,11 @@ class ProjectInitializer[F[_]: Timer](
     implicit val p              = project
     for {
       _ <- cache.project.replace(project)
-      _ <- coordinator.start(project)
-      _ <- F.pure(startDigestStream(project))
+      _ <- viewCoordinator.start(project)
+      _ <- digestCoordinator.start(project)
       _ <- List(createResolver, createDiskStorage, createElasticSearchView, createSparqlView).sequence
     } yield ()
   }
-
-  private def startDigestStream(project: Project) =
-    FileDigestProjection.start(files, project, restartOffset = false)
 
   private def asJson(view: View): F[Json] =
     view.as[Json](viewCtx.appendContextOf(resourceCtx)) match {

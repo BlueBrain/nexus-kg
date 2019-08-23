@@ -10,7 +10,7 @@ import ch.epfl.bluebrain.nexus.commons.test.{Resources => TestResources}
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity.{Subject, User}
 import ch.epfl.bluebrain.nexus.iam.client.types.{AccessControlLists, Caller}
 import ch.epfl.bluebrain.nexus.kg.TestHelper
-import ch.epfl.bluebrain.nexus.kg.async.ProjectViewCoordinator
+import ch.epfl.bluebrain.nexus.kg.async.{ProjectDigestCoordinator, ProjectViewCoordinator}
 import ch.epfl.bluebrain.nexus.kg.cache._
 import ch.epfl.bluebrain.nexus.kg.config.Settings
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary.nxv
@@ -36,19 +36,19 @@ class ProjectInitializerSpec
     with ScalaFutures
     with TestResources {
 
-  private implicit val appConfig                             = Settings(system).appConfig
-  private val projectCache: ProjectCache[Task]               = mock[ProjectCache[Task]]
-  private val resolvers: Resolvers[Task]                     = mock[Resolvers[Task]]
-  private val views: Views[Task]                             = mock[Views[Task]]
-  private val storages: Storages[Task]                       = mock[Storages[Task]]
-  private val files: Files[Task]                             = mock[Files[Task]]
-  private val coordinator: ProjectViewCoordinator[Task]      = mock[ProjectViewCoordinator[Task]]
-  private implicit val projections: Projections[Task, Event] = mock[Projections[Task, Event]]
+  private implicit val appConfig                                = Settings(system).appConfig
+  private val projectCache: ProjectCache[Task]                  = mock[ProjectCache[Task]]
+  private val resolvers: Resolvers[Task]                        = mock[Resolvers[Task]]
+  private val views: Views[Task]                                = mock[Views[Task]]
+  private val storages: Storages[Task]                          = mock[Storages[Task]]
+  private val viewCoordinator: ProjectViewCoordinator[Task]     = mock[ProjectViewCoordinator[Task]]
+  private val digestCoordinator: ProjectDigestCoordinator[Task] = mock[ProjectDigestCoordinator[Task]]
+  private implicit val projections: Projections[Task, Event]    = mock[Projections[Task, Event]]
   private implicit val cache =
     Caches(projectCache, mock[ViewCache[Task]], mock[ResolverCache[Task]], mock[StorageCache[Task]])
 
   private val initializer: ProjectInitializer[Task] =
-    new ProjectInitializer[Task](storages, views, resolvers, files, coordinator)
+    new ProjectInitializer[Task](storages, views, resolvers, viewCoordinator, digestCoordinator)
 
   private val defaultResolver: Json             = jsonContentOf("/resolve/in-proj-default.json")
   private val defaultEsView: Json               = jsonContentOf("/view/es-default.json")
@@ -72,7 +72,8 @@ class ProjectInitializerSpec
     "created default resources and store necessary resources in the cache" in new Ctx {
       projections.progress(digestProjectionName) shouldReturn Task.pure(NoProgress)
       cache.project.replace(project) shouldReturn Task.unit
-      coordinator.start(project) shouldReturn Task.unit
+      viewCoordinator.start(project) shouldReturn Task.unit
+      digestCoordinator.start(project) shouldReturn Task.unit
       resolvers.create(Id(project.ref, nxv.defaultResolver.value), defaultResolver) shouldReturn
         EitherT.rightT(resource)
       views.create(Id(project.ref, nxv.defaultElasticSearchIndex.value), defaultEsView, extractUuid = true) shouldReturn
@@ -90,7 +91,8 @@ class ProjectInitializerSpec
     "skip caching resolver and sparql view which already exists" in new Ctx {
       projections.progress(digestProjectionName) shouldReturn Task.pure(NoProgress)
       cache.project.replace(project) shouldReturn Task.unit
-      coordinator.start(project) shouldReturn Task.unit
+      viewCoordinator.start(project) shouldReturn Task.unit
+      digestCoordinator.start(project) shouldReturn Task.unit
       resolvers.create(Id(project.ref, nxv.defaultResolver.value), defaultResolver) shouldReturn
         EitherT.leftT(ResourceAlreadyExists(genIri.ref): Rejection)
       views.create(Id(project.ref, nxv.defaultElasticSearchIndex.value), defaultEsView, extractUuid = true) shouldReturn

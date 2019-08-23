@@ -3,7 +3,7 @@ package ch.epfl.bluebrain.nexus.kg.async
 import java.time.Instant
 import java.util.concurrent.atomic.AtomicInteger
 
-import akka.actor.{Actor, Props}
+import akka.actor.Props
 import akka.testkit.DefaultTimeout
 import ch.epfl.bluebrain.nexus.admin.client.types._
 import ch.epfl.bluebrain.nexus.commons.cache.OnKeyValueStoreChange
@@ -185,9 +185,5 @@ class ProjectViewCoordinatorSpec
       eventually(counterStart.get shouldEqual 6)
       eventually(coordinator3Updated.stop() wasCalled once)
     }
-  }
-
-  private class DummyActor extends Actor {
-    override def receive: Receive = Actor.ignoringBehavior
   }
 }
