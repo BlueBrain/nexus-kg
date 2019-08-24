@@ -9,9 +9,15 @@ import ch.epfl.bluebrain.nexus.kg.resources.file.File.{FileDescription, LinkDesc
 import ch.epfl.bluebrain.nexus.rdf.syntax._
 import io.circe.Json
 import io.circe.syntax._
-import org.scalatest.{EitherValues, Matchers, WordSpec}
+import org.scalatest.{EitherValues, Matchers, OptionValues, WordSpec}
 
-class LinkDescriptionSpec extends WordSpec with Matchers with TestHelper with Randomness with EitherValues {
+class LinkDescriptionSpec
+    extends WordSpec
+    with Matchers
+    with TestHelper
+    with Randomness
+    with EitherValues
+    with OptionValues {
 
   private abstract class Ctx {
     val id = Id(ProjectRef(genUUID), genIri)
@@ -58,17 +64,18 @@ class LinkDescriptionSpec extends WordSpec with Matchers with TestHelper with Ra
     "be converted to a FileDescription correctly" in new Ctx {
       val fileDesc1 = FileDescription.from(LinkDescription(Path("/foo/bar/file.ext"), None, None))
       fileDesc1.filename shouldEqual "file.ext"
-      fileDesc1.mediaType shouldEqual ContentTypes.`application/octet-stream`
+      fileDesc1.mediaType shouldEqual None
+      fileDesc1.defaultMediaType shouldEqual ContentTypes.`application/octet-stream`
 
       val fileDesc2 =
         FileDescription.from(LinkDescription(Path("/foo/bar/somedir/"), None, ContentType.parse(m).toOption))
       fileDesc2.filename shouldEqual "somedir"
-      fileDesc2.mediaType shouldEqual ContentTypes.`application/json`
+      fileDesc2.mediaType.value shouldEqual ContentTypes.`application/json`
 
       val fileDesc3 =
         FileDescription.from(LinkDescription(Path("/foo/bar/baz"), Some("file.json"), ContentType.parse(m).toOption))
       fileDesc3.filename shouldEqual "file.json"
-      fileDesc3.mediaType shouldEqual ContentTypes.`application/json`
+      fileDesc3.mediaType.value shouldEqual ContentTypes.`application/json`
     }
   }
 }

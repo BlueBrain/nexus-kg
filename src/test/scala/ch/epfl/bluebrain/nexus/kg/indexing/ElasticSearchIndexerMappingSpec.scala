@@ -13,7 +13,8 @@ import ch.epfl.bluebrain.nexus.commons.test
 import ch.epfl.bluebrain.nexus.commons.test.ActorSystemFixture
 import ch.epfl.bluebrain.nexus.commons.test.io.{IOEitherValues, IOOptionValues}
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity.Anonymous
-import ch.epfl.bluebrain.nexus.kg._
+import ch.epfl.bluebrain.nexus.kg
+import ch.epfl.bluebrain.nexus.kg.TestHelper
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary.nxv
 import ch.epfl.bluebrain.nexus.kg.config.{AppConfig, Settings}
 import ch.epfl.bluebrain.nexus.kg.indexing.View.ElasticSearchView
@@ -41,6 +42,9 @@ class ElasticSearchIndexerMappingSpec
     with test.Resources
     with IdiomaticMockito
     with TestHelper {
+
+  private def urlEncode(s: String) =
+    kg.urlEncode(s).replace("%3A", ":")
 
   override implicit val patienceConfig: PatienceConfig = PatienceConfig(5 seconds, 0.3 seconds)
 

@@ -4,17 +4,21 @@ import java.time.Instant
 import java.util.UUID
 
 import ch.epfl.bluebrain.nexus.admin.client.types.Project
+import ch.epfl.bluebrain.nexus.kg
+import ch.epfl.bluebrain.nexus.kg.TestHelper
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig.HttpConfig
-import ch.epfl.bluebrain.nexus.kg.config.Vocabulary.nxv
 import ch.epfl.bluebrain.nexus.kg.config.Contexts
+import ch.epfl.bluebrain.nexus.kg.config.Schemas._
+import ch.epfl.bluebrain.nexus.kg.config.Vocabulary.nxv
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import ch.epfl.bluebrain.nexus.rdf.Vocabulary._
 import ch.epfl.bluebrain.nexus.rdf.syntax.node.unsafe._
 import org.scalatest.{Inspectors, Matchers, WordSpecLike}
-import ch.epfl.bluebrain.nexus.kg.config.Schemas._
-import ch.epfl.bluebrain.nexus.kg.{urlEncode, TestHelper}
 
 class AccessIdSpec extends WordSpecLike with Matchers with Inspectors with TestHelper {
+
+  private def urlEncode(s: String) =
+    kg.urlEncode(s).replace("%3A", ":")
 
   "An AccessId" should {
     implicit val http = HttpConfig("http://resources.nexus.com", 80, "v1", "http://resources.nexus.com")
