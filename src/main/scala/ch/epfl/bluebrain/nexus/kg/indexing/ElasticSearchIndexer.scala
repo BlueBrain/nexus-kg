@@ -1,6 +1,6 @@
 package ch.epfl.bluebrain.nexus.kg.indexing
 
-import akka.actor.ActorSystem
+import akka.actor.{ActorRef, ActorSystem, Props}
 import cats.Functor
 import cats.effect.{Effect, Timer}
 import cats.implicits._
@@ -105,6 +105,7 @@ object ElasticSearchIndexer {
   )(
       implicit client: ElasticSearchClient[F],
       as: ActorSystem,
+      actorInitializer: (Props, String) => ActorRef,
       config: AppConfig,
       P: Projections[F, Event],
       F: Effect[F]
@@ -140,6 +141,7 @@ object ElasticSearchIndexer {
         .builder[F]
         .name(s"elasticSearch-indexer-${view.name}")
         .tag(s"project=${view.ref.id}")
+        .actorOf(actorInitializer)
         .plugin(config.persistence.queryJournalPlugin)
         .retry[ElasticSearchServerOrUnexpectedFailure](indexing.retry.retryStrategy)(elasticErrorMonadError)
         .batch(indexing.batch, indexing.batchTimeout)
@@ -162,28 +164,6 @@ object ElasticSearchIndexer {
         .build
     )
   }
-
-  /**
-    * Starts the index process for an ElasticSearch client
-    *
-    * @param view          the view for which to start the index
-    * @param resources     the resources operations
-    * @param project       the project to which the resource belongs
-    * @param restartOffset a flag to decide whether to restart from the beginning or to resume from the previous offset
-    */
-  final def delay[F[_]: Timer: Effect](
-      view: ElasticSearchView,
-      resources: Resources[F],
-      project: Project,
-      restartOffset: Boolean
-  )(
-      implicit client: ElasticSearchClient[F],
-      as: ActorSystem,
-      config: AppConfig,
-      P: Projections[F, Event]
-  ): F[StreamSupervisor[F, ProjectionProgress]] =
-    Effect[F].delay(start(view, resources, project, restartOffset))
-
   // $COVERAGE-ON$
 
   private[indexing] val ctx: Json = jsonContentOf("/elasticsearch/default-context.json")

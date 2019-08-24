@@ -1,6 +1,7 @@
 package ch.epfl.bluebrain.nexus.kg.indexing
 
 import akka.actor.ActorSystem
+import cats.implicits._
 import ch.epfl.bluebrain.nexus.admin.client.AdminClient
 import ch.epfl.bluebrain.nexus.admin.client.types._
 import ch.epfl.bluebrain.nexus.admin.client.types.events.Event._
@@ -20,10 +21,15 @@ private class Indexing(
     storages: Storages[Task],
     views: Views[Task],
     resolvers: Resolvers[Task],
+    viewCoordinator: ProjectViewCoordinator[Task],
+    digestCoordinator: ProjectDigestCoordinator[Task]
+)(
+    implicit cache: Caches[Task],
     adminClient: AdminClient[Task],
-    coordinator: ProjectViewCoordinator[Task],
-    projectInitializer: ProjectInitializer[Task]
-)(implicit cache: Caches[Task], as: ActorSystem, config: AppConfig) {
+    projectInitializer: ProjectInitializer[Task],
+    as: ActorSystem,
+    config: AppConfig
+) {
 
   private val logger = Logger[this.type]
 
@@ -35,7 +41,8 @@ private class Indexing(
 
       event match {
         case OrganizationDeprecated(uuid, _, _, _) =>
-          coordinator.stop(OrganizationRef(uuid))
+          viewCoordinator.stop(OrganizationRef(uuid))
+          digestCoordinator.stop(OrganizationRef(uuid))
 
         case ProjectCreated(uuid, label, orgUuid, orgLabel, desc, am, base, vocab, instant, subject) =>
           // format: off
@@ -49,11 +56,13 @@ private class Indexing(
               // format: off
               val newProject = Project(config.http.projectsIri + label, label, project.organizationLabel, desc, base, vocab, am, uuid, project.organizationUuid, rev, deprecated = false, instant, subject.id, instant, subject.id)
               // format: on
-              cache.project.replace(newProject).flatMap(_ => coordinator.change(newProject, project))
+              cache.project.replace(newProject).flatMap(_ => viewCoordinator.change(newProject, project))
             case None => Task.unit
           }
         case ProjectDeprecated(uuid, rev, _, _) =>
-          cache.project.deprecate(ProjectRef(uuid), rev).flatMap(_ => coordinator.stop(ProjectRef(uuid)))
+          val deprecated = cache.project.deprecate(ProjectRef(uuid), rev)
+          deprecated >> List(viewCoordinator.stop(ProjectRef(uuid)), digestCoordinator.stop(ProjectRef(uuid))).sequence >> Task.unit
+
         case _ => Task.unit
       }
     }
@@ -96,11 +105,16 @@ object Indexing {
       storages: Storages[Task],
       views: Views[Task],
       resolvers: Resolvers[Task],
+      viewCoordinator: ProjectViewCoordinator[Task],
+      digestCoordinator: ProjectDigestCoordinator[Task]
+  )(
+      implicit cache: Caches[Task],
       adminClient: AdminClient[Task],
       projectInitializer: ProjectInitializer[Task],
-      coordinator: ProjectViewCoordinator[Task]
-  )(implicit cache: Caches[Task], config: AppConfig, as: ActorSystem): Unit = {
-    val indexing = new Indexing(storages, views, resolvers, adminClient, coordinator, projectInitializer)
+      config: AppConfig,
+      as: ActorSystem
+  ): Unit = {
+    val indexing = new Indexing(storages, views, resolvers, viewCoordinator, digestCoordinator)
     indexing.startAdminStream()
     indexing.startResolverStream()
     indexing.startViewStream()

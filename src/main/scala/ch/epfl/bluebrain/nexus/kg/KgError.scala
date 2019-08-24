@@ -45,7 +45,8 @@ object KgError {
   /**
     * Signals that the requested resource was not found
     */
-  final case class NotFound(ref: Option[String] = None) extends KgError("The requested resource could not be found.")
+  final case class NotFound(ref: Option[String] = None)
+      extends KgError(s"The requested resource could not be found '$ref'.")
 
   object NotFound {
     def apply(ref: Ref): NotFound =

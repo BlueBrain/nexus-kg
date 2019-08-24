@@ -1,7 +1,7 @@
 package ch.epfl.bluebrain.nexus.kg.async
 
 import akka.actor.{ActorRef, ActorSystem}
-import akka.pattern.ask
+import akka.pattern.{ask, AskTimeoutException}
 import akka.stream.ActorMaterializer
 import akka.util.Timeout
 import cats.effect.{Async, IO}
@@ -11,16 +11,20 @@ import ch.epfl.bluebrain.nexus.commons.es.client.ElasticSearchClient
 import ch.epfl.bluebrain.nexus.commons.http.HttpClient
 import ch.epfl.bluebrain.nexus.commons.http.HttpClient.{untyped, UntypedHttpClient}
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlResults
+import ch.epfl.bluebrain.nexus.kg.KgError
 import ch.epfl.bluebrain.nexus.kg.async.ProjectViewCoordinatorActor.Msg._
 import ch.epfl.bluebrain.nexus.kg.cache.Caches
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig
+import ch.epfl.bluebrain.nexus.kg.indexing.Statistics
 import ch.epfl.bluebrain.nexus.kg.indexing.View.SingleView
-import ch.epfl.bluebrain.nexus.kg.indexing.ViewStatistics
 import ch.epfl.bluebrain.nexus.kg.resources.syntax._
 import ch.epfl.bluebrain.nexus.kg.resources.{Event, OrganizationRef, ProjectRef, Resources}
 import ch.epfl.bluebrain.nexus.sourcing.projections.Projections
+import journal.Logger
 import monix.eval.Task
 import monix.execution.Scheduler.Implicits.global
+
+import scala.util.control.NonFatal
 
 /**
   * ProjectViewCoordinator backed by [[ProjectViewCoordinatorActor]] that sends messages to the underlying actor
@@ -31,25 +35,38 @@ import monix.execution.Scheduler.Implicits.global
   */
 class ProjectViewCoordinator[F[_]](cache: Caches[F], ref: ActorRef)(implicit config: AppConfig, F: Async[F]) {
 
+  private implicit val timeout: Timeout = config.sourcing.askTimeout
+  private val log                       = Logger[this.type]
+
   /**
     * Fetches view statistics for a given view.
     *
     * @param project  project to which the view belongs.
     * @param view     the view to fetch the statistics for.
-    * @return [[ViewStatistics]] wrapped in [[F]]
+    * @return [[Statistics]] wrapped in [[F]]
     */
-  def viewStatistics(project: Project, view: SingleView): F[ViewStatistics] = {
-    implicit val timeout: Timeout = config.sourcing.askTimeout
-    IO.fromFuture(IO(ref ? FetchProgress(project.uuid, view))).to[F].map {
-      case p: ViewProgress =>
-        ViewStatistics(
-          processedEvents = p.processedEvents,
-          discardedEvents = p.discardedEvents,
-          totalEvents = p.totalEvents,
-          lastEventDateTime = p.lastEvent,
-          lastProcessedEventDateTime = p.lastProcessedEvent
-        )
-    }
+  def statistics(project: Project, view: SingleView): F[Statistics] = {
+    lazy val label = project.projectLabel.show
+    IO.fromFuture(IO(ref ? FetchProgress(project.uuid, view)))
+      .to[F]
+      .flatMap[Statistics] {
+        case s: Statistics => F.pure(s)
+        case other =>
+          val msg = s"Received unexpected reply from the project view coordinator actor: '$other' for project '$label'."
+          log.error(msg)
+          F.raiseError(KgError.InternalError(msg))
+      }
+      .recoverWith {
+        case _: AskTimeoutException =>
+          F.raiseError(
+            KgError
+              .OperationTimedOut(s"Timeout when asking for statistics to project view coordinator for project '$label'")
+          )
+        case NonFatal(th) =>
+          val msg = s"Exception caught while exchanging messages with the project view coordinator for project '$label'"
+          log.error(msg, th)
+          F.raiseError(KgError.InternalError(msg))
+      }
   }
 
   /**
