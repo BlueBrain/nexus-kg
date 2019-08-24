@@ -51,14 +51,15 @@ object AccessId {
       apply(resourceId, schemaId, false)(project.copy(apiMappings = defaultPrefixMapping, base = randBase), http)
     else {
       val resolvedResourceId = inner(resourceId)
+
       schemaId match {
-        case `fileSchemaUri`          => prefix("files") + resolvedResourceId
-        case `viewSchemaUri`          => prefix("views") + resolvedResourceId
-        case `resolverSchemaUri`      => prefix("resolvers") + resolvedResourceId
-        case `shaclSchemaUri`         => prefix("schemas") + resolvedResourceId
-        case `storageSchemaUri`       => prefix("storages") + resolvedResourceId
-        case `unconstrainedSchemaUri` => prefix("resources") + "_" + resolvedResourceId
-        case _                        => prefix("resources") + inner(schemaId) + resolvedResourceId
+        case `fileSchemaUri`          => url"${prefix("files").asString}/$resolvedResourceId".value
+        case `viewSchemaUri`          => url"${prefix("views")}/$resolvedResourceId".value
+        case `resolverSchemaUri`      => url"${prefix("resolvers")}/$resolvedResourceId".value
+        case `shaclSchemaUri`         => url"${prefix("schemas")}/$resolvedResourceId".value
+        case `storageSchemaUri`       => url"${prefix("storages")}/$resolvedResourceId".value
+        case `unconstrainedSchemaUri` => url"${prefix("resources")}/_/$resolvedResourceId".value
+        case _                        => url"${prefix("resources")}/${inner(schemaId)}/$resolvedResourceId".value
       }
     }
   }
