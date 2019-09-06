@@ -303,7 +303,7 @@ def deleteProject[F[_]](
       s"SELECT persistence_id,partition_nr FROM ${config.adminKeyspace}.messages WHERE persistence_id='projects-${project.uuid}' ALLOW FILTERING"
     )
   )
-  val future = (sourceKg.merge(sourceAdmin).runWith(Sink.ignore) >> Future.unit)
+  val future = sourceKg.runWith(Sink.ignore) >> sourceAdmin.runWith(Sink.ignore) >> Future.unit
   F.liftIO(IO.fromFuture(IO(future)))
 }
 
