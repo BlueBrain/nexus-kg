@@ -3,9 +3,10 @@
 import coursier.core.Authentication, coursier.MavenRepository
 
 interp.repositories() ++= Seq(MavenRepository("http://dl.bintray.com/bbp/nexus-releases"))
+interp.repositories() ++= Seq(MavenRepository("http://dl.bintray.com/bbp/nexus-snapshots"))
 
 @ import $ivy.{
-  `ch.epfl.bluebrain.nexus::admin-client:1.1.2`,
+  `ch.epfl.bluebrain.nexus::admin-client:64496380`,
   `ch.epfl.bluebrain.nexus::elasticsearch-client:0.17.8`,
   `ch.epfl.bluebrain.nexus::sparql-client:0.17.7`,
   `ch.qos.logback:logback-classic:1.2.3`,
@@ -18,6 +19,7 @@ interp.repositories() ++= Seq(MavenRepository("http://dl.bintray.com/bbp/nexus-r
 }
 
 import java.net.InetSocketAddress
+import java.nio.file._
 import java.util.UUID
 
 import akka.actor.ActorSystem
@@ -28,15 +30,17 @@ import akka.NotUsed
 import akka.stream.ActorMaterializer
 import akka.stream.alpakka.cassandra.scaladsl.CassandraSource
 import akka.stream.Materializer
-import akka.stream.scaladsl.{Flow, Sink, Source}
+import akka.stream.scaladsl.FileIO
+import akka.stream.scaladsl.{Flow, Framing, Sink, Source}
+import akka.util.ByteString
 import caseapp._
 import caseapp.core.argparser._
 import caseapp.core.Error._
-import cats.effect.{Effect, IO}
+import cats.effect.{Effect, IO, LiftIO}
 import cats.implicits._
-import cats.Show
 import ch.epfl.bluebrain.nexus.admin.client.AdminClient
 import ch.epfl.bluebrain.nexus.admin.client.config.AdminClientConfig
+import ch.epfl.bluebrain.nexus.admin.client.types.Organization
 import ch.epfl.bluebrain.nexus.admin.client.types.Project
 import ch.epfl.bluebrain.nexus.commons.es.client.ElasticSearchClient
 import ch.epfl.bluebrain.nexus.commons.http.HttpClient
@@ -114,6 +118,7 @@ object delete {
     final case class AppConfig(
         admin: AdminClientConfig,
         maxBatchDelete: Int = 20,
+        maxSelect: Int = 20,
         adminKeyspace: String,
         kgKeyspace: String,
         saToken: Option[AuthToken],
@@ -146,9 +151,10 @@ object delete {
         kgKeyspace: Option[String],
         @HelpMessage("admin cassandra keyspace")
         adminKeyspace: Option[String],
-        @ExtraName("max-batch-delete")
         @HelpMessage("Maximum number of batch DELETE operations on cassandra")
         maxBatchDelete: Option[Int],
+        @HelpMessage("Maximum number of rows returned from a single SELECT query")
+        maxSelect: Option[Int],
         @ExtraName("es")
         @HelpMessage("ElasticSearch endpoint")
         elasticSearch: AbsoluteIri,
@@ -162,7 +168,9 @@ object delete {
         @HelpMessage("Nexus Token. Used to call admin service")
         token: Option[String] = None,
         @HelpMessage("Target project(s) in the following format: {org}/{project}")
-        project: List[ProjectLabel] = List.empty
+        project: List[ProjectLabel] = List.empty,
+        @HelpMessage("Target organization(s)")
+        org: List[String] = List.empty
     ) {
       private def credentials: Option[CassandraCredentials] = (username -> password) match {
         case (Some(u), Some(p)) => Some(CassandraCredentials(u, p))
@@ -172,6 +180,7 @@ object delete {
         AppConfig(
           AdminClientConfig(admin, admin),
           maxBatchDelete.getOrElse(20),
+          maxSelect.getOrElse(20),
           adminKeyspace.getOrElse("admin"),
           kgKeyspace.getOrElse("kg"),
           token.map(AuthToken(_)),
@@ -237,158 +246,239 @@ object delete {
   }
 }
 
-type PrimaryKeys = (String, Long, UUID, Long, String, Long)
+type TagViewsPk = (String, Long, UUID, Long, String)
+type MessagesPk = (String, Long)
 
-def deleteProject[F[_]](
-    project: Project
-)(implicit session: Session, config: AppConfig, mt: ActorMaterializer, ec: ExecutionContext, F: Effect[F]): F[Unit] = {
+implicit class RichFuture[A](private val future: Future[A]) extends AnyVal {
+  def to[F[_]](implicit F: LiftIO[F]): F[A] =
+    F.liftIO(IO.fromFuture(IO(future)))
+}
+def selectStmt(stmt: String)(implicit session: Session, appConfig: AppConfig): Source[Row, NotUsed] =
+    CassandraSource(new SimpleStatement(stmt).setFetchSize(appConfig.maxSelect))
 
-  def selectStmt(stmt: String): Source[Row, NotUsed] =
-    CassandraSource(new SimpleStatement(stmt))
-
-  val flowMessages: Flow[Row, (String, Long), NotUsed] = Flow[Row].map { row =>
+val flowMessages: Flow[Row, (String, Long), NotUsed] = Flow[Row].map { row =>
     val persistenceId = row.getString("persistence_id")
     val partitionNr   = row.getLong("partition_nr")
     (persistenceId, partitionNr)
   }
 
-  def flowTagViews(persistenceId: String, partitionNr: Long): Flow[Row, PrimaryKeys, NotUsed] = Flow[Row].map { row =>
+val flowTagViews: Flow[Row, TagViewsPk, NotUsed] = Flow[Row].map { row =>
     val tagName         = row.getString("tag_name")
     val timeBucket      = row.getLong("timebucket")
     val timestamp       = row.getUUID("timestamp")
     val tagPidSeqNumber = row.getLong("tag_pid_sequence_nr")
-    (tagName, timeBucket, timestamp, tagPidSeqNumber, persistenceId, partitionNr)
+    val persistenceId   = row.getString("persistence_id")
+    (tagName, timeBucket, timestamp, tagPidSeqNumber, persistenceId)
   }
 
-  def select(keyspace: String, stmt: String): Source[PrimaryKeys, NotUsed] =
-    selectStmt(stmt)
-      .via(flowMessages)
-      .flatMapConcat {
-        case (persistenceId, partitionNr) =>
-          selectStmt(
-            s"SELECT tag_name,timebucket,timestamp,tag_pid_sequence_nr FROM $keyspace.tag_views WHERE persistence_id='$persistenceId' ALLOW FILTERING"
-          ).via(flowTagViews(persistenceId, partitionNr))
+def flowBatchDelete(implicit session: Session, config: AppConfig): Flow[SimpleStatement, Boolean, NotUsed] =
+    Flow[SimpleStatement]
+      .groupedWithin(config.maxBatchDelete, 1 second)
+      .map { seq =>
+        val batch = new BatchStatement(BatchStatement.Type.UNLOGGED)
+        seq.foreach(batch.add)
+        session.execute(batch).wasApplied()
       }
 
-  def deleteStmt(keyspace: String, source: Source[PrimaryKeys, NotUsed]): Source[Boolean, NotUsed] = {
-    val sourceStatements: Source[SimpleStatement, NotUsed] = source.flatMapConcat {
-      case (tagName, timeBucket, timestamp, tagPidSeqNumber, persistenceId, partitionNr) =>
-        Source(
+def selectFromMsg(
+      keyspace: String,
+      prefix: String
+  )(implicit session: Session, appConfig: AppConfig): Source[MessagesPk, NotUsed] = {
+    val stmt = s"SELECT persistence_id,partition_nr FROM $keyspace.messages"
+    selectStmt(stmt).via(flowMessages).filter { case (persistenceId, _) => persistenceId.startsWith(prefix) }
+  }
+
+def selectFromTagViews(
+      keyspace: String,
+      prefix: String
+  )(implicit session: Session, appConfig: AppConfig): Source[TagViewsPk, NotUsed] = {
+    val stmt = s"SELECT tag_name,timebucket,timestamp,tag_pid_sequence_nr,persistence_id FROM $keyspace.tag_views"
+    selectStmt(stmt).via(flowTagViews).filter { case (_, _, _, _, persistenceId) => persistenceId.startsWith(prefix) }
+  }
+
+def deleteStmt[F[_]: Effect](
+      keyspace: String,
+      source: Source[Either[MessagesPk, TagViewsPk], NotUsed]
+  )(implicit session: Session, config: AppConfig, mt: ActorMaterializer, ec: ExecutionContext): F[Unit] = {
+    val path = Files.createTempFile(keyspace, "stmt")
+    val sourceStmt = source
+      .mapConcat {
+        case Left((persistenceId, partitionNr)) =>
           List(
             s"DELETE FROM $keyspace.messages WHERE persistence_id='$persistenceId' AND partition_nr=$partitionNr",
             s"DELETE FROM $keyspace.tag_scanning WHERE persistence_id='$persistenceId'",
-            s"DELETE FROM $keyspace.tag_write_progress WHERE persistence_id='$persistenceId'",
+            s"DELETE FROM $keyspace.tag_write_progress WHERE persistence_id='$persistenceId'"
+          )
+        case Right((tagName, timeBucket, timestamp, tagPidSeqNumber, persistenceId)) =>
+          List(
             s"DELETE FROM $keyspace.tag_views WHERE persistence_id='$persistenceId' AND tag_name='$tagName' AND timebucket=$timeBucket AND timestamp=$timestamp AND tag_pid_sequence_nr=$tagPidSeqNumber"
-          ).map(new SimpleStatement(_))
+          )
+      }
+    (sourceStmt.map(s => ByteString(s + "\n")).runWith(FileIO.toPath(path)) >>
+      FileIO
+        .fromPath(path)
+        .via(Framing.delimiter(ByteString("\n"), maximumFrameLength = 1024, allowTruncation = true))
+        .map(line => new SimpleStatement(line.utf8String))
+        .via(flowBatchDelete)
+        .runWith(Sink.ignore) >> Future(Files.delete(path))).to[F]
+  }
+
+def deleteRows[F[_]](keyspace: String, prefix: String)(
+      implicit session: Session,
+      config: AppConfig,
+      mt: ActorMaterializer,
+      ec: ExecutionContext,
+      F: Effect[F]
+  ): F[Unit] = {
+    val sourceMessages = selectFromMsg(keyspace, prefix).map[Either[MessagesPk, TagViewsPk]](Left(_))
+    val sourceTagViews = selectFromTagViews(keyspace, prefix).map[Either[MessagesPk, TagViewsPk]](Right(_))
+    deleteStmt(keyspace, sourceMessages.merge(sourceTagViews))
+  }
+
+def deleteRows[F[_]](project: Project)(
+      implicit session: Session,
+      config: AppConfig,
+      mt: ActorMaterializer,
+      ec: ExecutionContext,
+      F: Effect[F]
+  ): F[Unit] =
+    deleteRows(config.kgKeyspace, s"resources-${project.uuid}") >>
+      deleteRows(config.adminKeyspace, s"projects-${project.uuid}")
+
+def deleteRows[F[_]](org: Organization)(
+      implicit session: Session,
+      config: AppConfig,
+      mt: ActorMaterializer,
+      ec: ExecutionContext,
+      F: Effect[F]
+  ): F[Unit] =
+    deleteRows(config.adminKeyspace, s"organizations-${org.uuid}")
+
+def createSession(implicit config: AppConfig): Session = {
+    val sessionBuilder = Cluster.builder
+      .addContactPointsWithPorts(config.cassandra.contactPoints.toAddress: _*)
+      .withAddressTranslator(config.cassandra.contactPoints.toAddressTranslator)
+
+    config.cassandra.credentials match {
+      case Some(CassandraCredentials(username, password)) =>
+        sessionBuilder.withCredentials(username, password).build.connect()
+      case _ =>
+        sessionBuilder.build.connect()
+    }
+  }
+def printWarn(value: String) = println(s"${Console.YELLOW}$value${Console.RESET}")
+
+def deleteProjects(projects: List[ProjectLabel], orgs: List[String])(
+      implicit config: AppConfig,
+      session: Session,
+      adminClient: AdminClient[Task],
+      as: ActorSystem,
+      mt: ActorMaterializer,
+      ec: ExecutionContext,
+      scheduler: Scheduler
+  ): Task[Unit] = {
+    implicit val utClient            = untyped[Task]
+    implicit val sparqlResultsClient = withUnmarshaller[Task, SparqlResults]
+
+    val namespaceClient     = BlazegraphNamespaceClient[Task]
+    val elasticSearchClient = ElasticSearchClient[Task](config.elasticsearchBase)
+
+    def deleteNs(namespace: String): Task[Boolean] =
+      BlazegraphClient[Task](config.blazegraphBase, namespace, None).deleteNamespace
+
+    def deleteBlazegraph(project: Project): Task[Seq[(String, Boolean)]] = {
+      println(s"Deleting Blazegraph namespaces for project '${project.show}' (uuid '${project.uuid}')")
+      namespaceClient
+        .namespaces()
+        .flatMap(
+          seq => Task.sequence(seq.filter(_.contains(project.uuid.toString)).map(ns => deleteNs(ns).map(ns -> _)))
         )
     }
-    val batch = new BatchStatement(BatchStatement.Type.UNLOGGED)
-    sourceStatements.groupedWithin(config.maxBatchDelete, 1 second).map { seq =>
-      seq.foreach(batch.add)
-      session.execute(batch).wasApplied()
+
+    def deleteElasticSearch(project: Project): Task[Boolean] = {
+      println(s"Deleting ElasticSearch indices for project '${project.show}' (uuid '${project.uuid}')")
+      elasticSearchClient.deleteIndex(s"${config.elasticSearchPrefix}${project.uuid}*")
     }
-  }
 
-  val sourceKg = deleteStmt(
-    config.kgKeyspace,
-    select(
-      config.kgKeyspace,
-      s"SELECT persistence_id,partition_nr FROM ${config.kgKeyspace}.messages WHERE tags CONTAINS 'project=${project.uuid}' ALLOW FILTERING"
-    )
-  )
-  val sourceAdmin = deleteStmt(
-    config.adminKeyspace,
-    select(
-      config.adminKeyspace,
-      s"SELECT persistence_id,partition_nr FROM ${config.adminKeyspace}.messages WHERE persistence_id='projects-${project.uuid}' ALLOW FILTERING"
-    )
-  )
-  val future = sourceKg.runWith(Sink.ignore) >> sourceAdmin.runWith(Sink.ignore) >> Future.unit
-  F.liftIO(IO.fromFuture(IO(future)))
-}
-
-def deleteProjects(projects: List[ProjectLabel])(implicit config: AppConfig): Unit = {
-  implicit val system                     = ActorSystem("DeleteProjects")
-  implicit val mt                         = ActorMaterializer()
-  implicit val scheduler: Scheduler       = Scheduler.global
-  implicit val utClient                   = untyped[Task]
-  implicit val sparqlResultsClient        = withUnmarshaller[Task, SparqlResults]
-  implicit val projectShow: Show[Project] = Show.show(project => s"${project.organizationLabel}/${project.label}")
-
-  val adminClient: AdminClient[Task] = AdminClient[Task](config.admin)
-  val namespaceClient                = BlazegraphNamespaceClient[Task]
-  val elasticSearchClient            = ElasticSearchClient[Task](config.elasticsearchBase)
-
-  val sessionBuilder = Cluster.builder
-    .addContactPointsWithPorts(config.cassandra.contactPoints.toAddress: _*)
-    .withAddressTranslator(config.cassandra.contactPoints.toAddressTranslator)
-
-  implicit val session: Session = config.cassandra.credentials match {
-    case Some(CassandraCredentials(username, password)) =>
-      sessionBuilder.withCredentials(username, password).build.connect()
-    case _ =>
-      sessionBuilder.build.connect()
-  }
-
-  def deleteNs(namespace: String): Task[Boolean] =
-    BlazegraphClient[Task](config.blazegraphBase, namespace, None).deleteNamespace
-
-  def deleteNamespaces(project: Project): Task[Seq[(String, Boolean)]] = {
-    println(s"Deleting Blazegraph namespaces for project '${project.show}' (uuid '${project.uuid}')")
-    namespaceClient
-      .namespaces()
-      .flatMap(seq => Task.sequence(seq.filter(_.contains(project.uuid.toString)).map(ns => deleteNs(ns).map(ns -> _))))
-  }
-
-  def deleteIndices(project: Project): Task[Boolean] = {
-    println(s"Deleting ElasticSearch indices for project '${project.show}' (uuid '${project.uuid}')")
-    elasticSearchClient.deleteIndex(s"${config.elasticSearchPrefix}${project.uuid}*")
-  }
-
-  def deleteCassandraRows(project: Project): Task[Unit] = {
-    println(s"Deleting cassandra rows for project '${project.show}' (uuid '${project.uuid}')")
-    deleteProject[Task](project)
-  }
-
-  projects
-    .map {
-      case ProjectLabel(org, project) =>
-        adminClient
-          .fetchProject(org, project)
-          .flatMap {
-            case Some(project) =>
-              for {
-                _ <- deleteCassandraRows(project)
-                _ <- deleteNamespaces(project)
-                _ <- deleteIndices(project)
-              } yield ()
-            case None =>
-              println(s"Project not found '$org/$project'. Ignoring ...")
-              Task.unit
-          }
+    def deleteCassandra(project: Project): Task[Unit] = {
+      println(s"Deleting cassandra rows for project '${project.show}' (uuid '${project.uuid}')")
+      deleteRows[Task](project)
     }
-    .sequence
-    .map(_ => ())
-    .runSyncUnsafe()
-  session.close()
-}
+
+    def collectAndLog(projects: List[(ProjectLabel, Option[Project])]): List[Project] =
+      projects.foldLeft(List.empty[Project]) {
+        case (acc, (label, None)) =>
+          printWarn(s"Project not found '$label'. Ignoring ...")
+          acc
+        case (acc, (_, Some(project))) =>
+          println(s"Project Found  ${project.show} ...")
+          project :: acc
+      }
+
+  val resolvedProjects = for {
+      fromOrgs <- orgs.map(adminClient.fetchProjects(_).map(_.results.map(_.source))).sequence.map(_.flatten)
+      fromProjects <- projects
+        .map(p => adminClient.fetchProject(p.org, p.project).map(p -> _))
+        .sequence
+        .map(collectAndLog)
+    } yield fromOrgs ++ fromProjects
+    resolvedProjects
+      .flatMap { projects =>
+        projects
+          .map(proj => deleteCassandra(proj) >> deleteBlazegraph(proj) >> deleteElasticSearch(proj))
+          .sequence >> Task.unit
+      }
+  }
+
+def deleteOrgs(orgs: List[String])(
+      implicit config: AppConfig,
+      session: Session,
+      adminClient: AdminClient[Task],
+      as: ActorSystem,
+      mt: ActorMaterializer,
+      ec: ExecutionContext,
+      scheduler: Scheduler
+  ): Task[Unit] = {
+    def deleteCassandra(org: Organization): Task[Unit] = {
+      println(s"Deleting cassandra rows for org '${org.label}' (uuid '${org.uuid}')")
+      deleteRows[Task](org)
+    }
+
+    def collectAndLog(orgs: List[(String, Option[Organization])]): List[Organization] =
+      orgs.foldLeft(List.empty[Organization]) {
+        case (acc, (org, None)) =>
+          printWarn(s"Organization not found '$org'. Ignoring ...")
+          acc
+        case (acc, (_, Some(org))) => org :: acc
+      }
+
+    val resolvedOrgs =
+      orgs.map(label => adminClient.fetchOrganization(label).map(label -> _)).sequence.map(collectAndLog)
+    resolvedOrgs.flatMap(_.map(deleteCassandra(_)).sequence >> Task.unit)
+  }
 
 @main
-def parseArgs(args: String*): Unit = {
-  System.setProperty("logback.configurationFile", (os.pwd / "logback.xml").toString)
-  if (args.isEmpty || (args.size == 1 && args(0) == "-h")) {
-    CaseApp.printHelp[Args]()
-  } else {
-    CaseApp.parse[Args](args) match {
-      case Left(err) =>
-        println(err.message + "\n")
+  def parseArgs(args: String*): Unit = {
+    System.setProperty("logback.configurationFile", (os.pwd / "logback.xml").toString)
+    if (args.isEmpty || (args.size == 1 && args(0) == "-h")) {
+      CaseApp.printHelp[Args]()
+    } else {
+      CaseApp.parse[Args](args) match {
+        case Left(err) =>
+          println(err.message + "\n")
 
-      case Right((cfg, _)) if cfg.project.isEmpty =>
-        println("At least one project has to be specified")
+        case Right((cfg, _)) if cfg.project.isEmpty && cfg.org.isEmpty =>
+          println("At least one project has to be specified")
 
-      case Right((cfg, _)) =>
-        implicit val appConfig = cfg.toAppConfig
-        deleteProjects(cfg.project)
+        case Right((cfg, _)) =>
+          implicit val appConfig                      = cfg.toAppConfig
+          implicit val system                         = ActorSystem("DeleteProjects")
+          implicit val mt                             = ActorMaterializer()
+          implicit val scheduler: Scheduler           = Scheduler.global
+          implicit val adminClient: AdminClient[Task] = AdminClient[Task](appConfig.admin)
+          implicit val session                        = createSession
+          (deleteProjects(cfg.project, cfg.org) >> deleteOrgs(cfg.org)).runSyncUnsafe()
+          session.close()
+      }
     }
   }
-}
