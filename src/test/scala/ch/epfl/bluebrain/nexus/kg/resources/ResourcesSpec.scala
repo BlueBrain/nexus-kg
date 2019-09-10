@@ -340,7 +340,12 @@ class ResourcesSpec
         val query =
           contentOf(
             "/blazegraph/outgoing_include_external.txt",
-            Map(quote("{id}") -> resId.value.asString, quote("{size}") -> "10", quote("{offset}") -> "1")
+            Map(
+              quote("{id}")     -> resId.value.asString,
+              quote("{graph}")  -> (resId.value + "graph").asString,
+              quote("{size}")   -> "10",
+              quote("{offset}") -> "1"
+            )
           )
         client.queryRaw(query) shouldReturn IO(
           SparqlResults(Head(List.empty), Bindings(List(binding1, binding2, binding3)))
