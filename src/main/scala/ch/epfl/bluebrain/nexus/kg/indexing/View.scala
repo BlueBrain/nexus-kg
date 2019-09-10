@@ -383,6 +383,7 @@ object View {
     private def replace(query: String, id: AbsoluteIri, pagination: FromPagination): String =
       query
         .replaceAll(quote("{id}"), id.asString)
+        .replaceAll(quote("{graph}"), (id + "graph").asString)
         .replaceAll(quote("{offset}"), pagination.from.toString)
         .replaceAll(quote("{size}"), pagination.size.toString)
 
