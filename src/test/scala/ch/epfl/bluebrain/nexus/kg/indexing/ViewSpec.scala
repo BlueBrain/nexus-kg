@@ -193,7 +193,12 @@ class ViewSpec
         val query =
           contentOf(
             "/blazegraph/outgoing_include_external.txt",
-            Map(quote("{id}") -> "http://example.com/id2", quote("{size}") -> "100", quote("{offset}") -> "10")
+            Map(
+              quote("{id}")     -> "http://example.com/id2",
+              quote("{graph}")  -> "http://example.com/id2/graph",
+              quote("{size}")   -> "100",
+              quote("{offset}") -> "10"
+            )
           )
         client.queryRaw(query) shouldReturn IO(SparqlResults.empty)
         view
@@ -208,7 +213,12 @@ class ViewSpec
         val query =
           contentOf(
             "/blazegraph/outgoing_scoped.txt",
-            Map(quote("{id}") -> "http://example.com/id2", quote("{size}") -> "100", quote("{offset}") -> "10")
+            Map(
+              quote("{id}")     -> "http://example.com/id2",
+              quote("{graph}")  -> "http://example.com/id2/graph",
+              quote("{size}")   -> "100",
+              quote("{offset}") -> "10"
+            )
           )
         client.queryRaw(query) shouldReturn IO(SparqlResults.empty)
         view
