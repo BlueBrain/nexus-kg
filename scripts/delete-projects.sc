@@ -351,21 +351,34 @@ def deleteStmt[F[_]: Effect](
         .runWith(Sink.ignore) >> Future(Files.delete(path))).to[F]
   }
 
-def deleteRows[F[_]](keyspace: String, prefix: List[String])(
+def deleteKgRows[F[_]](projectsUuids: List[String])(
       implicit session: Session,
       config: AppConfig,
       mt: ActorMaterializer,
       ec: ExecutionContext,
       F: Effect[F]
   ): F[Unit] = {
-    val sourceMessages = selectFromMsg(keyspace, prefix).map[RowSelect](result => (Option(result), None, None))
-    val sourceTagViews = selectFromTagViews(keyspace, prefix).map[RowSelect](result => (None, Option(result), None))
-    if (keyspace == config.kgKeyspace) {
-      val sourceProgress = selectFromProgress(keyspace, prefix).map[RowSelect](result => (None, None, Option(result)))
-      deleteStmt(keyspace, sourceMessages.concat(sourceTagViews).concat(sourceProgress))
-    } else {
-      deleteStmt(keyspace, sourceMessages.concat(sourceTagViews))
-    }
+    val prefix         = projectsUuids.map(uuid => s"resources-$uuid")
+    val sourceMessages = selectFromMsg(config.kgKeyspace, prefix).map[RowSelect](result => (Option(result), None, None))
+    val sourceTagViews =
+      selectFromTagViews(config.kgKeyspace, prefix).map[RowSelect](result => (None, Option(result), None))
+    val sourceProgress =
+      selectFromProgress(config.kgKeyspace, projectsUuids).map[RowSelect](result => (None, None, Option(result)))
+    deleteStmt(config.kgKeyspace, sourceMessages.concat(sourceTagViews).concat(sourceProgress))
+  }
+
+def deleteAdminRows[F[_]](prefix: List[String])(
+      implicit session: Session,
+      config: AppConfig,
+      mt: ActorMaterializer,
+      ec: ExecutionContext,
+      F: Effect[F]
+  ): F[Unit] = {
+    val sourceMessages =
+      selectFromMsg(config.adminKeyspace, prefix).map[RowSelect](result => (Option(result), None, None))
+    val sourceTagViews =
+      selectFromTagViews(config.adminKeyspace, prefix).map[RowSelect](result => (None, Option(result), None))
+    deleteStmt(config.adminKeyspace, sourceMessages.concat(sourceTagViews))
   }
 
 def deleteProjectsRows[F[_]](projects: List[Project])(
@@ -375,8 +388,8 @@ def deleteProjectsRows[F[_]](projects: List[Project])(
       ec: ExecutionContext,
       F: Effect[F]
   ): F[Unit] =
-    deleteRows(config.kgKeyspace, projects.map(project => s"resources-${project.uuid}")) >>
-      deleteRows(config.adminKeyspace, projects.map(project => s"projects-${project.uuid}"))
+    deleteKgRows(projects.map(_.uuid.toString)) >>
+      deleteAdminRows(projects.map(project => s"projects-${project.uuid}"))
 
 def deleteOrgsRows[F[_]](orgs: List[Organization])(
       implicit session: Session,
@@ -385,7 +398,7 @@ def deleteOrgsRows[F[_]](orgs: List[Organization])(
       ec: ExecutionContext,
       F: Effect[F]
   ): F[Unit] =
-    deleteRows(config.adminKeyspace, orgs.map(org => s"organizations-${org.uuid}"))
+    deleteAdminRows(orgs.map(org => s"organizations-${org.uuid}"))
 
 def createSession(implicit config: AppConfig): Session = {
     val sessionBuilder = Cluster.builder
