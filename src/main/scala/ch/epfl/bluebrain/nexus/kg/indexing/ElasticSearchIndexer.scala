@@ -70,7 +70,7 @@ private class ElasticSearchIndexerMapping[F[_]: Functor](view: ElasticSearchView
       val metaGraph    = if (view.includeMetadata) Graph(res.metadata(metadataOptions)) else Graph()
       val keysToRemove = if (view.includeMetadata) Seq.empty[String] else metaKeys
       if (view.sourceAsText)
-        asJson(metaGraph.add(rootNode, nxv.originalSource, res.value.source.removeKeys(metaKeys: _*).noSpaces))
+        asJson(metaGraph.add(rootNode, nxv.original_source, res.value.source.removeKeys(metaKeys: _*).noSpaces))
       else
         asJson(metaGraph).map(metaJson => res.value.source.removeKeys(keysToRemove: _*) deepMerge metaJson)
     }

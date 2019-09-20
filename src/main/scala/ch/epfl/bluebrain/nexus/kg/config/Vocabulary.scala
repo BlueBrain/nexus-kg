@@ -60,11 +60,16 @@ object Vocabulary {
     val storage   = PrefixMapping.metadata("storage")
 
     // ElasticSearch sourceAsText predicate
-    val originalSource = PrefixMapping.metadata("original_source")
+    val original_source = PrefixMapping.metadata("original_source")
 
     // Tagging resource payload vocabulary
     val tag  = PrefixMapping.prefix("tag")
     val tags = PrefixMapping.prefix("tags")
+
+    // Bundle resources vocabulary
+    val resources      = PrefixMapping.prefix("resources")
+    val originalSource = PrefixMapping.prefix("originalSource")
+    val file           = PrefixMapping.prefix("file")
 
     // Resolvers payload vocabulary
     val priority      = PrefixMapping.prefix("priority")
@@ -121,6 +126,7 @@ object Vocabulary {
     val paths = PrefixMapping.prefix("paths")
 
     // @type platform ids
+    val Archive                    = PrefixMapping.prefix("Archive")
     val UpdateDigest               = PrefixMapping.prefix("UpdateDigest")
     val Schema                     = PrefixMapping.prefix("Schema")
     val File                       = PrefixMapping.prefix("File")

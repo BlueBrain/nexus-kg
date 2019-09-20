@@ -178,6 +178,7 @@ object Routes {
       storages: Storages[Task],
       schemas: Schemas[Task],
       files: Files[Task],
+      archives: Archives[Task],
       tags: Tags[Task],
       coordinator: ProjectViewCoordinator[Task]
   )(
@@ -234,6 +235,7 @@ object Routes {
     def routesSelector(segment: IdOrUnderscore)(implicit acls: AccessControlLists, caller: Caller, project: Project) =
       segment match {
         case Underscore                    => routeSelectorUndescore
+        case SchemaId(`archiveSchemaUri`)  => new ArchiveRoutes(archives).routes
         case SchemaId(`resolverSchemaUri`) => new ResolverRoutes(resolvers, tags).routes
         case SchemaId(`viewSchemaUri`)     => new ViewRoutes(views, tags, coordinator).routes
         case SchemaId(`shaclSchemaUri`)    => new SchemaRoutes(schemas, tags).routes
@@ -294,6 +296,7 @@ object Routes {
 
   private def mapToSchema(resourceSegment: String): Option[SchemaId] =
     resourceSegment match {
+      case "archives"  => Some(SchemaId(archiveSchemaUri))
       case "views"     => Some(SchemaId(viewSchemaUri))
       case "resolvers" => Some(SchemaId(resolverSchemaUri))
       case "schemas"   => Some(SchemaId(shaclSchemaUri))

@@ -3,13 +3,14 @@ package ch.epfl.bluebrain.nexus.kg.resources
 import java.time.{Clock, Instant, ZoneId}
 
 import akka.http.scaladsl.model.ContentTypes._
+import akka.http.scaladsl.model.StatusCodes.InternalServerError
 import akka.http.scaladsl.model.Uri
 import akka.stream.ActorMaterializer
 import cats.effect.{ContextShift, IO, Timer}
 import ch.epfl.bluebrain.nexus.admin.client.types.Project
 import ch.epfl.bluebrain.nexus.commons.test
-import ch.epfl.bluebrain.nexus.commons.test.io.{IOEitherValues, IOOptionValues}
 import ch.epfl.bluebrain.nexus.commons.test.ActorSystemFixture
+import ch.epfl.bluebrain.nexus.commons.test.io.{IOEitherValues, IOOptionValues}
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity._
 import ch.epfl.bluebrain.nexus.kg.KgError.{InternalError, RemoteFileNotFound}
 import ch.epfl.bluebrain.nexus.kg.TestHelper
@@ -30,7 +31,6 @@ import io.circe.Json
 import org.mockito.{ArgumentMatchersSugar, IdiomaticMockito, Mockito}
 import org.scalactic.Equality
 import org.scalatest._
-import akka.http.scaladsl.model.StatusCodes.InternalServerError
 
 import scala.concurrent.ExecutionContext
 import scala.concurrent.duration._
@@ -69,11 +69,7 @@ class FilesSpec
   private val files: Files[IO] = Files[IO]
 
   before {
-    Mockito.reset(storageCache)
-    Mockito.reset(saveFile)
-    Mockito.reset(fetchFile)
-    Mockito.reset(linkFile)
-    Mockito.reset(fetchDigest)
+    Mockito.reset(storageCache, saveFile, fetchFile, linkFile, fetchDigest)
   }
 
   trait Base {

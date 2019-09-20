@@ -11,13 +11,14 @@ import ch.epfl.bluebrain.nexus.commons.sparql.client.BlazegraphClient
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlFailure.SparqlServerOrUnexpectedFailure
 import ch.epfl.bluebrain.nexus.iam.client.types.Caller
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity.Subject
+import ch.epfl.bluebrain.nexus.kg.archives.Archive
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig
 import ch.epfl.bluebrain.nexus.kg.indexing.SparqlLink
 import ch.epfl.bluebrain.nexus.kg.indexing.View.{ElasticSearchView, SparqlView}
 import ch.epfl.bluebrain.nexus.kg.resources.file.File.FileAttributes
 import ch.epfl.bluebrain.nexus.kg.routes.SearchParams
 import ch.epfl.bluebrain.nexus.kg.search.QueryBuilder.queryFor
-import ch.epfl.bluebrain.nexus.kg.storage.Storage
+import ch.epfl.bluebrain.nexus.kg.storage.{AkkaSource, Storage}
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import ch.epfl.bluebrain.nexus.rdf.encoder.NodeEncoder.EncoderResult
 import ch.epfl.bluebrain.nexus.rdf.encoder.NodeEncoderError.IllegalConversion
@@ -53,6 +54,11 @@ package object resources {
   type RejOrResourceV[F[_]] = EitherT[F, Rejection, ResourceV]
 
   /**
+    * Rejection or bytestring source wrapped in F[_]
+    */
+  type RejOrAkkaSource[F[_]] = EitherT[F, Rejection, AkkaSource]
+
+  /**
     * Rejection or schema reference wrapped in F[_]
     */
   type RejOrSchema[F[_]] = EitherT[F, Rejection, Ref]
@@ -66,6 +72,11 @@ package object resources {
     * Rejection or resource representation with a "source" wrapped in F[_]
     */
   type RejOrResource[F[_]] = EitherT[F, Rejection, Resource]
+
+  /**
+    * Rejection or archive wrapped in F[_]
+    */
+  type RejOrArchive[F[_]] = EitherT[F, Rejection, Archive]
 
   /**
     * Rejection or tags representation wrapped in F[_]

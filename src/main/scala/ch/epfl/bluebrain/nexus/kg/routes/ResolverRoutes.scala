@@ -90,7 +90,6 @@ class ResolverRoutes private[routes] (resolvers: Resolvers[Task], tags: Tags[Tas
     (get & pathPrefix(IdSegment) & pathEndOrSingleSlash) { id =>
       operationName(s"/${config.http.prefix}/resolvers/{}/{}/_/{}") {
         outputFormat(strict = false, Compacted) {
-          case Binary => failWith(InvalidOutputFormat("Binary"))
           case format: NonBinaryOutputFormat =>
             hasPermission(read).apply {
               concat(
@@ -105,6 +104,7 @@ class ResolverRoutes private[routes] (resolvers: Resolvers[Task], tags: Tags[Tas
                 }
               )
             }
+          case other => failWith(InvalidOutputFormat(other.toString))
         }
       }
     }
@@ -124,7 +124,6 @@ class ResolverRoutes private[routes] (resolvers: Resolvers[Task], tags: Tags[Tas
     (get & pathPrefix(IdSegment) & pathEndOrSingleSlash) { resourceId =>
       operationName(s"/${config.http.prefix}/resolvers/{}/{}/{}/{}") {
         outputFormat(strict = false, Compacted) {
-          case Binary => failWith(InvalidOutputFormat("Binary"))
           case format: NonBinaryOutputFormat =>
             hasPermission(read).apply {
               concat(
@@ -139,6 +138,7 @@ class ResolverRoutes private[routes] (resolvers: Resolvers[Task], tags: Tags[Tas
                 }
               )
             }
+          case other => failWith(InvalidOutputFormat(other.toString))
         }
       }
     }
@@ -184,7 +184,6 @@ class ResolverRoutes private[routes] (resolvers: Resolvers[Task], tags: Tags[Tas
       (get & pathEndOrSingleSlash) {
         operationName(s"/${config.http.prefix}/resolvers/{}/{}/{}") {
           outputFormat(strict = false, Compacted) {
-            case Binary => failWith(InvalidOutputFormat("Binary"))
             case format: NonBinaryOutputFormat =>
               hasPermission(read).apply {
                 concat(
@@ -199,6 +198,7 @@ class ResolverRoutes private[routes] (resolvers: Resolvers[Task], tags: Tags[Tas
                   }
                 )
               }
+            case other => failWith(InvalidOutputFormat(other.toString))
           }
         }
       },

@@ -25,7 +25,7 @@ import javax.crypto.SecretKey
 import scala.concurrent.duration.FiniteDuration
 
 /**
-  * Application
+  * Application configuration
   *
   * @param description   service description
   * @param http          http interface configuration
@@ -39,6 +39,7 @@ import scala.concurrent.duration.FiniteDuration
   * @param pagination    Pagination configuration
   * @param keyValueStore Distributed data configuration
   * @param sourcing      Sourcing configuration
+  * @param archiveCache  Archive collection cache configuration
   */
 final case class AppConfig(
     description: Description,
@@ -52,7 +53,8 @@ final case class AppConfig(
     elasticSearch: ElasticSearchConfig,
     pagination: PaginationConfig,
     keyValueStore: StoreConfig,
-    sourcing: SourcingConfig
+    sourcing: SourcingConfig,
+    archiveCache: ArchiveCacheConfig
 )
 
 object AppConfig {
@@ -93,6 +95,19 @@ object AppConfig {
 
     val projectsIri: AbsoluteIri = baseIri + "projects"
   }
+
+  /**
+    * The archive cache configuration
+    *
+    * @param askTimeout      the maximum time to wait for a reply from the underlying actor on the archive cache
+    * @param invalidateAfter the time resource is kept in the archive cache before being invalidated
+    * @param maxResources    the maximum number of resources that can be contain in the archive
+    */
+  final case class ArchiveCacheConfig(
+      askTimeout: FiniteDuration,
+      invalidateAfter: FiniteDuration,
+      maxResources: Int
+  )
 
   /**
     * KeyValueStore configuration.
@@ -284,6 +299,7 @@ object AppConfig {
   final case class PaginationConfig(defaultSize: Int, sizeLimit: Int, fromLimit: Int)
 
   val iriResolution: Map[AbsoluteIri, Json] = Map(
+    archiveCtxUri     -> archiveCtx,
     tagCtxUri         -> tagCtx,
     digestCtxUri      -> digestCtx,
     statisticsCtxUri  -> statisticsCtx,
@@ -346,5 +362,7 @@ object AppConfig {
   implicit def toKVS(implicit appConfig: AppConfig): KeyValueStoreConfig           = appConfig.keyValueStore.keyValueStoreConfig
   implicit def toStorage(implicit appConfig: AppConfig): StorageConfig             = appConfig.storage
   implicit def toSecretKey(implicit storageConfig: StorageConfig): SecretKey       = storageConfig.derivedKey
+  implicit def toResourceCollection(implicit appConfig: AppConfig): ArchiveCacheConfig =
+    appConfig.archiveCache
 
 }

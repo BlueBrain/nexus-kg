@@ -3,6 +3,7 @@ package ch.epfl.bluebrain.nexus.kg
 import java.time.Clock
 import java.util.UUID
 
+import akka.stream.Materializer
 import akka.stream.scaladsl.Source
 import akka.util.ByteString
 import ch.epfl.bluebrain.nexus.commons.test.Randomness
@@ -23,6 +24,14 @@ trait TestHelper extends EitherValues with Randomness {
   private val clock     = Clock.systemUTC()
   val read: Permission  = Permission.unsafe("resources/read")
   val write: Permission = Permission.unsafe("files/write")
+
+  def consume(source: AkkaSource)(implicit mt: Materializer): String = {
+    import org.scalatest.concurrent.ScalaFutures._
+    source.runFold("")(_ ++ _.utf8String).futureValue
+  }
+
+  def produce(string: String, chunkSize: Int = 100): AkkaSource =
+    Source(string.grouped(chunkSize).map(ByteString(_)).toList)
 
   def resourceAcls(acl: AccessControlList): ResourceAccessControlList =
     ResourceAccessControlList(

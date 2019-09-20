@@ -47,9 +47,6 @@ class RemoteDiskStorageOperationsSpec
     Mockito.reset(client)
   }
 
-  private def consume(source: AkkaSource): String =
-    source.runFold("")(_ ++ _.utf8String).futureValue
-
   "RemoteDiskStorageOperations" should {
 
     "verify when storage exists" in new Ctx {

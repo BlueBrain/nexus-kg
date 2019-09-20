@@ -28,6 +28,7 @@ import ch.epfl.bluebrain.nexus.iam.client.types.Identity._
 import ch.epfl.bluebrain.nexus.iam.client.types._
 import ch.epfl.bluebrain.nexus.kg.TestHelper
 import ch.epfl.bluebrain.nexus.kg.async._
+import ch.epfl.bluebrain.nexus.kg.archives.ArchiveCache
 import ch.epfl.bluebrain.nexus.kg.cache._
 import ch.epfl.bluebrain.nexus.kg.config.Schemas._
 import ch.epfl.bluebrain.nexus.kg.config.Settings
@@ -90,7 +91,8 @@ class FileRoutesSpec
   private implicit val resources     = mock[Resources[Task]]
   private implicit val tagsRes       = mock[Tags[Task]]
 
-  private implicit val cacheAgg = Caches(projectCache, viewCache, resolverCache, storageCache)
+  private implicit val cacheAgg =
+    Caches(projectCache, viewCache, resolverCache, storageCache, mock[ArchiveCache[Task]])
 
   private implicit val ec            = system.dispatcher
   private implicit val mt            = ActorMaterializer()
@@ -108,7 +110,7 @@ class FileRoutesSpec
 
   private val manageResolver = Set(Permission.unsafe("resources/read"), Permission.unsafe("files/write"))
   // format: off
-  private val routes = Routes(resources, mock[Resolvers[Task]], mock[Views[Task]], mock[Storages[Task]], mock[Schemas[Task]], files, tagsRes, mock[ProjectViewCoordinator[Task]])
+  private val routes = Routes(resources, mock[Resolvers[Task]], mock[Views[Task]], mock[Storages[Task]], mock[Schemas[Task]], files, mock[Archives[Task]], tagsRes, mock[ProjectViewCoordinator[Task]])
   // format: on
 
   //noinspection NameBooleanParameters
@@ -353,7 +355,7 @@ class FileRoutesSpec
             contentType.value shouldEqual `text/plain(UTF-8)`.value
             header("Content-Disposition").value
               .value() shouldEqual s"""attachment; filename="=?UTF-8?B?$encodedFilename?=""""
-            responseEntity.dataBytes.runFold("")(_ ++ _.utf8String).futureValue shouldEqual content
+            consume(responseEntity.dataBytes) shouldEqual content
           }
         }
       }
@@ -374,7 +376,7 @@ class FileRoutesSpec
             contentType.value shouldEqual `text/plain(UTF-8)`.value
             header("Content-Disposition").value
               .value() shouldEqual s"""attachment; filename="=?UTF-8?B?$encodedFilename?=""""
-            responseEntity.dataBytes.runFold("")(_ ++ _.utf8String).futureValue shouldEqual content
+            consume(responseEntity.dataBytes) shouldEqual content
           }
         }
       }
@@ -395,7 +397,7 @@ class FileRoutesSpec
             contentType.value shouldEqual `text/plain(UTF-8)`.value
             header("Content-Disposition").value
               .value() shouldEqual s"""attachment; filename="=?UTF-8?B?$encodedFilename?=""""
-            responseEntity.dataBytes.runFold("")(_ ++ _.utf8String).futureValue shouldEqual content
+            consume(responseEntity.dataBytes) shouldEqual content
           }
         }
       }

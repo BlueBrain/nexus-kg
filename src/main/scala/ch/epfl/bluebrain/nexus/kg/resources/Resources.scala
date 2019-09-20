@@ -113,11 +113,40 @@ class Resources[F[_]: Timer](
     * Fetches the latest revision of the resources' source
     *
     * @param id     the id of the resource
+    * @return Right(source) in the F context when found and Left(NotFound) in the F context when not found
+    */
+  def fetchSource(id: ResId): RejOrSource[F] =
+    repo.get(id, None).map(_.value).toRight(notFound(id.ref))
+
+  /**
+    * Fetches the provided revision of the resources' source
+    *
+    * @param id     the id of the resource
+    * @param rev    the revision of the resource
+    * @return Right(source) in the F context when found and Left(NotFound) in the F context when not found
+    */
+  def fetchSource(id: ResId, rev: Long): RejOrSource[F] =
+    repo.get(id, rev, None).map(_.value).toRight(notFound(id.ref, rev = Some(rev)))
+
+  /**
+    * Fetches the latest revision of the resources' source
+    *
+    * @param id     the id of the resource
     * @param schema the schema reference that constrains the resource
     * @return Right(source) in the F context when found and Left(NotFound) in the F context when not found
     */
   def fetchSource(id: ResId, schema: Ref): RejOrSource[F] =
     repo.get(id, Some(schema)).map(_.value).toRight(notFound(id.ref, schema = Some(schema)))
+
+  /**
+    * Fetches the provided tag of the resources' source
+    *
+    * @param id     the id of the resource
+    * @param tag    the tag of the resource
+    * @return Right(source) in the F context when found and Left(NotFound) in the F context when not found
+    */
+  def fetchSource(id: ResId, tag: String): RejOrSource[F] =
+    repo.get(id, tag, None).map(_.value).toRight(notFound(id.ref, tag = Some(tag)))
 
   /**
     * Fetches the provided revision of the resources' source
@@ -175,6 +204,38 @@ class Resources[F[_]: Timer](
     */
   def fetch(id: ResId, tag: String, schema: Ref)(implicit project: Project): RejOrResourceV[F] =
     fetch(id, tag, MetadataOptions(), Some(schema))
+
+  /**
+    * Fetches the latest revision of a resource
+    *
+    * @param id     the id of the resource
+    * @return Right(resource) in the F context when found and Left(NotFound) in the F context when not found
+    */
+  def fetch(id: ResId)(implicit project: Project): RejOrResourceV[F] =
+    fetch(id, MetadataOptions(), None)
+
+  /**
+    * Fetches the provided revision of a resource
+    *
+    * @param id     the id of the resource
+    * @param rev    the revision of the resource
+    * @return Right(resource) in the F context when found and Left(NotFound) in the F context when not found
+    */
+  def fetch(id: ResId, rev: Long)(implicit project: Project): RejOrResourceV[F] =
+    repo
+      .get(id, rev, None)
+      .toRight(notFound(id.ref, rev = Some(rev)))
+      .flatMap(materializer.withMeta(_, MetadataOptions()))
+
+  /**
+    * Fetches the provided tag of a resource
+    *
+    * @param id     the id of the resource
+    * @param tag    the tag of the resource
+    * @return Some(resource) in the F context when found and None in the F context when not found
+    */
+  def fetch(id: ResId, tag: String)(implicit project: Project): RejOrResourceV[F] =
+    fetch(id, tag, MetadataOptions(), None)
 
   /**
     * Fetches the latest revision of a resource schema

@@ -8,7 +8,7 @@ import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.Route
 import ch.epfl.bluebrain.nexus.admin.client.types.Project
 import ch.epfl.bluebrain.nexus.iam.client.types._
-import ch.epfl.bluebrain.nexus.kg.KgError.UnacceptedResponseContentType
+import ch.epfl.bluebrain.nexus.kg.KgError.{InvalidOutputFormat, UnacceptedResponseContentType}
 import ch.epfl.bluebrain.nexus.kg.cache._
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig
 import ch.epfl.bluebrain.nexus.kg.config.Schemas._
@@ -167,6 +167,7 @@ class FileRoutes private[routes] (files: Files[Task], resources: Resources[Task]
       (get & outputFormat(strict = true, Binary) & pathEndOrSingleSlash) {
         case Binary                        => getFile(id)
         case format: NonBinaryOutputFormat => getResource(id)(format)
+        case other                         => failWith(InvalidOutputFormat(other.toString))
       },
       // Fetch file source
       (get & pathPrefix("source") & pathEndOrSingleSlash) {

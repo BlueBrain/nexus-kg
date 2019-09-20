@@ -85,6 +85,18 @@ final case class ResourceF[A](
         case _: S3StorageReference         => config.storage.amazon.showLocation
       }
 
+    def outAndInWhenNeeded(self: AbsoluteIri): Set[Triple] = {
+      lazy val incoming = self + "incoming"
+      lazy val outgoing = self + "outgoing"
+
+      if (schema.iri == archiveSchemaUri)
+        Set.empty
+      else if (options.linksAsIri)
+        Set[Triple]((node, nxv.incoming, incoming), (node, nxv.outgoing, outgoing))
+      else
+        Set[Triple]((node, nxv.incoming, incoming.toString), (node, nxv.outgoing, outgoing.toString))
+    }
+
     def triplesFor(storageAndAttributes: (StorageReference, FileAttributes)): Set[Triple] = {
       val blankDigest      = Node.blank
       val (storageRef, at) = storageAndAttributes
@@ -106,8 +118,6 @@ final case class ResourceF[A](
     val fileTriples = file.map(triplesFor).getOrElse(Set.empty)
     val projectUri  = config.admin.publicIri + "projects" / project.organizationLabel / project.label
     val self        = AccessId(id.value, schema.iri, expanded = options.expandedLinks)
-    val incoming    = self + "incoming"
-    val outgoing    = self + "outgoing"
     fileTriples + (
       (node, nxv.rev, rev),
       (node, nxv.deprecated, deprecated),
@@ -117,10 +127,8 @@ final case class ResourceF[A](
       (node, nxv.updatedBy, if (options.linksAsIri) updatedBy.id else updatedBy.id.asString),
       (node, nxv.constrainedBy, schema.iri),
       (node, nxv.project, projectUri),
-      (node, nxv.incoming, if (options.linksAsIri) incoming else incoming.asString),
-      (node, nxv.outgoing, if (options.linksAsIri) outgoing else outgoing.asString),
       (node, nxv.self, if (options.linksAsIri) self else self.asString)
-    ) ++ typeTriples
+    ) ++ typeTriples ++ outAndInWhenNeeded(self)
   }
 
   /**

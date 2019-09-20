@@ -28,6 +28,8 @@ class DiskStorageOperationsSpec
     with TestHelper
     with OptionValues {
 
+  private implicit val mt = ActorMaterializer()
+
   private implicit val sc: StorageConfig = StorageConfig(
     DiskStorageConfig(Paths.get("/tmp"), "SHA-256", read, write, false, 1024L),
     RemoteDiskStorageConfig("http://example.com", None, "SHA-256", read, write, true, 1024L),
@@ -41,9 +43,6 @@ class DiskStorageOperationsSpec
   private val storage  = Storage.DiskStorage.default(project)
   private val resId    = Id(storage.ref, genIri)
   private val fileDesc = FileDescription("my file.txt", ContentTypes.`text/plain(UTF-8)`)
-
-  private def consume(source: AkkaSource): String =
-    source.runFold("")(_ ++ _.utf8String)(ActorMaterializer()).futureValue
 
   "DiskStorageOperations" should {
 

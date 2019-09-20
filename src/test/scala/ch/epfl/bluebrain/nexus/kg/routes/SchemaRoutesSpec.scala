@@ -22,6 +22,7 @@ import ch.epfl.bluebrain.nexus.iam.client.types.Identity._
 import ch.epfl.bluebrain.nexus.iam.client.types._
 import ch.epfl.bluebrain.nexus.kg.TestHelper
 import ch.epfl.bluebrain.nexus.kg.async._
+import ch.epfl.bluebrain.nexus.kg.archives.ArchiveCache
 import ch.epfl.bluebrain.nexus.kg.cache._
 import ch.epfl.bluebrain.nexus.kg.config.Contexts._
 import ch.epfl.bluebrain.nexus.kg.config.Schemas._
@@ -81,7 +82,8 @@ class SchemaRoutesSpec
   private implicit val tagsRes       = mock[Tags[Task]]
   private implicit val initializer   = mock[ProjectInitializer[Task]]
 
-  private implicit val cacheAgg = Caches(projectCache, viewCache, resolverCache, storageCache)
+  private implicit val cacheAgg =
+    Caches(projectCache, viewCache, resolverCache, storageCache, mock[ArchiveCache[Task]])
 
   private implicit val ec            = system.dispatcher
   private implicit val mt            = ActorMaterializer()
@@ -98,7 +100,7 @@ class SchemaRoutesSpec
 
   private val manageResolver = Set(Permission.unsafe("resources/read"), Permission.unsafe("schemas/write"))
   // format: off
-  private val routes = Routes(resources, mock[Resolvers[Task]], mock[Views[Task]], mock[Storages[Task]], schemas, mock[Files[Task]], tagsRes, mock[ProjectViewCoordinator[Task]])
+  private val routes = Routes(resources, mock[Resolvers[Task]], mock[Views[Task]], mock[Storages[Task]], schemas, mock[Files[Task]], mock[Archives[Task]], tagsRes, mock[ProjectViewCoordinator[Task]])
   // format: on
 
   //noinspection NameBooleanParameters
