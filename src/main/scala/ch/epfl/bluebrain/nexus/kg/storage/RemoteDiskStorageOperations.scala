@@ -85,18 +85,18 @@ object RemoteDiskStorageOperations {
   }
 
   /**
-    * [[FetchFileDigest]] implementation for [[RemoteDiskStorage]]
+    * [[FetchFileAttributes]] implementation for [[RemoteDiskStorage]]
     *
     * @param storage the [[RemoteDiskStorage]]
     * @param client  the remote storage client
     */
   @silent
-  final class FetchDigest[F[_]: Effect](storage: RemoteDiskStorage, client: StorageClient[F])
-      extends FetchFileDigest[F] {
+  final class FetchAttributes[F[_]: Effect](storage: RemoteDiskStorage, client: StorageClient[F])
+      extends FetchFileAttributes[F] {
     implicit val cred = storage.credentials.map(AuthToken)
 
-    override def apply(relativePath: Uri.Path): F[Digest] =
-      client.getDigest(storage.folder, relativePath).map(toDigest)
+    override def apply(relativePath: Uri.Path): F[StorageFileAttributes] =
+      client.getAttributes(storage.folder, relativePath)
   }
 
 }

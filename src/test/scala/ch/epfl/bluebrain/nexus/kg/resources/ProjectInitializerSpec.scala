@@ -10,7 +10,7 @@ import ch.epfl.bluebrain.nexus.commons.test.{Resources => TestResources}
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity.{Subject, User}
 import ch.epfl.bluebrain.nexus.iam.client.types.{AccessControlLists, Caller}
 import ch.epfl.bluebrain.nexus.kg.TestHelper
-import ch.epfl.bluebrain.nexus.kg.async.{ProjectDigestCoordinator, ProjectViewCoordinator}
+import ch.epfl.bluebrain.nexus.kg.async.{ProjectAttributesCoordinator, ProjectViewCoordinator}
 import ch.epfl.bluebrain.nexus.kg.archives.ArchiveCache
 import ch.epfl.bluebrain.nexus.kg.cache._
 import ch.epfl.bluebrain.nexus.kg.config.Settings
@@ -37,14 +37,14 @@ class ProjectInitializerSpec
     with ScalaFutures
     with TestResources {
 
-  private implicit val appConfig                                = Settings(system).appConfig
-  private val projectCache: ProjectCache[Task]                  = mock[ProjectCache[Task]]
-  private val resolvers: Resolvers[Task]                        = mock[Resolvers[Task]]
-  private val views: Views[Task]                                = mock[Views[Task]]
-  private val storages: Storages[Task]                          = mock[Storages[Task]]
-  private val viewCoordinator: ProjectViewCoordinator[Task]     = mock[ProjectViewCoordinator[Task]]
-  private val digestCoordinator: ProjectDigestCoordinator[Task] = mock[ProjectDigestCoordinator[Task]]
-  private implicit val projections: Projections[Task, Event]    = mock[Projections[Task, Event]]
+  private implicit val appConfig                                      = Settings(system).appConfig
+  private val projectCache: ProjectCache[Task]                        = mock[ProjectCache[Task]]
+  private val resolvers: Resolvers[Task]                              = mock[Resolvers[Task]]
+  private val views: Views[Task]                                      = mock[Views[Task]]
+  private val storages: Storages[Task]                                = mock[Storages[Task]]
+  private val viewCoordinator: ProjectViewCoordinator[Task]           = mock[ProjectViewCoordinator[Task]]
+  private val fileAttrCoordinator: ProjectAttributesCoordinator[Task] = mock[ProjectAttributesCoordinator[Task]]
+  private implicit val projections: Projections[Task, Event]          = mock[Projections[Task, Event]]
   private implicit val cache =
     Caches(
       projectCache,
@@ -55,7 +55,7 @@ class ProjectInitializerSpec
     )
 
   private val initializer: ProjectInitializer[Task] =
-    new ProjectInitializer[Task](storages, views, resolvers, viewCoordinator, digestCoordinator)
+    new ProjectInitializer[Task](storages, views, resolvers, viewCoordinator, fileAttrCoordinator)
 
   private val defaultResolver: Json             = jsonContentOf("/resolve/in-proj-default.json")
   private val defaultEsView: Json               = jsonContentOf("/view/es-default.json")
@@ -80,7 +80,7 @@ class ProjectInitializerSpec
       projections.progress(digestProjectionName) shouldReturn Task.pure(NoProgress)
       cache.project.replace(project) shouldReturn Task.unit
       viewCoordinator.start(project) shouldReturn Task.unit
-      digestCoordinator.start(project) shouldReturn Task.unit
+      fileAttrCoordinator.start(project) shouldReturn Task.unit
       resolvers.create(Id(project.ref, nxv.defaultResolver.value), defaultResolver) shouldReturn
         EitherT.rightT(resource)
       views.create(Id(project.ref, nxv.defaultElasticSearchIndex.value), defaultEsView, extractUuid = true) shouldReturn
@@ -99,7 +99,7 @@ class ProjectInitializerSpec
       projections.progress(digestProjectionName) shouldReturn Task.pure(NoProgress)
       cache.project.replace(project) shouldReturn Task.unit
       viewCoordinator.start(project) shouldReturn Task.unit
-      digestCoordinator.start(project) shouldReturn Task.unit
+      fileAttrCoordinator.start(project) shouldReturn Task.unit
       resolvers.create(Id(project.ref, nxv.defaultResolver.value), defaultResolver) shouldReturn
         EitherT.leftT(ResourceAlreadyExists(genIri.ref): Rejection)
       views.create(Id(project.ref, nxv.defaultElasticSearchIndex.value), defaultEsView, extractUuid = true) shouldReturn

@@ -13,15 +13,15 @@ import cats.implicits._
 import ch.epfl.bluebrain.nexus.admin.client.types.Project
 import ch.epfl.bluebrain.nexus.kg.KgError
 import ch.epfl.bluebrain.nexus.kg.KgError.InternalError
-import ch.epfl.bluebrain.nexus.kg.async.ProjectDigestCoordinatorActor.Msg._
-import ch.epfl.bluebrain.nexus.kg.async.ProjectDigestCoordinatorActor.OffsetSyntax
+import ch.epfl.bluebrain.nexus.kg.async.ProjectAttributesCoordinatorActor.Msg._
+import ch.epfl.bluebrain.nexus.kg.async.ProjectAttributesCoordinatorActor.OffsetSyntax
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig._
 import ch.epfl.bluebrain.nexus.kg.indexing.Statistics
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection.{FileDigestNotComputed, UnexpectedState}
 import ch.epfl.bluebrain.nexus.kg.resources.syntax._
 import ch.epfl.bluebrain.nexus.kg.resources.{Event, Files, Resource}
-import ch.epfl.bluebrain.nexus.kg.storage.Storage.StorageOperations.FetchDigest
+import ch.epfl.bluebrain.nexus.kg.storage.Storage.StorageOperations.FetchAttributes
 import ch.epfl.bluebrain.nexus.sourcing.projections.ProjectionProgress.NoProgress
 import ch.epfl.bluebrain.nexus.sourcing.projections._
 import kamon.Kamon
@@ -30,16 +30,18 @@ import monix.execution.Scheduler.Implicits.global
 import monix.execution.atomic.AtomicLong
 
 /**
-  * Coordinator backed by akka actor which runs the digest stream inside the provided project
+  * Coordinator backed by akka actor which runs the attributes stream inside the provided project
   */
 //noinspection ActorMutableStateInspection
-private abstract class ProjectDigestCoordinatorActor(implicit val config: AppConfig) extends Actor with ActorLogging {
+private abstract class ProjectAttributesCoordinatorActor(implicit val config: AppConfig)
+    extends Actor
+    with ActorLogging {
 
   private var child: Option[StreamSupervisor[Task, ProjectionProgress]] = None
 
   def receive: Receive = {
     case Start(_, project: Project) =>
-      log.debug("Started digest coordinator for project '{}'", project.projectLabel.show)
+      log.debug("Started attributes coordinator for project '{}'", project.projectLabel.show)
       context.become(initialized(project))
       child = Some(startCoordinator(project, restartOffset = false))
     case FetchProgress(_) => val _ = progress.runToFuture pipeTo sender()
@@ -49,7 +51,7 @@ private abstract class ProjectDigestCoordinatorActor(implicit val config: AppCon
 
   def initialized(project: Project): Receive = {
     case Stop(_) =>
-      log.info("Digest process for project '{}' received a stop message.", project.projectLabel.show)
+      log.info("Attributes process for project '{}' received a stop message.", project.projectLabel.show)
       child.foreach(_.stop())
       child = None
       context.become(receive)
@@ -69,16 +71,16 @@ private abstract class ProjectDigestCoordinatorActor(implicit val config: AppCon
     }
 }
 
-private class FileDigestEventMapping[F[_]: FetchDigest](files: Files[F])(implicit F: MonadError[F, KgError]) {
+private class FileDigestEventMapping[F[_]: FetchAttributes](files: Files[F])(implicit F: MonadError[F, KgError]) {
 
   /**
-    * When an event is received, a file digest is attempted to be calculated if the file does not currently have a digest.
+    * When an event is received, a file attributes is attempted to be calculated if the file does not currently have a digest.
     *
     * @param event event to be mapped to a Elastic Search insert query
     */
   final def apply(event: Event): F[Option[Resource]] = {
     implicit val subject = event.subject
-    files.updateDigestIfEmpty(event.id).value.flatMap[Option[Resource]] {
+    files.updateFileAttrEmpty(event.id).value.flatMap[Option[Resource]] {
       case Left(FileDigestNotComputed(_)) =>
         F.raiseError(InternalError(s"Resource '${event.id.ref.show}' does not have a computed digest."): KgError)
       case Left(UnexpectedState(_)) =>
@@ -91,7 +93,7 @@ private class FileDigestEventMapping[F[_]: FetchDigest](files: Files[F])(implici
   }
 }
 
-object ProjectDigestCoordinatorActor {
+object ProjectAttributesCoordinatorActor {
 
   private[async] sealed trait Msg {
 
@@ -130,11 +132,11 @@ object ProjectDigestCoordinatorActor {
   )(
       implicit
       config: AppConfig,
-      fetchDigest: FetchDigest[Task],
+      fetchDigest: FetchAttributes[Task],
       as: ActorSystem,
       projections: Projections[Task, Event]
   ): ActorRef = {
-    val props = Props(new ProjectDigestCoordinatorActor {
+    val props = Props(new ProjectAttributesCoordinatorActor {
       override def startCoordinator(
           project: Project,
           restartOffset: Boolean
@@ -160,11 +162,11 @@ object ProjectDigestCoordinatorActor {
         TagProjection.start(
           ProjectionConfig
             .builder[Task]
-            .name(s"digest-computation-${project.uuid}")
+            .name(s"attributes-computation-${project.uuid}")
             .tag(s"project=${project.uuid}")
             .actorOf(context.actorOf)
             .plugin(config.persistence.queryJournalPlugin)
-            .retry[KgError](config.storage.digestRetry.retryStrategy)(kgErrorMonadError)
+            .retry[KgError](config.storage.fileAttrRetry.retryStrategy)(kgErrorMonadError)
             .restart(restartOffset)
             .mapping(mapper.apply)
             .index(ignoreIndex)
@@ -191,7 +193,13 @@ object ProjectDigestCoordinatorActor {
       implicit as: ActorSystem
   ): ActorRef = {
     val settings = shardingSettings.getOrElse(ClusterShardingSettings(as)).withRememberEntities(true)
-    ClusterSharding(as).start("project-digest-coordinator", props, settings, entityExtractor, shardExtractor(shards))
+    ClusterSharding(as).start(
+      "project-attributes-coordinator",
+      props,
+      settings,
+      entityExtractor,
+      shardExtractor(shards)
+    )
   }
 
   private[async] implicit class OffsetSyntax(offset: Offset) {

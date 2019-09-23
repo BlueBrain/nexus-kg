@@ -17,7 +17,7 @@ import ch.epfl.bluebrain.nexus.commons.search.QueryResults
 import ch.epfl.bluebrain.nexus.commons.sparql.client.{BlazegraphClient, SparqlResults}
 import ch.epfl.bluebrain.nexus.commons.http.JsonLdCirceSupport._
 import ch.epfl.bluebrain.nexus.iam.client.IamClient
-import ch.epfl.bluebrain.nexus.kg.async.{ProjectDigestCoordinator, ProjectViewCoordinator}
+import ch.epfl.bluebrain.nexus.kg.async.{ProjectAttributesCoordinator, ProjectViewCoordinator}
 import ch.epfl.bluebrain.nexus.kg.archives.ArchiveCache
 import ch.epfl.bluebrain.nexus.kg.cache._
 import ch.epfl.bluebrain.nexus.kg.cache.Caches._
@@ -147,7 +147,7 @@ object Main {
         Projections[Task, Event].runSyncUnsafe(10 seconds)(Scheduler.global, CanBlock.permit)
       }
       val projectViewCoordinator   = ProjectViewCoordinator(resources, cache)
-      val projectDigestCoordinator = ProjectDigestCoordinator(files, cache.project)
+      val projectDigestCoordinator = ProjectAttributesCoordinator(files, cache.project)
       implicit val projectInitializer =
         new ProjectInitializer[Task](storages, views, resolvers, projectViewCoordinator, projectDigestCoordinator)
 

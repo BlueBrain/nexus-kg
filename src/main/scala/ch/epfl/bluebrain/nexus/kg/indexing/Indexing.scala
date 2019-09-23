@@ -22,7 +22,7 @@ private class Indexing(
     views: Views[Task],
     resolvers: Resolvers[Task],
     viewCoordinator: ProjectViewCoordinator[Task],
-    digestCoordinator: ProjectDigestCoordinator[Task]
+    fileAttributesCoordinator: ProjectAttributesCoordinator[Task]
 )(
     implicit cache: Caches[Task],
     adminClient: AdminClient[Task],
@@ -42,7 +42,7 @@ private class Indexing(
       event match {
         case OrganizationDeprecated(uuid, _, _, _) =>
           viewCoordinator.stop(OrganizationRef(uuid))
-          digestCoordinator.stop(OrganizationRef(uuid))
+          fileAttributesCoordinator.stop(OrganizationRef(uuid))
 
         case ProjectCreated(uuid, label, orgUuid, orgLabel, desc, am, base, vocab, instant, subject) =>
           // format: off
@@ -61,7 +61,7 @@ private class Indexing(
           }
         case ProjectDeprecated(uuid, rev, _, _) =>
           val deprecated = cache.project.deprecate(ProjectRef(uuid), rev)
-          deprecated >> List(viewCoordinator.stop(ProjectRef(uuid)), digestCoordinator.stop(ProjectRef(uuid))).sequence >> Task.unit
+          deprecated >> List(viewCoordinator.stop(ProjectRef(uuid)), fileAttributesCoordinator.stop(ProjectRef(uuid))).sequence >> Task.unit
 
         case _ => Task.unit
       }
@@ -106,7 +106,7 @@ object Indexing {
       views: Views[Task],
       resolvers: Resolvers[Task],
       viewCoordinator: ProjectViewCoordinator[Task],
-      digestCoordinator: ProjectDigestCoordinator[Task]
+      fileAttributesCoordinator: ProjectAttributesCoordinator[Task]
   )(
       implicit cache: Caches[Task],
       adminClient: AdminClient[Task],
@@ -114,7 +114,7 @@ object Indexing {
       config: AppConfig,
       as: ActorSystem
   ): Unit = {
-    val indexing = new Indexing(storages, views, resolvers, viewCoordinator, digestCoordinator)
+    val indexing = new Indexing(storages, views, resolvers, viewCoordinator, fileAttributesCoordinator)
     indexing.startAdminStream()
     indexing.startResolverStream()
     indexing.startViewStream()

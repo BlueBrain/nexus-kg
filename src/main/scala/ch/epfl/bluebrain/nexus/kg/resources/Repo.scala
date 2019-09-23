@@ -23,6 +23,8 @@ import ch.epfl.bluebrain.nexus.sourcing.Aggregate
 import ch.epfl.bluebrain.nexus.sourcing.akka.{AkkaAggregate, SourcingConfig}
 import ch.epfl.bluebrain.nexus.sourcing.retry.Retry
 import io.circe.Json
+import ch.epfl.bluebrain.nexus.storage.client.types.FileAttributes.{Digest => StorageDigest}
+import ch.epfl.bluebrain.nexus.storage.client.types.{FileAttributes => StorageFileAttributes}
 
 /**
   * Resource repository.
@@ -152,6 +154,27 @@ class Repo[F[_]: Monad](agg: Agg[F], clock: Clock, toIdentifier: ResId => String
       implicit subject: Subject
   ): EitherT[F, Rejection, Resource] =
     evaluate(id, UpdateFileDigest(id, storage, rev, digest, instant, subject))
+
+  /**
+    * Updates the storage file attributes of a file resource.
+    *
+    * @param id         the id of the resource
+    * @param storage    the storage reference where the file was saved
+    * @param rev        the optional last known revision of the resource
+    * @param attributes the storage file attributes
+    * @param instant    an optionally provided operation instant
+    * @return either a rejection or the new resource representation in the F context
+    */
+  def updateFileAttributes(
+      id: ResId,
+      storage: StorageReference,
+      rev: Long,
+      attributes: StorageFileAttributes,
+      instant: Instant = clock.instant
+  )(
+      implicit subject: Subject
+  ): EitherT[F, Rejection, Resource] =
+    evaluate(id, UpdateFileAttributes(id, storage, rev, attributes, instant, subject))
 
   /**
     * Replaces a file resource.
@@ -311,6 +334,16 @@ object Repo {
 
   final val initial: State = State.Initial
 
+  private implicit def toDigest(digest: StorageDigest): Digest = Digest(digest.algorithm, digest.value)
+
+  private def copyStorageAttr(attr: FileAttributes, storageFileAttr: StorageFileAttributes): FileAttributes =
+    attr.copy(
+      digest = storageFileAttr.digest,
+      bytes = storageFileAttr.bytes,
+      location = storageFileAttr.location,
+      mediaType = storageFileAttr.mediaType
+    )
+
   //noinspection NameBooleanParameters
   final def next(state: State, ev: Event): State =
     (state, ev) match {
@@ -333,6 +366,11 @@ object Repo {
         c.copy(rev = rev, file = Some(storage -> attr.copy(digest = digest)), updated = tm, updatedBy = ident)
       // format: on
       case (c: Current, _: FileDigestUpdated) => c //that never happens
+      // format: off
+      case (c @ Current(_, _, _, _, _, _, Some((_, attr)), _, _, _, _, _, _), FileAttributesUpdated(_, _, storage, rev, storageAttr, tm, ident)) =>
+        c.copy(rev = rev, file = Some(storage -> copyStorageAttr(attr, storageAttr)), updated = tm, updatedBy = ident)
+      // format: on
+      case (c: Current, _: FileAttributesUpdated) => c //that never happens
       case (c: Current, FileUpdated(_, _, storage, rev, file, tm, ident)) =>
         c.copy(rev = rev, file = Some(storage -> file), updated = tm, updatedBy = ident)
     }
@@ -359,6 +397,16 @@ object Repo {
         case s: Current if s.file.isEmpty => Left(NotAFileResource(c.id.ref))
         case s: Current =>
           Right(FileDigestUpdated(s.id, s.organization, c.storage, s.rev + 1, c.value, c.instant, c.subject))
+      }
+
+    def updateAttributes(c: UpdateFileAttributes): Either[Rejection, FileAttributesUpdated] =
+      state match {
+        case Initial                      => Left(NotFound(c.id.ref))
+        case s: Current if s.rev != c.rev => Left(IncorrectRev(c.id.ref, c.rev, s.rev))
+        case s: Current if s.deprecated   => Left(ResourceIsDeprecated(c.id.ref))
+        case s: Current if s.file.isEmpty => Left(NotAFileResource(c.id.ref))
+        case s: Current =>
+          Right(FileAttributesUpdated(s.id, s.organization, c.storage, s.rev + 1, c.value, c.instant, c.subject))
       }
 
     def updateFile(c: UpdateFile): Either[Rejection, FileUpdated] =
@@ -403,13 +451,14 @@ object Repo {
       }
 
     cmd match {
-      case cmd: Create           => create(cmd)
-      case cmd: CreateFile       => createFile(cmd)
-      case cmd: UpdateFileDigest => updateDigest(cmd)
-      case cmd: UpdateFile       => updateFile(cmd)
-      case cmd: Update           => update(cmd)
-      case cmd: Deprecate        => deprecate(cmd)
-      case cmd: AddTag           => tag(cmd)
+      case cmd: Create               => create(cmd)
+      case cmd: CreateFile           => createFile(cmd)
+      case cmd: UpdateFileDigest     => updateDigest(cmd)
+      case cmd: UpdateFileAttributes => updateAttributes(cmd)
+      case cmd: UpdateFile           => updateFile(cmd)
+      case cmd: Update               => update(cmd)
+      case cmd: Deprecate            => deprecate(cmd)
+      case cmd: AddTag               => tag(cmd)
     }
   }
 

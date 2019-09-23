@@ -15,11 +15,11 @@ import ch.epfl.bluebrain.nexus.kg.config.AppConfig._
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary.nxv
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection.InvalidResourceFormat
 import ch.epfl.bluebrain.nexus.kg.resources.StorageReference._
-import ch.epfl.bluebrain.nexus.kg.resources.file.File.{Digest, FileAttributes, FileDescription}
+import ch.epfl.bluebrain.nexus.kg.resources.file.File.{FileAttributes, FileDescription}
 import ch.epfl.bluebrain.nexus.kg.resources.syntax._
 import ch.epfl.bluebrain.nexus.kg.resources.{ProjectRef, Rejection, ResId, ResourceV, StorageReference}
 import ch.epfl.bluebrain.nexus.kg.storage.Storage.StorageOperations._
-import ch.epfl.bluebrain.nexus.kg.storage.Storage.{FetchFile, FetchFileDigest, LinkFile, SaveFile, VerifyStorage}
+import ch.epfl.bluebrain.nexus.kg.storage.Storage.{FetchFile, FetchFileAttributes, LinkFile, SaveFile, VerifyStorage}
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import ch.epfl.bluebrain.nexus.rdf.encoder.NodeEncoder
 import ch.epfl.bluebrain.nexus.rdf.encoder.NodeEncoder.stringEncoder
@@ -27,6 +27,7 @@ import ch.epfl.bluebrain.nexus.rdf.encoder.NodeEncoderError.{IllegalConversion, 
 import ch.epfl.bluebrain.nexus.rdf.syntax._
 import ch.epfl.bluebrain.nexus.storage.client.StorageClient
 import ch.epfl.bluebrain.nexus.storage.client.config.StorageClientConfig
+import ch.epfl.bluebrain.nexus.storage.client.types.{FileAttributes => StorageFileAttributes}
 import com.amazonaws.auth._
 import com.amazonaws.regions.AwsRegionProvider
 
@@ -106,10 +107,10 @@ sealed trait Storage { self =>
   def isValid[F[_]](implicit verify: Verify[F]): VerifyStorage[F] = verify(self)
 
   /**
-    * Provides a [[FetchFileDigest]] instance.
+    * Provides a [[FetchFileAttributes]] instance.
     *
     */
-  def fetchDigest[F[_]](implicit fetchFile: FetchDigest[F]): FetchFileDigest[F] = fetchFile(self)
+  def fetchAttributes[F[_]](implicit fetchFile: FetchAttributes[F]): FetchFileAttributes[F] = fetchFile(self)
 
   /**
     * A storage reference
@@ -469,14 +470,14 @@ object Storage {
     def apply: F[Either[String, Unit]]
   }
 
-  trait FetchFileDigest[F[_]] {
+  trait FetchFileAttributes[F[_]] {
 
     /**
-      * Fetches the file digest associated to the provided ''relativePath''.
+      * Fetches the file attributes associated to the provided ''relativePath''.
       *
       * @param relativePath the file relative path
       */
-    def apply(relativePath: Uri.Path): F[Digest]
+    def apply(relativePath: Uri.Path): F[StorageFileAttributes]
 
   }
 
@@ -554,19 +555,19 @@ object Storage {
     }
 
     /**
-      * Provides a selected storage with [[FetchFileDigest]] operation
+      * Provides a selected storage with [[FetchFileAttributes]] operation
       *
       * @tparam F   the effect type
       */
-    trait FetchDigest[F[_]] {
-      def apply(storage: Storage): FetchFileDigest[F]
+    trait FetchAttributes[F[_]] {
+      def apply(storage: Storage): FetchFileAttributes[F]
     }
 
-    object FetchDigest {
-      implicit final def apply[F[_]: Effect](implicit as: ActorSystem): FetchDigest[F] = {
-        case _: DiskStorage       => new DiskStorageOperations.FetchDigest()
-        case _: S3Storage         => new S3StorageOperations.FetchDigest()
-        case s: RemoteDiskStorage => new RemoteDiskStorageOperations.FetchDigest(s, s.client)
+    object FetchAttributes {
+      implicit final def apply[F[_]: Effect](implicit as: ActorSystem): FetchAttributes[F] = {
+        case _: DiskStorage       => new DiskStorageOperations.FetchAttributes()
+        case _: S3Storage         => new S3StorageOperations.FetchAttributes()
+        case s: RemoteDiskStorage => new RemoteDiskStorageOperations.FetchAttributes(s, s.client)
       }
     }
   }

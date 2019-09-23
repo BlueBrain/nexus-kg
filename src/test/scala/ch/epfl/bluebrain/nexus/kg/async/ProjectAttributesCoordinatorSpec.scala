@@ -21,8 +21,8 @@ import org.scalatest.{Matchers, WordSpecLike}
 
 import scala.concurrent.duration._
 
-class ProjectDigestCoordinatorSpec
-    extends ActorSystemFixture("ProjectDigestCoordinatorSpec", true)
+class ProjectAttributesCoordinatorSpec
+    extends ActorSystemFixture("ProjectAttributesCoordinatorSpec", true)
     with TestHelper
     with DefaultTimeout
     with WordSpecLike
@@ -37,7 +37,7 @@ class ProjectDigestCoordinatorSpec
   private implicit val appConfig = Settings(system).appConfig
   private val projectCache       = ProjectCache[Task]
 
-  "A ProjectDigestCoordinator" should {
+  "A ProjectAttributesCoordinator" should {
     val creator = genIri
 
     val orgUuid = genUUID
@@ -53,7 +53,7 @@ class ProjectDigestCoordinatorSpec
     implicit val projections = mock[Projections[Task, Event]]
 
     val coordinatorProps = Props(
-      new ProjectDigestCoordinatorActor {
+      new ProjectAttributesCoordinatorActor {
         override def startCoordinator(
             proj: Project,
             restartOffset: Boolean
@@ -66,12 +66,12 @@ class ProjectDigestCoordinatorSpec
       }
     )
 
-    val coordinatorRef = ProjectDigestCoordinatorActor.start(coordinatorProps, None, 1)
-    val coordinator    = new ProjectDigestCoordinator[Task](projectCache, coordinatorRef)
+    val coordinatorRef = ProjectAttributesCoordinatorActor.start(coordinatorProps, None, 1)
+    val coordinator    = new ProjectAttributesCoordinator[Task](projectCache, coordinatorRef)
 
     projections.progress(any[String]) shouldReturn Task.pure(ProjectionProgress.NoProgress)
 
-    "start digest computation on initialize projects" in {
+    "start attributes computation on initialize projects" in {
       projectCache.replace(project).runToFuture.futureValue
       projectCache.replace(project2).runToFuture.futureValue
 
@@ -82,7 +82,7 @@ class ProjectDigestCoordinatorSpec
       eventually(counterStart.get shouldEqual 2)
     }
 
-    "ignore attempt to start again a digest computation" in {
+    "ignore attempt to start again the attributes computation" in {
       coordinator.start(project).runToFuture.futureValue
       eventually(counterStart.get shouldEqual 2)
 
@@ -90,7 +90,7 @@ class ProjectDigestCoordinatorSpec
       eventually(counterStart.get shouldEqual 2)
     }
 
-    "stop all related digest computations when organization is deprecated" in {
+    "stop all related attributes computations when organization is deprecated" in {
       coordinator1.stop() shouldReturn Task.unit
       coordinator2.stop() shouldReturn Task.unit
       coordinator.stop(OrganizationRef(orgUuid)).runToFuture.futureValue
@@ -99,7 +99,7 @@ class ProjectDigestCoordinatorSpec
       eventually(coordinator2.stop() wasCalled once)
     }
 
-    "restart digest computations" in {
+    "restart attributes computations" in {
       coordinator.start(project).runToFuture.futureValue
       eventually(counterStart.get shouldEqual 3)
 

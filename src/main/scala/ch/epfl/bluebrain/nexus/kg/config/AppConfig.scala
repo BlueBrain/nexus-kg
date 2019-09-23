@@ -153,12 +153,12 @@ object AppConfig {
   /**
     * Storage configuration for the allowed storages
     *
-    * @param disk        the disk storage configuration
-    * @param remoteDisk  the remote disk storage configuration
-    * @param amazon      the amazon S3 storage configuration
-    * @param password    the password used to encrypt credentials at rest
-    * @param salt        the associated salt
-    * @param digestRetry the digest retry configuration
+    * @param disk          the disk storage configuration
+    * @param remoteDisk    the remote disk storage configuration
+    * @param amazon        the amazon S3 storage configuration
+    * @param password      the password used to encrypt credentials at rest
+    * @param salt          the associated salt
+    * @param fileAttrRetry the file attributes retry configuration
     */
   final case class StorageConfig(
       disk: DiskStorageConfig,
@@ -166,7 +166,7 @@ object AppConfig {
       amazon: S3StorageConfig,
       password: String,
       salt: String,
-      digestRetry: RetryStrategyConfig
+      fileAttrRetry: RetryStrategyConfig
   ) {
     val derivedKey: SecretKey = Crypto.deriveKey(password, salt)
   }

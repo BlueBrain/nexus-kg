@@ -14,8 +14,10 @@ import ch.epfl.bluebrain.nexus.kg.resources._
 import ch.epfl.bluebrain.nexus.kg.resources.file.File._
 import ch.epfl.bluebrain.nexus.kg.resources.syntax._
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
-import ch.epfl.bluebrain.nexus.rdf.syntax._
 import ch.epfl.bluebrain.nexus.rdf.instances._
+import ch.epfl.bluebrain.nexus.rdf.syntax._
+import ch.epfl.bluebrain.nexus.storage.client.types.FileAttributes.{Digest => StorageDigest}
+import ch.epfl.bluebrain.nexus.storage.client.types.{FileAttributes => StorageFileAttributes}
 import io.circe.generic.extras.Configuration
 import io.circe.generic.extras.semiauto.{deriveDecoder, deriveEncoder}
 import io.circe.syntax._
@@ -43,6 +45,10 @@ object Serializer {
 
   private implicit val digestDecoder: Decoder[Digest] = deriveDecoder[Digest]
   private implicit val digestEncoder: Encoder[Digest] = deriveEncoder[Digest]
+
+  private implicit val storageDigestEncoder: Encoder[StorageDigest] = deriveEncoder[StorageDigest]
+  private implicit val storageFileAttributesEncoder: Encoder[StorageFileAttributes] =
+    deriveEncoder[StorageFileAttributes]
 
   private implicit val fileAttributesEncoder: Encoder[FileAttributes] = deriveEncoder[FileAttributes]
   private implicit val fileAttributesDecoder: Decoder[FileAttributes] = deriveDecoder[FileAttributes]
