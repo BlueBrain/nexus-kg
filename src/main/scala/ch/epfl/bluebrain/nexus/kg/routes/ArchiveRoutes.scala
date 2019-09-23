@@ -70,7 +70,7 @@ class ArchiveRoutes private[routes] (archives: Archives[Task])(
       // Create archive
       (put & pathEndOrSingleSlash) {
         operationName(s"/${config.http.prefix}/archives/{}/{}/{}") {
-          (hasPermission(read) & projectNotDeprecated) {
+          (hasPermission(write) & projectNotDeprecated) {
             entity(as[Json]) { source =>
               val created = archives.create(resId, source)
               (outputFormat(strict = true, Tar)) {
