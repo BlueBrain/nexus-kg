@@ -22,12 +22,14 @@ object Schemas {
   val fileSchemaUri: AbsoluteIri          = base + "file.json"
   val viewSchemaUri: AbsoluteIri          = base + "view.json"
   val storageSchemaUri: AbsoluteIri       = base + "storage.json"
+  val archiveSchemaUri: AbsoluteIri       = base + "archive.json"
   val ontologySchemaUri: AbsoluteIri      = base + "ontology.json"
 
   //Schema payloads
   val resolverSchema: Json = jsonContentOf("/schemas/resolver.json")
   val viewSchema: Json     = jsonContentOf("/schemas/view.json")
   val storageSchema: Json  = jsonContentOf("/schemas/storage.json")
+  val archiveSchema: Json  = jsonContentOf("/schemas/archive.json")
 
   //Schema models
   val resolverSchemaModel: Id[Model] =
@@ -36,10 +38,13 @@ object Schemas {
     resolveSchema(viewSchema).asGraph(viewSchemaUri).toOption.get.as[Model]()
   val storageSchemaModel: Id[Model] =
     resolveSchema(storageSchema).asGraph(storageSchemaUri).toOption.get.as[Model]()
+  val archiveSchemaModel: Id[Model] =
+    resolveSchema(archiveSchema).asGraph(archiveSchemaUri).toOption.get.as[Model]()
 
   // Schema references
   val viewRef          = viewSchemaUri.ref
   val storageRef       = storageSchemaUri.ref
+  val archiveRef       = archiveSchemaUri.ref
   val resolverRef      = resolverSchemaUri.ref
   val unconstrainedRef = unconstrainedSchemaUri.ref
   val shaclRef         = shaclSchemaUri.ref

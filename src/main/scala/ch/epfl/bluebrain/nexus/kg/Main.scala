@@ -18,7 +18,9 @@ import ch.epfl.bluebrain.nexus.commons.sparql.client.{BlazegraphClient, SparqlRe
 import ch.epfl.bluebrain.nexus.commons.http.JsonLdCirceSupport._
 import ch.epfl.bluebrain.nexus.iam.client.IamClient
 import ch.epfl.bluebrain.nexus.kg.async.{ProjectDigestCoordinator, ProjectViewCoordinator}
+import ch.epfl.bluebrain.nexus.kg.archives.ArchiveCache
 import ch.epfl.bluebrain.nexus.kg.cache._
+import ch.epfl.bluebrain.nexus.kg.cache.Caches._
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig._
 import ch.epfl.bluebrain.nexus.kg.config.Settings
 import ch.epfl.bluebrain.nexus.kg.indexing.Indexing
@@ -104,19 +106,22 @@ object Main {
     implicit val repo     = Repo[Task].runSyncUnsafe()(Scheduler.global, pm)
     implicit val indexers = clients
     implicit val cache =
-      Caches(ProjectCache[Task], ViewCache[Task], ResolverCache[Task], StorageCache[Task])
+      Caches(
+        ProjectCache[Task],
+        ViewCache[Task],
+        ResolverCache[Task],
+        StorageCache[Task],
+        ArchiveCache[Task]()
+      )
     implicit val aclCache                         = AclsCache[Task](clients.iamClient)
     implicit val projectResolution                = ProjectResolution.task(repo, cache.resolver, cache.project, aclCache)
     implicit val materializer: Materializer[Task] = new Materializer[Task](projectResolution, cache.project)
-    implicit val projectCache                     = cache.project
-    implicit val viewCache                        = cache.view
-    implicit val storageCache                     = cache.storage
-    implicit val resolverCache                    = cache.resolver
     import indexers.elasticSearch
 
     val resources: Resources[Task] = Resources[Task]
     val storages: Storages[Task]   = Storages[Task]
     val files: Files[Task]         = Files[Task]
+    val archives: Archives[Task]   = Archives[Task](resources, files)
     val views: Views[Task]         = Views[Task]
     val resolvers: Resolvers[Task] = Resolvers[Task]
     val schemas: Schemas[Task]     = Schemas[Task]
@@ -149,7 +154,8 @@ object Main {
       implicit val adminClient = clients.adminClient
       Indexing.start(storages, views, resolvers, projectViewCoordinator, projectDigestCoordinator)
 
-      val routes: Route = Routes(resources, resolvers, views, storages, schemas, files, tags, projectViewCoordinator)
+      val routes: Route =
+        Routes(resources, resolvers, views, storages, schemas, files, archives, tags, projectViewCoordinator)
 
       val httpBinding = {
         Http().bindAndHandle(routes, appConfig.http.interface, appConfig.http.port)

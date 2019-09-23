@@ -1,0 +1,183 @@
+package ch.epfl.bluebrain.nexus.kg.resources
+
+import java.time.{Clock, Instant, ZoneId}
+import java.util.regex.Pattern.quote
+
+import akka.stream.ActorMaterializer
+import cats.data.OptionT
+import cats.effect.{ContextShift, IO, Timer}
+import cats.syntax.show._
+import ch.epfl.bluebrain.nexus.admin.client.types.Project
+import ch.epfl.bluebrain.nexus.commons.test
+import ch.epfl.bluebrain.nexus.commons.test.io.{IOEitherValues, IOOptionValues}
+import ch.epfl.bluebrain.nexus.commons.test.{ActorSystemFixture, CirceEq}
+import ch.epfl.bluebrain.nexus.iam.client.types.Identity._
+import ch.epfl.bluebrain.nexus.kg.TestHelper
+import ch.epfl.bluebrain.nexus.kg.archives.Archive.ResourceDescription
+import ch.epfl.bluebrain.nexus.kg.archives.{Archive, ArchiveCache}
+import ch.epfl.bluebrain.nexus.kg.cache.{AclsCache, ProjectCache, ResolverCache}
+import ch.epfl.bluebrain.nexus.kg.config.AppConfig._
+import ch.epfl.bluebrain.nexus.kg.config.Contexts._
+import ch.epfl.bluebrain.nexus.kg.resources.syntax._
+import ch.epfl.bluebrain.nexus.kg.config.Schemas._
+import ch.epfl.bluebrain.nexus.kg.config.Settings
+import ch.epfl.bluebrain.nexus.kg.config.Vocabulary._
+import ch.epfl.bluebrain.nexus.kg.resolve.Resolver.InProjectResolver
+import ch.epfl.bluebrain.nexus.kg.resolve.{Materializer, ProjectResolution, StaticResolution}
+import ch.epfl.bluebrain.nexus.kg.resources.Rejection._
+import ch.epfl.bluebrain.nexus.kg.resources.ResourceF.Value
+import ch.epfl.bluebrain.nexus.rdf.Iri.{AbsoluteIri, Path}
+import ch.epfl.bluebrain.nexus.rdf.instances._
+import ch.epfl.bluebrain.nexus.rdf.syntax._
+import ch.epfl.bluebrain.nexus.rdf.{Iri, RootedGraph}
+import io.circe.Json
+import org.mockito.{ArgumentMatchersSugar, IdiomaticMockito, Mockito}
+import org.scalatest._
+
+import scala.concurrent.ExecutionContext
+import scala.concurrent.duration._
+
+//noinspection TypeAnnotation
+class ArchivesSpec
+    extends ActorSystemFixture("ArchivesSpec", true)
+    with IOEitherValues
+    with IOOptionValues
+    with WordSpecLike
+    with IdiomaticMockito
+    with ArgumentMatchersSugar
+    with Matchers
+    with OptionValues
+    with EitherValues
+    with test.Resources
+    with TestHelper
+    with Inspectors
+    with BeforeAndAfter
+    with CirceEq {
+
+  override implicit def patienceConfig: PatienceConfig = PatienceConfig(3 second, 15 milliseconds)
+
+  private implicit val appConfig              = Settings(system).appConfig
+  private implicit val clock: Clock           = Clock.fixed(Instant.ofEpochSecond(3600), ZoneId.systemDefault())
+  private implicit val mat: ActorMaterializer = ActorMaterializer()
+  private implicit val ctx: ContextShift[IO]  = IO.contextShift(ExecutionContext.global)
+  private implicit val timer: Timer[IO]       = IO.timer(ExecutionContext.global)
+
+  private implicit val repo          = Repo[IO].ioValue
+  private implicit val resolverCache = mock[ResolverCache[IO]]
+  private implicit val projectCache  = mock[ProjectCache[IO]]
+  private val resources              = mock[Resources[IO]]
+  private val files                  = mock[Files[IO]]
+  private implicit val archiveCache  = mock[ArchiveCache[IO]]
+
+  private val resolution =
+    new ProjectResolution(repo, resolverCache, projectCache, StaticResolution[IO](iriResolution), mock[AclsCache[IO]])
+  private implicit val materializer  = new Materializer[IO](resolution, projectCache)
+  private val archives: Archives[IO] = Archives[IO](resources, files)
+
+  before {
+    Mockito.reset(archiveCache)
+  }
+
+  trait Base {
+    implicit val subject: Subject = Anonymous
+    val projectRef                = ProjectRef(genUUID)
+    val base                      = Iri.absolute(s"http://example.com/base/").right.value
+    val id                        = Iri.absolute(s"http://example.com/$genUUID").right.value
+    val resId                     = Id(projectRef, id)
+    val voc                       = Iri.absolute(s"http://example.com/voc/").right.value
+    // format: off
+    implicit val project = Project(resId.value, "proj", "org", None, base, voc, Map.empty, projectRef.id, genUUID, 1L, deprecated = false, Instant.EPOCH, subject.id, Instant.EPOCH, subject.id)
+    val project2 = Project(resId.value, "myproject", "myorg", None, base, voc, Map.empty, projectRef.id, genUUID, 1L, deprecated = false, Instant.EPOCH, subject.id, Instant.EPOCH, subject.id)
+    // format: on
+    def updateId(json: Json) =
+      json deepMerge Json.obj("@id" -> Json.fromString(id.show))
+
+    resolverCache.get(project.ref) shouldReturn IO(List(InProjectResolver(project.ref, genIri, 1L, false, 1)))
+    resolverCache.get(project2.ref) shouldReturn IO(List(InProjectResolver(project.ref, genIri, 1L, false, 1)))
+    projectCache.getBy(project.projectLabel) shouldReturn IO(Some(project))
+    projectCache.getBy(project2.projectLabel) shouldReturn IO(Some(project2))
+
+    val archiveJson = updateId(jsonContentOf("/archive/archive.json"))
+    val archiveModel = Archive(
+      resId,
+      clock.instant,
+      subject,
+      Set[ResourceDescription](
+        Archive.Resource(url"https://example.com/v1/gandalf".value, project, Some(1L), None, false, None),
+        Archive.File(
+          url"https://example.com/v1/epfl".value,
+          project2,
+          None,
+          None,
+          Some(Path.rootless("another/path").right.value)
+        )
+      )
+    )
+
+    def resourceV(json: Json, rev: Long = 1L, types: Set[AbsoluteIri]): ResourceV = {
+      val ctx = Json.obj("@context" -> (archiveCtx.contextValue deepMerge archiveCtx.contextValue))
+      val graph = (json deepMerge Json.obj("@id" -> Json.fromString(id.asString)))
+        .replaceContext(ctx)
+        .asGraph(resId.value)
+        .right
+        .value
+
+      val resourceV =
+        ResourceF.simpleV(resId, Value(json, ctx.contextValue, graph), rev, schema = archiveRef, types = types)
+      resourceV.copy(
+        value = resourceV.value.copy(graph = RootedGraph(resId.value, graph.triples ++ resourceV.metadata()))
+      )
+    }
+  }
+
+  "Archives bundle" when {
+
+    "performing create operations" should {
+
+      "prevent to create a archive that does not validate against the archive schema" in new Base {
+        val invalid = updateId(jsonContentOf(s"/archive/archive-not-valid.json"))
+        archives.create(invalid).value.rejected[InvalidResource]
+      }
+
+      "create an archive" in new Base {
+        archiveCache.put(archiveModel) shouldReturn OptionT.some[IO](archiveModel)
+        val expected =
+          ResourceF.simpleF(resId, archiveJson, schema = archiveRef, types = Set[AbsoluteIri](nxv.Archive))
+        val result = archives.create(archiveJson).value.accepted
+        result.copy(value = Json.obj()) shouldEqual expected.copy(value = Json.obj())
+      }
+
+      "prevent creating an archive with the id passed on the call not matching the @id on the payload" in new Base {
+        val json = archiveJson deepMerge Json.obj("@id" -> Json.fromString(genIri.asString))
+        archives.create(resId, json).value.rejected[IncorrectId] shouldEqual IncorrectId(resId.ref)
+      }
+
+      "prevent creating an create with an id that already exists archive" in new Base {
+        archiveCache.put(archiveModel) shouldReturn OptionT.none[IO, Archive]
+        archives.create(resId, archiveJson).value.rejected[ResourceAlreadyExists]
+      }
+    }
+
+    "performing read operations" should {
+
+      "return an archive" in new Base {
+        archiveCache.get(resId) shouldReturn OptionT.some[IO](archiveModel)
+        val result = archives.fetch(resId).value.accepted
+        val expected =
+          resourceV(archiveJson, 1L, Set[AbsoluteIri](nxv.Archive))
+        result.value.ctx shouldEqual expected.value.ctx
+        result shouldEqual expected.copy(value = result.value)
+        val expectedJson = jsonContentOf("/archive/archive-explicit.json", Map(quote("{id}") -> id.toString()))
+        result.value.graph.as[Json](archiveCtx).right.value.removeKeys("@context") should equalIgnoreArrayOrder(
+          expectedJson
+        )
+
+      }
+
+      "return NotFound when the provided archive does not exists" in new Base {
+        archiveCache.get(resId) shouldReturn OptionT.none[IO, Archive]
+        archives.fetch(resId).value.rejected[NotFound] shouldEqual NotFound(resId.ref, schemaOpt = Some(archiveRef))
+      }
+    }
+  }
+}

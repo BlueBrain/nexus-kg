@@ -8,16 +8,16 @@ import ch.epfl.bluebrain.nexus.commons.http.directives.StatusFrom
 import ch.epfl.bluebrain.nexus.commons.shacl.ValidationReport
 import ch.epfl.bluebrain.nexus.kg.KgError
 import ch.epfl.bluebrain.nexus.kg.config.Contexts.errorCtxUri
+import ch.epfl.bluebrain.nexus.kg.resources.syntax._
+import ch.epfl.bluebrain.nexus.rdf.instances._
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import ch.epfl.bluebrain.nexus.rdf.MarshallingError
 import ch.epfl.bluebrain.nexus.rdf.MarshallingError.{ConversionError, RootNodeNotFound}
 import ch.epfl.bluebrain.nexus.rdf.syntax._
-import ch.epfl.bluebrain.nexus.rdf.instances._
 import io.circe.generic.extras.Configuration
 import io.circe.generic.extras.semiauto.deriveEncoder
 import io.circe.parser.parse
 import io.circe.{Encoder, Json}
-import ch.epfl.bluebrain.nexus.kg.resources.syntax._
 
 /**
   * Enumeration of resource rejection types.
@@ -120,6 +120,14 @@ object Rejection {
   object ProjectNotFound {
     final def projectNotFound(ref: ProjectRef): Rejection = ProjectNotFound(ref)
   }
+
+  /**
+    * Signals an attempt to interact with one of the resources in the resource collection that doesn't exist.
+    */
+  final case object ArchiveElementNotFound
+      extends Rejection(
+        "Some of the resources in the archive were not found or you don't have the right permissions to fetch them."
+      )
 
   /**
     * Signals the impossibility to resolve the project reference for project labels.
@@ -230,14 +238,19 @@ object Rejection {
     val enc                                     = deriveEncoder[Rejection].mapJson(_ addContext errorCtxUri)
     def reason(r: Rejection): Json =
       Json.obj("reason" -> Json.fromString(r.msg))
+
+    def tpe(r: Rejection): Json =
+      enc(r).hcursor.get[String]("@type").map(tpe => Json.obj("@type" -> Json.fromString(tpe))).getOrElse(Json.obj())
+
     def details(r: InvalidResourceFormat): Json =
       parse(r.details)
         .map(value => Json.obj("details" -> value))
         .getOrElse(Json.obj("details" -> Json.fromString(r.details)))
 
     Encoder.instance {
-      case r: InvalidResourceFormat => enc(r) deepMerge reason(r) deepMerge details(r)
-      case r                        => enc(r) deepMerge reason(r)
+      case r: InvalidResourceFormat => (tpe(r) deepMerge reason(r) deepMerge details(r)).addContext(errorCtxUri)
+      case r: InvalidResource       => enc(r) deepMerge reason(r)
+      case r                        => (tpe(r) deepMerge reason(r)).addContext(errorCtxUri)
     }
   }
 
@@ -254,6 +267,7 @@ object Rejection {
     case _: NotAFileResource         => StatusCodes.BadRequest
     case NoStatsForAggregateView     => StatusCodes.BadRequest
     case _: UnexpectedState          => StatusCodes.InternalServerError
+    case ArchiveElementNotFound      => StatusCodes.NotFound
     case _: LabelsNotFound           => StatusCodes.NotFound
     case _: NotFound                 => StatusCodes.NotFound
     case _: ProjectNotFound          => StatusCodes.NotFound

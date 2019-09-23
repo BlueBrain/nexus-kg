@@ -106,7 +106,6 @@ class ResourceRoutes private[routes] (resources: Resources[Task], tags: Tags[Tas
       (get & pathEndOrSingleSlash) {
         operationName(s"/${config.http.prefix}/resources/{}/{}/{}/{}") {
           outputFormat(strict = false, Compacted) {
-            case Binary => failWith(InvalidOutputFormat("Binary"))
             case format: NonBinaryOutputFormat =>
               hasPermission(read).apply {
                 concat(
@@ -125,6 +124,7 @@ class ResourceRoutes private[routes] (resources: Resources[Task], tags: Tags[Tas
                   }
                 )
               }
+            case other => failWith(InvalidOutputFormat(other.toString))
           }
         }
       },

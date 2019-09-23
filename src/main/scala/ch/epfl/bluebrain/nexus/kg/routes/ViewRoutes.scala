@@ -135,7 +135,6 @@ class ViewRoutes private[routes] (
       (get & pathEndOrSingleSlash) {
         operationName(s"/${config.http.prefix}/views/{}/{}/{}") {
           outputFormat(strict = false, Compacted) {
-            case Binary => failWith(InvalidOutputFormat("Binary"))
             case format: NonBinaryOutputFormat =>
               hasPermission(read).apply {
                 concat(
@@ -150,6 +149,7 @@ class ViewRoutes private[routes] (
                   }
                 )
               }
+            case other => failWith(InvalidOutputFormat(other.toString))
           }
         }
       },

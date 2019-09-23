@@ -2,7 +2,7 @@ package ch.epfl.bluebrain.nexus.kg.routes
 
 import akka.http.scaladsl.model.ContentType
 import akka.http.scaladsl.model.ContentTypes.`application/octet-stream`
-import akka.http.scaladsl.model.MediaTypes.`application/json`
+import akka.http.scaladsl.model.MediaTypes.{`application/json`, `application/x-tar`}
 import ch.epfl.bluebrain.nexus.commons.http.RdfMediaTypes._
 
 /**
@@ -70,6 +70,13 @@ object OutputFormat {
     */
   final case object Binary extends OutputFormat {
     val contentType: ContentType.Binary = `application/octet-stream`
+  }
+
+  /**
+    * Tarball output
+    */
+  final case object Tar extends OutputFormat {
+    val contentType: ContentType = `application/x-tar`
   }
 
   /**

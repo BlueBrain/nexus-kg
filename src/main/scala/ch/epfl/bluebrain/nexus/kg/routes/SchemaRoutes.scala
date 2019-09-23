@@ -113,7 +113,6 @@ class SchemaRoutes private[routes] (schemas: Schemas[Task], tags: Tags[Task])(
       (get & pathEndOrSingleSlash) {
         operationName(s"/${config.http.prefix}/schemas/{}/{}/{}") {
           outputFormat(strict = false, Compacted) {
-            case Binary => failWith(InvalidOutputFormat("Binary"))
             case format: NonBinaryOutputFormat =>
               hasPermission(read).apply {
                 concat(
@@ -128,6 +127,7 @@ class SchemaRoutes private[routes] (schemas: Schemas[Task], tags: Tags[Task])(
                   }
                 )
               }
+            case other => failWith(InvalidOutputFormat(other.toString))
           }
         }
       },

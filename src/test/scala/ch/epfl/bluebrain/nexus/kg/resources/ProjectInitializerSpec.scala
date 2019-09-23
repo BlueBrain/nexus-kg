@@ -11,6 +11,7 @@ import ch.epfl.bluebrain.nexus.iam.client.types.Identity.{Subject, User}
 import ch.epfl.bluebrain.nexus.iam.client.types.{AccessControlLists, Caller}
 import ch.epfl.bluebrain.nexus.kg.TestHelper
 import ch.epfl.bluebrain.nexus.kg.async.{ProjectDigestCoordinator, ProjectViewCoordinator}
+import ch.epfl.bluebrain.nexus.kg.archives.ArchiveCache
 import ch.epfl.bluebrain.nexus.kg.cache._
 import ch.epfl.bluebrain.nexus.kg.config.Settings
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary.nxv
@@ -45,7 +46,13 @@ class ProjectInitializerSpec
   private val digestCoordinator: ProjectDigestCoordinator[Task] = mock[ProjectDigestCoordinator[Task]]
   private implicit val projections: Projections[Task, Event]    = mock[Projections[Task, Event]]
   private implicit val cache =
-    Caches(projectCache, mock[ViewCache[Task]], mock[ResolverCache[Task]], mock[StorageCache[Task]])
+    Caches(
+      projectCache,
+      mock[ViewCache[Task]],
+      mock[ResolverCache[Task]],
+      mock[StorageCache[Task]],
+      mock[ArchiveCache[Task]]
+    )
 
   private val initializer: ProjectInitializer[Task] =
     new ProjectInitializer[Task](storages, views, resolvers, viewCoordinator, digestCoordinator)

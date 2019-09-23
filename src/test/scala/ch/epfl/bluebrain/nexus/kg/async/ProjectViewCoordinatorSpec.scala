@@ -10,6 +10,7 @@ import ch.epfl.bluebrain.nexus.commons.cache.OnKeyValueStoreChange
 import ch.epfl.bluebrain.nexus.commons.test.ActorSystemFixture
 import ch.epfl.bluebrain.nexus.kg.TestHelper
 import ch.epfl.bluebrain.nexus.kg.async.ProjectViewCoordinatorActor.onViewChange
+import ch.epfl.bluebrain.nexus.kg.archives.ArchiveCache
 import ch.epfl.bluebrain.nexus.kg.cache._
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig._
 import ch.epfl.bluebrain.nexus.kg.config.Settings
@@ -114,7 +115,13 @@ class ProjectViewCoordinatorSpec
     val coordinatorRef = ProjectViewCoordinatorActor.start(coordinatorProps, None, 1)
     val coordinator =
       new ProjectViewCoordinator[Task](
-        Caches(projectCache, viewCache, mock[ResolverCache[Task]], mock[StorageCache[Task]]),
+        Caches(
+          projectCache,
+          viewCache,
+          mock[ResolverCache[Task]],
+          mock[StorageCache[Task]],
+          mock[ArchiveCache[Task]]
+        ),
         coordinatorRef
       )
 
