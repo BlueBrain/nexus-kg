@@ -44,7 +44,11 @@ class ArchiveRoutes private[routes] (archives: Archives[Task])(
         operationName(s"/${config.http.prefix}/archives/{}/{}") {
           (hasPermission(write) & projectNotDeprecated) {
             entity(as[Json]) { source =>
-              complete(archives.create(source).value.runWithStatus(Created))
+              val created = archives.create(source)
+              (outputFormat(strict = true, Tar)) {
+                case _: JsonLDOutputFormat => complete(created.value.runWithStatus(Created))
+                case _                     => created.map(ResourceRedirect.apply).value.completeRedirect()
+              }
             }
           }
         }
@@ -68,9 +72,12 @@ class ArchiveRoutes private[routes] (archives: Archives[Task])(
         operationName(s"/${config.http.prefix}/archives/{}/{}/{}") {
           (hasPermission(read) & projectNotDeprecated) {
             entity(as[Json]) { source =>
-              complete(archives.create(resId, source).value.runWithStatus(Created))
+              val created = archives.create(resId, source)
+              (outputFormat(strict = true, Tar)) {
+                case _: JsonLDOutputFormat => complete(created.value.runWithStatus(Created))
+                case _                     => created.map(ResourceRedirect.apply).value.completeRedirect()
+              }
             }
-
           }
         }
       },

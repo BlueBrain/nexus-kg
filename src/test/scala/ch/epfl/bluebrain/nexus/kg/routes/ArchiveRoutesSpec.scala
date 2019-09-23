@@ -4,7 +4,7 @@ import java.time.{Clock, Instant, ZoneId}
 
 import akka.http.scaladsl.model.ContentTypes._
 import akka.http.scaladsl.model._
-import akka.http.scaladsl.model.headers.Accept
+import akka.http.scaladsl.model.headers.{Accept, Location}
 import akka.http.scaladsl.testkit.ScalatestRouteTest
 import akka.stream.ActorMaterializer
 import akka.stream.scaladsl.Source
@@ -120,7 +120,7 @@ class ArchiveRoutesSpec
     iamClient.acls(any[Path], any[Boolean], any[Boolean])(any[Option[AuthToken]]) shouldReturn Task.pure(acls)
     projectCache.getProjectLabels(Set(projectRef)) shouldReturn Task.pure(Map(projectRef -> Some(label)))
 
-    val metadataRanges = Seq(`application/json`, `application/ld+json`)
+    val metadataRanges = Seq(Accept(`application/json`.mediaType), Accept(`application/ld+json`))
 
     val json: Json = Json.obj(genString() -> Json.fromString(genString()))
 
@@ -141,18 +141,35 @@ class ArchiveRoutesSpec
     "create an archive without @id" in new Context {
       archives.create(json) shouldReturn EitherT.rightT[Task, Rejection](resource)
 
-      Post(s"/v1/archives/$organization/$project", json) ~> addCredentials(oauthToken) ~> routes ~> check {
-        status shouldEqual StatusCodes.Created
-        responseAs[Json] should equalIgnoreArrayOrder(response())
+      forAll(metadataRanges) { accept =>
+        Post(s"/v1/archives/$organization/$project", json) ~> addCredentials(oauthToken) ~> accept ~> routes ~> check {
+          status shouldEqual StatusCodes.Created
+          responseAs[Json] should equalIgnoreArrayOrder(response())
+        }
+      }
+
+      Post(s"/v1/archives/$organization/$project", json) ~> addCredentials(oauthToken) ~> Accept(MediaRanges.`*/*`) ~> routes ~> check {
+        status shouldEqual StatusCodes.SeeOther
+        header[Location].value.value() should startWith(s"http://127.0.0.1:8080/v1/archives/$organization/$project/")
       }
     }
 
     "create an archive with @id" in new Context {
       archives.create(id, json) shouldReturn EitherT.rightT[Task, Rejection](resource)
 
-      Put(s"/v1/archives/$organization/$project/$urlEncodedId", json) ~> addCredentials(oauthToken) ~> routes ~> check {
-        status shouldEqual StatusCodes.Created
-        responseAs[Json] should equalIgnoreArrayOrder(response())
+      forAll(metadataRanges) { accept =>
+        Put(s"/v1/archives/$organization/$project/$urlEncodedId", json) ~> addCredentials(oauthToken) ~> accept ~> routes ~> check {
+          status shouldEqual StatusCodes.Created
+          responseAs[Json] should equalIgnoreArrayOrder(response())
+        }
+      }
+
+      Put(s"/v1/archives/$organization/$project/$urlEncodedId", json) ~> addCredentials(oauthToken) ~> Accept(
+        MediaRanges.`*/*`
+      ) ~> routes ~> check {
+        status shouldEqual StatusCodes.SeeOther
+        header[Location].value
+          .value() shouldEqual s"http://127.0.0.1:8080/v1/archives/$organization/$project/nxv:$genUuid"
       }
     }
 
@@ -190,10 +207,11 @@ class ArchiveRoutesSpec
 
     "fetch an archives' source" in new Context {
       archives.fetch(id) shouldReturn EitherT.rightT[Task, Rejection](resourceV)
-      Get(s"/v1/archives/$organization/$project/$urlEncodedId") ~> addCredentials(oauthToken) ~>
-        Accept(MediaTypes.`application/json`) ~> routes ~> check {
-        status shouldEqual StatusCodes.OK
-        responseAs[Json] shouldEqual Json.obj("@context" -> Json.fromString(resourceCtxUri.asString))
+      forAll(metadataRanges) { accept =>
+        Get(s"/v1/archives/$organization/$project/$urlEncodedId") ~> addCredentials(oauthToken) ~> accept ~> routes ~> check {
+          status shouldEqual StatusCodes.OK
+          responseAs[Json] shouldEqual Json.obj("@context" -> Json.fromString(resourceCtxUri.asString))
+        }
       }
     }
   }

@@ -3,7 +3,9 @@ package ch.epfl.bluebrain.nexus.kg.marshallers
 import akka.http.scaladsl.marshalling.GenericMarshallers.eitherMarshaller
 import akka.http.scaladsl.marshalling._
 import akka.http.scaladsl.model.MediaTypes._
+import akka.http.scaladsl.model.StatusCodes.Redirection
 import akka.http.scaladsl.model._
+import akka.http.scaladsl.server.Route
 import cats.effect.Effect
 import cats.implicits._
 import ch.epfl.bluebrain.nexus.commons.circe.syntax._
@@ -13,10 +15,11 @@ import ch.epfl.bluebrain.nexus.commons.http.directives.StatusFrom
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig._
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection._
-import ch.epfl.bluebrain.nexus.kg.routes.{RejectionEncoder, TextOutputFormat}
+import ch.epfl.bluebrain.nexus.kg.routes.{RejectionEncoder, ResourceRedirect, TextOutputFormat}
 import de.heikoseeberger.akkahttpcirce.FailFastCirceSupport
 import io.circe._
 import io.circe.syntax._
+import akka.http.scaladsl.server.Directives._
 
 import scala.collection.immutable.Seq
 import scala.concurrent.Future
@@ -100,6 +103,12 @@ object instances extends LowPriority {
   implicit class EitherFSyntax[F[_], R <: Rejection, A](f: F[Either[R, A]])(implicit F: Effect[F]) {
     def runWithStatus(code: StatusCode): Future[Either[R, (StatusCode, A)]] =
       F.toIO(f.map(_.map(code -> _))).unsafeToFuture()
+
+    def completeRedirect(code: Redirection = StatusCodes.SeeOther)(implicit ev: A =:= ResourceRedirect): Route =
+      onSuccess(F.toIO(f).unsafeToFuture()) {
+        case Left(r)  => complete(r: Rejection)
+        case Right(v) => redirect(ev(v).value, code)
+      }
   }
 
   implicit class FSyntax[F[_], A](f: F[A])(implicit F: Effect[F]) {
