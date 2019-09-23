@@ -11,7 +11,7 @@ import ch.epfl.bluebrain.nexus.iam.client.types.Identity.Subject
 import ch.epfl.bluebrain.nexus.iam.client.types.{Identity, Permission}
 import ch.epfl.bluebrain.nexus.kg.archives.Archive.ResourceDescription
 import ch.epfl.bluebrain.nexus.kg.cache.ProjectCache
-import ch.epfl.bluebrain.nexus.kg.config.AppConfig.ArchiveCacheConfig
+import ch.epfl.bluebrain.nexus.kg.config.AppConfig.ArchivesConfig
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary.nxv
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection._
 import ch.epfl.bluebrain.nexus.kg.resources.syntax._
@@ -32,7 +32,7 @@ import ch.epfl.bluebrain.nexus.rdf.{Node, RootedGraph}
 final case class Archive(resId: ResId, created: Instant, createdBy: Identity, values: Set[ResourceDescription]) {
 
   def toTarIgnoreNotFound[F[_]: Effect](implicit fetchResource: FetchResource[F, ArchiveSource]): F[AkkaSource] =
-    values.toList.map(fetchResource(_).value).sequence.map(results => TarFlow.write(results.flatten))
+    values.toList.traverse(fetchResource(_).value).map(results => TarFlow.write(results.flatten))
 
   def toTar[F[_]: Effect](implicit fetchResource: FetchResource[F, ArchiveSource]): OptionT[F, AkkaSource] =
     values.toList.map(fetchResource(_)).sequence.map(TarFlow.write(_))
@@ -40,7 +40,7 @@ final case class Archive(resId: ResId, created: Instant, createdBy: Identity, va
 
 object Archive {
 
-  val write: Permission = Permission.unsafe("resources/write")
+  val write: Permission = Permission.unsafe("archives/write")
 
   private implicit class EncoderResultSyntax[A](private val result: NodeEncoder.EncoderResult[A]) extends AnyVal {
     def onError(ref: Ref, field: String): Either[Rejection, A] =
@@ -150,7 +150,7 @@ object Archive {
       implicit cache: ProjectCache[F],
       project: Project,
       F: Monad[F],
-      config: ArchiveCacheConfig,
+      config: ArchivesConfig,
       subject: Subject,
       clock: Clock
   ): EitherT[F, Rejection, Archive] = {

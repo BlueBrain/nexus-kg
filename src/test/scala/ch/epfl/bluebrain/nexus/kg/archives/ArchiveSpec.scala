@@ -10,7 +10,7 @@ import ch.epfl.bluebrain.nexus.iam.client.types.Identity.{Anonymous, Subject}
 import ch.epfl.bluebrain.nexus.kg.TestHelper
 import ch.epfl.bluebrain.nexus.kg.archives.Archive.{File, Resource}
 import ch.epfl.bluebrain.nexus.kg.cache.ProjectCache
-import ch.epfl.bluebrain.nexus.kg.config.AppConfig.ArchiveCacheConfig
+import ch.epfl.bluebrain.nexus.kg.config.AppConfig.ArchivesConfig
 import ch.epfl.bluebrain.nexus.kg.config.Contexts._
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary.nxv
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection.{InvalidResourceFormat, ProjectsNotFound}
@@ -39,7 +39,7 @@ class ArchiveSpec
     with BeforeAndAfter {
 
   private implicit val cache            = mock[ProjectCache[IO]]
-  private implicit val config           = ArchiveCacheConfig(1 second, 1 second, 3)
+  private implicit val config           = ArchivesConfig(1 second, 1 second, 3)
   private implicit val clock            = Clock.fixed(Instant.EPOCH, ZoneId.systemDefault())
   private implicit val subject: Subject = Anonymous
 

@@ -39,7 +39,7 @@ import scala.concurrent.duration.FiniteDuration
   * @param pagination    Pagination configuration
   * @param keyValueStore Distributed data configuration
   * @param sourcing      Sourcing configuration
-  * @param archiveCache  Archive collection cache configuration
+  * @param archives  Archive collection cache configuration
   */
 final case class AppConfig(
     description: Description,
@@ -54,7 +54,7 @@ final case class AppConfig(
     pagination: PaginationConfig,
     keyValueStore: StoreConfig,
     sourcing: SourcingConfig,
-    archiveCache: ArchiveCacheConfig
+    archives: ArchivesConfig
 )
 
 object AppConfig {
@@ -97,15 +97,15 @@ object AppConfig {
   }
 
   /**
-    * The archive cache configuration
+    * The archives configuration
     *
-    * @param askTimeout      the maximum time to wait for a reply from the underlying actor on the archive cache
-    * @param invalidateAfter the time resource is kept in the archive cache before being invalidated
-    * @param maxResources    the maximum number of resources that can be contain in the archive
+    * @param cacheAskTimeout      the maximum time to wait for a reply from the underlying actor on the archive cache
+    * @param cacheInvalidateAfter the time resource is kept in the archive cache before being invalidated
+    * @param maxResources         the maximum number of resources that can be contain in the archive
     */
-  final case class ArchiveCacheConfig(
-      askTimeout: FiniteDuration,
-      invalidateAfter: FiniteDuration,
+  final case class ArchivesConfig(
+      cacheAskTimeout: FiniteDuration,
+      cacheInvalidateAfter: FiniteDuration,
       maxResources: Int
   )
 
@@ -362,7 +362,7 @@ object AppConfig {
   implicit def toKVS(implicit appConfig: AppConfig): KeyValueStoreConfig           = appConfig.keyValueStore.keyValueStoreConfig
   implicit def toStorage(implicit appConfig: AppConfig): StorageConfig             = appConfig.storage
   implicit def toSecretKey(implicit storageConfig: StorageConfig): SecretKey       = storageConfig.derivedKey
-  implicit def toResourceCollection(implicit appConfig: AppConfig): ArchiveCacheConfig =
-    appConfig.archiveCache
+  implicit def toArchivesConfig(implicit appConfig: AppConfig): ArchivesConfig =
+    appConfig.archives
 
 }

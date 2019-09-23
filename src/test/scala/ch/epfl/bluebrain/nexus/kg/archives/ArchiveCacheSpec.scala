@@ -9,7 +9,7 @@ import ch.epfl.bluebrain.nexus.commons.test.io.IOOptionValues
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity.Anonymous
 import ch.epfl.bluebrain.nexus.kg.TestHelper
 import ch.epfl.bluebrain.nexus.kg.archives.Archive.{File, Resource, ResourceDescription}
-import ch.epfl.bluebrain.nexus.kg.config.AppConfig.ArchiveCacheConfig
+import ch.epfl.bluebrain.nexus.kg.config.AppConfig.ArchivesConfig
 import ch.epfl.bluebrain.nexus.kg.config.Settings
 import ch.epfl.bluebrain.nexus.kg.resources.Id
 import ch.epfl.bluebrain.nexus.kg.resources.syntax._
@@ -30,7 +30,7 @@ class ArchiveCacheSpec
 
   private val appConfig = Settings(system).appConfig
   private implicit val config =
-    appConfig.copy(archiveCache = ArchiveCacheConfig(3 second, 500 millis, 100))
+    appConfig.copy(archives = ArchivesConfig(3 second, 500 millis, 100))
 
   private val cache: ArchiveCache[IO] = ArchiveCache[IO]()
   private implicit val clock          = Clock.fixed(Instant.EPOCH, ZoneId.systemDefault())
@@ -70,8 +70,8 @@ class ArchiveCacheSpec
         cache.get(resId).value.ioValue shouldEqual None
       }
       val diff = System.currentTimeMillis() - time
-      diff should be > config.archiveCache.invalidateAfter.toMillis
-      diff should be < config.archiveCache.invalidateAfter.toMillis + 300
+      diff should be > config.archives.cacheInvalidateAfter.toMillis
+      diff should be < config.archives.cacheInvalidateAfter.toMillis + 300
     }
   }
 }

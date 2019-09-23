@@ -103,13 +103,13 @@ class ArchiveRoutesSpec
     Mockito.reset(archives)
   }
 
-  private val manageResolver = Set(Permission.unsafe("resources/read"), Permission.unsafe("resources/write"))
+  private val manageArchive = Set(Permission.unsafe("resources/read"), Permission.unsafe("archives/write"))
   // format: off
   private val routes = Routes(resources, mock[Resolvers[Task]], mock[Views[Task]], mock[Storages[Task]], mock[Schemas[Task]], mock[Files[Task]], archives, tagsRes, mock[ProjectViewCoordinator[Task]])
   // format: on
 
   //noinspection NameBooleanParameters
-  abstract class Context(perms: Set[Permission] = manageResolver) extends RoutesFixtures {
+  abstract class Context(perms: Set[Permission] = manageArchive) extends RoutesFixtures {
 
     projectCache.getBy(label) shouldReturn Task.pure(Some(projectMeta))
     projectCache.getLabel(projectRef) shouldReturn Task.pure(Some(label))
@@ -156,9 +156,9 @@ class ArchiveRoutesSpec
       }
     }
 
-    "fetch an archive with ignoreNotFound = true" in new Context {
+    "fetch an archive with ignoreNotFound = false (default)" in new Context {
       val content = genString()
-      archives.fetchArchive(id, ignoreNotFound = true) shouldReturn
+      archives.fetchArchive(id, ignoreNotFound = false) shouldReturn
         EitherT.rightT[Task, Rejection](Source.single(ByteString(content)): AkkaSource)
 
       val accepted =
@@ -172,16 +172,16 @@ class ArchiveRoutesSpec
       }
     }
 
-    "fetch an archive with ignoreNotFound = false" in new Context {
+    "fetch an archive with ignoreNotFound = true" in new Context {
       val content = genString()
-      archives.fetchArchive(id, ignoreNotFound = false) shouldReturn
+      archives.fetchArchive(id, ignoreNotFound = true) shouldReturn
         EitherT.rightT[Task, Rejection](Source.single(ByteString(content)): AkkaSource)
 
       val accepted =
         List(Accept(MediaRanges.`*/*`), Accept(MediaRanges.`application/*`), Accept(MediaTypes.`application/x-tar`))
 
       forAll(accepted) { accept =>
-        Get(s"/v1/archives/$organization/$project/$urlEncodedId?ignoreNotFound=false") ~> addCredentials(oauthToken) ~> accept ~> routes ~> check {
+        Get(s"/v1/archives/$organization/$project/$urlEncodedId?ignoreNotFound=true") ~> addCredentials(oauthToken) ~> accept ~> routes ~> check {
           status shouldEqual StatusCodes.OK
           consume(responseEntity.dataBytes) shouldEqual content
         }

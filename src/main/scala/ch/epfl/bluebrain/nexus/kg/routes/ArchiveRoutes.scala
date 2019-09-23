@@ -88,7 +88,7 @@ class ArchiveRoutes private[routes] (archives: Archives[Task])(
     completeWithFormat(archives.fetch(resId).value.runWithStatus(OK))
 
   private def getArchive(resId: ResId): Route = {
-    parameter('ignoreNotFound.as[Boolean] ? true) { ignoreNotFound =>
+    parameter('ignoreNotFound.as[Boolean] ? false) { ignoreNotFound =>
       onSuccess(archives.fetchArchive(resId, ignoreNotFound).value.runToFuture) {
         case Right(source) =>
           headerValueByType[Accept](()) { accept =>

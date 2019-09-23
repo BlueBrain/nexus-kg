@@ -5,11 +5,11 @@ import ch.epfl.bluebrain.nexus.kg.archives.ArchiveCache
 /**
   * Aggregator of the caches used in the service
   *
-  * @param project                 the project cache
-  * @param view                    the view cache
-  * @param resolver                the resolver cache
-  * @param storage                 the storage cache
-  * @param resourceCollectionCache the resourceCollectionCache cache
+  * @param project      the project cache
+  * @param view         the view cache
+  * @param resolver     the resolver cache
+  * @param storage      the storage cache
+  * @param archiveCache the archive cache
   * @tparam F the effect type
   */
 final class Caches[F[_]](
@@ -17,7 +17,7 @@ final class Caches[F[_]](
     val view: ViewCache[F],
     val resolver: ResolverCache[F],
     val storage: StorageCache[F],
-    val resourceCollectionCache: ArchiveCache[F]
+    val archiveCache: ArchiveCache[F]
 )
 object Caches {
 
@@ -43,7 +43,6 @@ object Caches {
   final implicit def storageCache[F[_]](implicit caches: Caches[F]): StorageCache[F]   = caches.storage
   final implicit def projectCache[F[_]](implicit caches: Caches[F]): ProjectCache[F]   = caches.project
   final implicit def resolverCache[F[_]](implicit caches: Caches[F]): ResolverCache[F] = caches.resolver
-  final implicit def resourceCollectionCache[F[_]](implicit caches: Caches[F]): ArchiveCache[F] =
-    caches.resourceCollectionCache
+  final implicit def archiveCache[F[_]](implicit caches: Caches[F]): ArchiveCache[F]   = caches.archiveCache
   // $COVERAGE-ON$
 }

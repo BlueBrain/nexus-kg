@@ -20,12 +20,12 @@ import scala.concurrent.ExecutionContext
 import scala.util.control.NonFatal
 
 class ArchiveCache[F[_]](ref: ActorRef)(
-    implicit config: ArchiveCacheConfig,
+    implicit config: ArchivesConfig,
     F: Effect[F]
 ) {
 
   private[this] val logger = Logger[this.type]
-  private implicit val tm  = Timeout(config.askTimeout)
+  private implicit val tm  = Timeout(config.cacheAskTimeout)
 
   /**
     * Retrieves the [[Archive]] from the cache
@@ -111,13 +111,13 @@ object ArchiveCache {
   private[archives] final case class WriteResponse(success: Boolean)
 
   private[archives] class ArchiveCoordinatorActor(
-      implicit config: ArchiveCacheConfig,
+      implicit config: ArchivesConfig,
       ec: ExecutionContext
   ) extends Actor {
     var bundle: Option[Archive] = None
 
     override def preStart(): Unit = {
-      val _ = context.system.scheduler.scheduleOnce(config.invalidateAfter, self, Stop)
+      val _ = context.system.scheduler.scheduleOnce(config.cacheInvalidateAfter, self, Stop)
       super.preStart()
     }
 
