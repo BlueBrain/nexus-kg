@@ -30,6 +30,7 @@ import ch.epfl.bluebrain.nexus.storage.client.StorageClientError
 import ch.epfl.bluebrain.nexus.storage.client.types.FileAttributes.{Digest => StorageDigest}
 import ch.epfl.bluebrain.nexus.storage.client.types.{FileAttributes => StorageFileAttributes}
 import io.circe.Json
+import io.circe.syntax._
 import org.mockito.{ArgumentMatchersSugar, IdiomaticMockito, Mockito}
 import org.scalactic.Equality
 import org.scalatest._
@@ -156,9 +157,9 @@ class FilesSpec
 
     }
 
-    "performing digest update operations computed from the storage" should {
+    "performing file attribute update operations computed from the storage" should {
 
-      "update a file digest" in new Base {
+      "update file attributes" in new Base {
 
         saveFile(resId, desc, source) shouldReturn IO.pure(attributes.copy(digest = Digest.empty))
         fetchFileAttributes(path) shouldReturn IO.pure(storageAttributes)
@@ -170,7 +171,7 @@ class FilesSpec
             .copy(file = Some(storage.reference -> attributes))
       }
 
-      "prevent updating a file digest when returned digest is not computed" in new Base {
+      "prevent updating file attributes when returned digest is not computed" in new Base {
 
         saveFile(resId, desc, source) shouldReturn IO.pure(attributes.copy(digest = Digest.empty))
         fetchFileAttributes(path) shouldReturn IO.pure(emptyStorageAttr)
@@ -179,7 +180,7 @@ class FilesSpec
         files.updateFileAttrEmpty(resId).value.rejected[FileDigestNotComputed]
       }
 
-      "prevent updating a file digest when the digest is already computed" in new Base {
+      "prevent updating file attributes when the digest is already computed" in new Base {
 
         saveFile(resId, desc, source) shouldReturn IO.pure(attributes)
 
@@ -187,14 +188,14 @@ class FilesSpec
         files.updateFileAttrEmpty(resId).value.rejected[FileDigestAlreadyExists]
       }
 
-      "prevent updating a file digest when file does not exist" in new Base {
+      "prevent updating file attributes when file does not exist" in new Base {
         files.updateFileAttrEmpty(resId).value.rejected[NotFound] shouldEqual NotFound(
           resId.ref,
           schemaOpt = Some(fileRef)
         )
       }
 
-      "prevent updating a file digest when digest fetch traises a StorageClientError" in new Base {
+      "prevent updating file attributes when file attributes fetch raises a StorageClientError" in new Base {
         saveFile(resId, desc, source) shouldReturn IO.pure(attributes.copy(digest = Digest.empty))
         fetchFileAttributes(path) shouldReturn IO.raiseError(StorageClientError.UnknownError(InternalServerError, ""))
 
@@ -204,20 +205,33 @@ class FilesSpec
       }
     }
 
-    "performing digest update operations passed by the client" should {
+    "performing file attributes update operations passed by the client" should {
 
-      def digestJson(digest: Digest): Json =
+      def jsonFileAttr(
+          digest: Digest,
+          mediaType: String,
+          location: String,
+          bytes: Long,
+          tpe: String = nxv.UpdateFileAttributes.prefix
+      ): Json =
         Json.obj(
-          "value"     -> Json.fromString(digest.value),
-          "algorithm" -> Json.fromString(digest.algorithm),
-          "@type"     -> Json.fromString(nxv.UpdateDigest.prefix)
+          "@type"     -> tpe.asJson,
+          "digest"    -> Json.obj("value" -> digest.value.asJson, "algorithm" -> digest.algorithm.asJson),
+          "mediaType" -> mediaType.asJson,
+          "location"  -> location.asJson,
+          "bytes"     -> bytes.asJson
         )
 
       "update a file digest" in new Base {
         saveFile(resId, desc, source) shouldReturn IO.pure(attributes.copy(digest = Digest.empty))
         files.create(resId, storage, desc, source).value.accepted shouldBe a[Resource]
-
-        files.updateDigest(resId, storage, 1L, digestJson(attributes.digest)).value.accepted shouldEqual
+        val json = jsonFileAttr(
+          attributes.digest,
+          attributes.mediaType.toString(),
+          attributes.location.toString(),
+          attributes.bytes
+        )
+        files.updateFileAttr(resId, storage, 1L, json).value.accepted shouldEqual
           ResourceF
             .simpleF(resId, value, 2L, schema = fileRef, types = types)
             .copy(file = Some(storage.reference -> attributes))
@@ -226,17 +240,24 @@ class FilesSpec
       "prevent updating a file digest when the revision is wrong" in new Base {
         saveFile(resId, desc, source) shouldReturn IO.pure(attributes.copy(digest = Digest.empty))
         files.create(resId, storage, desc, source).value.accepted shouldBe a[Resource]
-        files
-          .updateDigest(resId, storage, 3L, digestJson(attributes.digest))
-          .value
-          .rejected[IncorrectRev] shouldEqual IncorrectRev(resId.ref, 3L, 1L)
+        val json = jsonFileAttr(
+          attributes.digest,
+          attributes.mediaType.toString(),
+          attributes.location.toString(),
+          attributes.bytes
+        )
+        files.updateFileAttr(resId, storage, 3L, json).value.rejected[IncorrectRev] shouldEqual
+          IncorrectRev(resId.ref, 3L, 1L)
       }
 
       "prevent updating a file digest when file does not exist" in new Base {
-        files
-          .updateDigest(resId, storage, 1L, digestJson(attributes.digest))
-          .value
-          .rejected[NotFound] shouldEqual NotFound(resId.ref)
+        val json = jsonFileAttr(
+          attributes.digest,
+          attributes.mediaType.toString(),
+          attributes.location.toString(),
+          attributes.bytes
+        )
+        files.updateFileAttr(resId, storage, 1L, json).value.rejected[NotFound] shouldEqual NotFound(resId.ref)
       }
     }
 

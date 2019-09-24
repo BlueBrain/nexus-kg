@@ -145,12 +145,12 @@ class FileRoutes private[routes] (files: Files[Task], resources: Resources[Task]
           }
         }
       },
-      // Updating file digest
+      // Updating file attributes manually
       (patch & pathEndOrSingleSlash & storage & parameter('rev.as[Long])) { (storage, rev) =>
         operationName(s"/${config.http.prefix}/files/{}/{}/{}") {
           (hasPermission(storage.writePermission) & projectNotDeprecated) {
             entity(as[Json]) { source =>
-              complete(files.updateDigest(Id(project.ref, id), storage, rev, source).value.runWithStatus(OK))
+              complete(files.updateFileAttr(Id(project.ref, id), storage, rev, source).value.runWithStatus(OK))
             }
           }
         }

@@ -98,25 +98,28 @@ object Resolver {
 
     def inProject: Either[Rejection, Resolver] =
       for {
-        priority <- c.downField(nxv.priority).focus.as[Int].toRejectionOnLeft(res.id.ref)
+        priority <- c.downField(nxv.priority).focus.as[Int].onError(res.id.ref, nxv.priority.prefix)
       } yield InProjectResolver(id.parent, id.value, res.rev, res.deprecated, priority)
 
     def crossProject: Either[Rejection, CrossProjectResolver[_]] = {
       // format: off
       val result = for {
         ids   <- identities(c.downField(nxv.identities).downArray)
-        prio  <- c.downField(nxv.priority).focus.as[Int].toRejectionOnLeft(res.id.ref)
-        types <- c.downField(nxv.resourceTypes).values.asListOf[AbsoluteIri].orElse(List.empty).map(_.toSet).toRejectionOnLeft(res.id.ref)
+        prio  <- c.downField(nxv.priority).focus.as[Int].onError(res.id.ref, nxv.priority.prefix)
+        types <- c.downField(nxv.resourceTypes).values.asListOf[AbsoluteIri].orElse(List.empty).map(_.toSet).onError(res.id.ref, nxv.resourceTypes.prefix)
       } yield CrossProjectResolver(types, Set.empty[String], ids, id.parent, id.value, res.rev, res.deprecated, prio)
       // format: on
       result.flatMap { r =>
         val nodes = c.downField(nxv.projects).values
-        nodes.asListOf[ProjectLabel].toRejectionOnLeft(res.id.ref) match {
-          case Right(projectLabels) => Right(r.copy(projects = projectLabels.toSet))
+        nodes.asListOf[ProjectLabel].onError(res.id.ref, nxv.projects.prefix) match {
+          case Right(projectLabels) =>
+            Right(r.copy(projects = projectLabels.toSet))
           case Left(_) =>
-            nodes.asListOf[ProjectRef].toRejectionOnLeft(res.id.ref).map(refs => r.copy(projects = refs.toSet))
+            nodes
+              .asListOf[ProjectRef]
+              .onError(res.id.ref, nxv.projects.prefix)
+              .map(refs => r.copy(projects = refs.toSet))
         }
-
       }
     }
 

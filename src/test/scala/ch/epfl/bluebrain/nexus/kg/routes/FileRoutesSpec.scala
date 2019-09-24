@@ -157,7 +157,7 @@ class FileRoutesSpec
       Json.obj(
         "value"     -> Json.fromString(digest.value),
         "algorithm" -> Json.fromString(digest.algorithm),
-        "@type"     -> Json.fromString(nxv.UpdateDigest.prefix)
+        "@type"     -> Json.fromString(nxv.UpdateFileAttributes.prefix)
       )
 
     val fileLink = jsonContentOf("/resources/file-link.json")
@@ -250,7 +250,7 @@ class FileRoutesSpec
     "update a file digest" in new Context {
       val digest = Digest("SHA-256", genString())
       val json   = digestJson(digest)
-      files.updateDigest(id, storage, 1L, json) shouldReturn EitherT.rightT[Task, Rejection](resource)
+      files.updateFileAttr(id, storage, 1L, json) shouldReturn EitherT.rightT[Task, Rejection](resource)
 
       forAll(endpoints(rev = Some(1L))) { endpoint =>
         Patch(endpoint, json) ~> addCredentials(oauthToken) ~> routes ~> check {

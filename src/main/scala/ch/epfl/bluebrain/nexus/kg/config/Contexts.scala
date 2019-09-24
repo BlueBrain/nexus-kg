@@ -12,7 +12,7 @@ object Contexts {
   val errorCtxUri: AbsoluteIri      = base + "error.json"
   val tagCtxUri: AbsoluteIri        = base + "tag.json"
   val archiveCtxUri: AbsoluteIri    = base + "archive.json"
-  val digestCtxUri: AbsoluteIri     = base + "digest.json"
+  val fileAttrCtxUri: AbsoluteIri   = base + "file-attr.json"
   val statisticsCtxUri: AbsoluteIri = base + "statistics.json"
   val resourceCtxUri: AbsoluteIri   = base + "resource.json"
   val resolverCtxUri: AbsoluteIri   = base + "resolver.json"
@@ -23,7 +23,7 @@ object Contexts {
 
   val tagCtx: Json        = jsonContentOf("/contexts/tags-context.json")
   val archiveCtx: Json    = jsonContentOf("/contexts/archive-context.json")
-  val digestCtx: Json     = jsonContentOf("/contexts/digest-context.json")
+  val fileAttrCtx: Json   = jsonContentOf("/contexts/file-attr-context.json")
   val statisticsCtx: Json = jsonContentOf("/contexts/statistics-context.json")
   val resourceCtx: Json   = jsonContentOf("/contexts/resource-context.json")
   val resolverCtx: Json   = jsonContentOf("/contexts/resolver-context.json")

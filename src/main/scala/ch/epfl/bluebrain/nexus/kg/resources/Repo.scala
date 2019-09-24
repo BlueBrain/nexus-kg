@@ -141,21 +141,6 @@ class Repo[F[_]: Monad](agg: Agg[F], clock: Clock, toIdentifier: ResId => String
     test(id, CreateFile(id, organization, storage, fileAttr, instant, subject))
 
   /**
-    * Updates the digest of a file resource.
-    *
-    * @param id       the id of the resource
-    * @param storage  the storage reference where the file was saved
-    * @param rev      the optional last known revision of the resource
-    * @param digest the file digest
-    * @param instant  an optionally provided operation instant
-    * @return either a rejection or the new resource representation in the F context
-    */
-  def updateDigest(id: ResId, storage: StorageReference, rev: Long, digest: Digest, instant: Instant = clock.instant)(
-      implicit subject: Subject
-  ): EitherT[F, Rejection, Resource] =
-    evaluate(id, UpdateFileDigest(id, storage, rev, digest, instant, subject))
-
-  /**
     * Updates the storage file attributes of a file resource.
     *
     * @param id         the id of the resource

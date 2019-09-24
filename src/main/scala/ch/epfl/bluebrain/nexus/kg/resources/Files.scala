@@ -103,16 +103,16 @@ class Files[F[_]: Timer](repo: Repo[F])(implicit storageCache: StorageCache[F], 
   }
 
   /**
-    * Updates the digest of a file resource.
+    * Updates the file attributes of a file resource.
     *
     * @param id      the id of the resource
     * @param storage the storage reference
     * @param rev     the last known revision of the resource
-    * @param digest  the digest of the file in a json format
+    * @param attr  the attributes of the file in a json format
     * @return either a rejection or the new resource representation in the F context
     */
-  def updateDigest(id: ResId, storage: Storage, rev: Long, digest: Json)(implicit subject: Subject): RejOrResource[F] =
-    EitherT.fromEither[F](Digest(id, digest)).flatMap(repo.updateDigest(id, storage.reference, rev, _))
+  def updateFileAttr(id: ResId, storage: Storage, rev: Long, attr: Json)(implicit subject: Subject): RejOrResource[F] =
+    EitherT.fromEither[F](FileAttributes(id, attr)).flatMap(repo.updateFileAttributes(id, storage.reference, rev, _))
 
   /**
     * Replaces a file resource.

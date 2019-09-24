@@ -25,6 +25,11 @@ import scala.util.{Success, Try}
 
 object syntax {
 
+  implicit class EncoderResultSyntax[A](private val result: NodeEncoder.EncoderResult[A]) extends AnyVal {
+    def onError(ref: Ref, field: String): Either[Rejection, A] =
+      result.left.map(_ => InvalidResourceFormat(ref, s"'$field' field does not have the right format."): Rejection)
+  }
+
   implicit val projectLabelEncoder: NodeEncoder[ProjectLabel] = node =>
     NodeEncoder.stringEncoder(node).flatMap { value =>
       value.trim.split("/") match {
@@ -162,23 +167,6 @@ object syntax {
       * @return the project reference
       */
     def ref: ProjectRef = ProjectRef(project.uuid)
-  }
-
-  implicit class NodeEncoderResultSyntax[A](private val enc: NodeEncoder.EncoderResult[A]) extends AnyVal {
-
-    /**
-      * Maps a NodeEncoderError into a InvalidResourceFormat in case the either returns a left
-      *
-      * @param ref the reference to the resource
-      */
-    def toRejectionOnLeft(ref: Ref): Either[Rejection, A] =
-      enc.left.map(
-        err =>
-          InvalidResourceFormat(
-            ref,
-            s"The provided payload could not be mapped to the targeted resource due to '${err.message}'"
-          )
-      )
   }
 
   implicit class CryptoSyntax(private val value: String) extends AnyVal {

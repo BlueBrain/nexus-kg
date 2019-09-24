@@ -23,6 +23,8 @@ import ch.epfl.bluebrain.nexus.rdf.encoder.NodeEncoderError.IllegalConversion
 import ch.epfl.bluebrain.nexus.rdf.instances._
 import ch.epfl.bluebrain.nexus.rdf.syntax._
 import io.circe.Json
+import ch.epfl.bluebrain.nexus.storage.client.types.FileAttributes.{Digest => StorageDigest}
+import ch.epfl.bluebrain.nexus.storage.client.types.{FileAttributes => StorageFileAttributes}
 
 import scala.annotation.tailrec
 import scala.util.Try
@@ -50,29 +52,15 @@ object File {
       * @return a link description if the resource is compatible or a rejection otherwise
       */
     final def apply(id: ResId, source: Json): Either[Rejection, LinkDescription] =
+      // format: off
       for {
-        graph <- source
-          .replaceContext(storageCtx)
-          .id(id.value)
-          .asGraph(id.value)
-          .left
-          .map(_ => InvalidJsonLD("Invalid JSON payload."))
-        c = graph.cursor()
-        filename <- c.downField(nxv.filename).focus match {
-          case None => Right(None)
-          case Some(node) =>
-            node
-              .as[String]
-              .flatMap(name => nonEmpty(name, nxv.filename.prefix))
-              .map(Option.apply)
-              .toRejectionOnLeft(id.ref)
-        }
-        mediaType <- c.downField(nxv.mediaType).focus match {
-          case None       => Right(None)
-          case Some(node) => node.as[ContentType].map(Option.apply).toRejectionOnLeft(id.ref)
-        }
-        path <- c.downField(nxv.path).focus.as[Path].toRejectionOnLeft(id.ref)
+        graph       <- source.replaceContext(storageCtx).id(id.value).asGraph(id.value).left.map(_ => InvalidJsonLD("Invalid JSON payload."))
+        c            = graph.cursor()
+        filename    <- c.downField(nxv.filename).focus.asOption[String].flatMap(nonEmpty).onError(id.ref, nxv.filename.prefix)
+        mediaType   <- c.downField(nxv.mediaType).focus.asOption[ContentType].onError(id.ref, nxv.mediaType.prefix)
+        path        <- c.downField(nxv.path).focus.as[Path].onError(id.ref, nxv.path.prefix)
       } yield LinkDescription(path, filename, mediaType)
+    // format: on
   }
 
   /**
@@ -135,6 +123,34 @@ object File {
         digest: Digest
     ): FileAttributes =
       FileAttributes(UUID.randomUUID, location, path, filename, mediaType, size, digest)
+
+    /**
+      * Attempts to constructs a [[FileAttributes]] from the provided json
+      *
+      * @param resId the resource identifier
+      * @param json  the payload
+      * @return Right(attr) when successful and Left(rejection) when failed
+      */
+    final def apply(resId: ResId, json: Json): Either[Rejection, StorageFileAttributes] =
+      // format: off
+      for {
+        graph     <- (json deepMerge fileAttrCtx).id(resId.value).asGraph(resId.value).left.map(_ => InvalidResourceFormat(resId.ref, "Empty or wrong Json-LD"))
+        cursor     = graph.cursor()
+        _         <- cursor.downField(rdf.tpe).focus.as[AbsoluteIri].flatMap(validType).onError(resId.ref, "@type")
+        mediaType <- cursor.downField(nxv.mediaType).focus.as[ContentType].onError(resId.ref, "mediaType")
+        bytes     <- cursor.downField(nxv.bytes).focus.as[Long].onError(resId.ref, nxv.bytes.prefix)
+        location  <- cursor.downField(nxv.location).focus.as[Uri].onError(resId.ref, nxv.location.prefix)
+        digestC    = cursor.downField(nxv.digest)
+        algorithm <- digestC.downField(nxv.algorithm).focus.as[String].flatMap(validAlgorithm).onError(resId.ref, "algorithm")
+        value     <- digestC.downField(nxv.value).focus.as[String].flatMap(nonEmpty).onError(resId.ref, "value")
+      } yield StorageFileAttributes(location, bytes, StorageDigest(algorithm, value), mediaType)
+    // format: on
+
+    private def validType(iri: AbsoluteIri): EncoderResult[AbsoluteIri] =
+      if (iri == nxv.UpdateFileAttributes.value) Right(iri) else Left(IllegalConversion(""))
+
+    private def validAlgorithm(s: String): EncoderResult[String] =
+      Try(MessageDigest.getInstance(s)).map(_ => s).toOption.toRight[NodeEncoderError](IllegalConversion(""))
   }
 
   /**
@@ -145,33 +161,7 @@ object File {
     */
   final case class Digest(algorithm: String, value: String)
   object Digest {
-
-    /**
-      * Attempts to constructs a Digest from the provided json
-      *
-      * @param resId the resource identifier
-      * @param json  the payload
-      * @return Right(digest) when successful and Left(rejection) when failed
-      */
-    final def apply(resId: ResId, json: Json): Either[Rejection, Digest] =
-      // format: off
-      for {
-        graph       <- (json deepMerge digestCtx).id(resId.value).asGraph(resId.value).left.map(_ => InvalidResourceFormat(resId.ref, "Empty or wrong Json-LD. Both 'algorithm' and 'value' fields must be present."))
-        cursor       = graph.cursor()
-        _           <- cursor.downField(rdf.tpe).focus.as[AbsoluteIri].flatMap(validType).left.map(_ => InvalidResourceFormat(resId.ref, "'@type' field does not have the right format."))
-        algorithm   <- cursor.downField(nxv.algorithm).focus.as[String].flatMap(validAlgorithm).left.map(_ => InvalidResourceFormat(resId.ref, "'algorithm' field does not have the right format."))
-        value       <- cursor.downField(nxv.value).focus.as[String].flatMap(nonEmpty(_, "value")).left.map(_ => InvalidResourceFormat(resId.ref, "'value' field does not have the right format."))
-      } yield Digest(algorithm, value)
-    // format: on
-
     val empty: Digest = Digest("", "")
-
-    private def validType(iri: AbsoluteIri): EncoderResult[AbsoluteIri] =
-      if (iri == nxv.UpdateDigest.value) Right(iri) else Left(IllegalConversion(""))
-
-    private def validAlgorithm(s: String): EncoderResult[String] =
-      Try(MessageDigest.getInstance(s)).map(_ => s).toOption.toRight[NodeEncoderError](IllegalConversion(""))
-
   }
 
   /**

@@ -155,7 +155,10 @@ package object resources {
       .retry
   }
 
-  private[resources] def nonEmpty(s: String, fieldName: String): EncoderResult[String] =
-    if (s.trim.isEmpty) Left(IllegalConversion(s"'$fieldName' cannot be empty")) else Right(s)
+  def nonEmpty(s: String): EncoderResult[String] =
+    if (s.trim.isEmpty) Left(IllegalConversion("")) else Right(s)
+
+  def nonEmpty(s: Option[String]): EncoderResult[Option[String]] =
+    if (s.exists(_.trim.isEmpty)) Left(IllegalConversion("")) else Right(s)
 
 }

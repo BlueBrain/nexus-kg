@@ -127,7 +127,7 @@ object Vocabulary {
 
     // @type platform ids
     val Archive                    = PrefixMapping.prefix("Archive")
-    val UpdateDigest               = PrefixMapping.prefix("UpdateDigest")
+    val UpdateFileAttributes       = PrefixMapping.prefix("UpdateFileAttributes")
     val Schema                     = PrefixMapping.prefix("Schema")
     val File                       = PrefixMapping.prefix("File")
     val Resource                   = PrefixMapping.prefix("Resource")
