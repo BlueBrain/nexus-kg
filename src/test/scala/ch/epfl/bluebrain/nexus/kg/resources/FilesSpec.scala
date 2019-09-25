@@ -22,12 +22,15 @@ import ch.epfl.bluebrain.nexus.kg.config.Vocabulary._
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection._
 import ch.epfl.bluebrain.nexus.kg.resources.file.File.{Digest, FileDescription, StoredSummary}
 import ch.epfl.bluebrain.nexus.kg.storage.Storage
-import ch.epfl.bluebrain.nexus.kg.storage.Storage.StorageOperations.{Fetch, FetchDigest, Link, Save}
-import ch.epfl.bluebrain.nexus.kg.storage.Storage.{DiskStorage, FetchFile, FetchFileDigest, LinkFile, SaveFile}
+import ch.epfl.bluebrain.nexus.kg.storage.Storage.StorageOperations.{Fetch, FetchAttributes, Link, Save}
+import ch.epfl.bluebrain.nexus.kg.storage.Storage.{DiskStorage, FetchFile, FetchFileAttributes, LinkFile, SaveFile}
 import ch.epfl.bluebrain.nexus.rdf.Iri
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import ch.epfl.bluebrain.nexus.storage.client.StorageClientError
+import ch.epfl.bluebrain.nexus.storage.client.types.FileAttributes.{Digest => StorageDigest}
+import ch.epfl.bluebrain.nexus.storage.client.types.{FileAttributes => StorageFileAttributes}
 import io.circe.Json
+import io.circe.syntax._
 import org.mockito.{ArgumentMatchersSugar, IdiomaticMockito, Mockito}
 import org.scalactic.Equality
 import org.scalatest._
@@ -59,17 +62,17 @@ class FilesSpec
   private implicit val ctx: ContextShift[IO]  = IO.contextShift(ExecutionContext.global)
   private implicit val timer: Timer[IO]       = IO.timer(ExecutionContext.global)
 
-  private implicit val repo                           = Repo[IO].ioValue
-  private val saveFile: SaveFile[IO, String]          = mock[SaveFile[IO, String]]
-  private val fetchDigest: FetchFileDigest[IO]        = mock[FetchFileDigest[IO]]
-  private val fetchFile: FetchFile[IO, String]        = mock[FetchFile[IO, String]]
-  private val linkFile: LinkFile[IO]                  = mock[LinkFile[IO]]
-  private implicit val storageCache: StorageCache[IO] = mock[StorageCache[IO]]
+  private implicit val repo                                = Repo[IO].ioValue
+  private val saveFile: SaveFile[IO, String]               = mock[SaveFile[IO, String]]
+  private val fetchFileAttributes: FetchFileAttributes[IO] = mock[FetchFileAttributes[IO]]
+  private val fetchFile: FetchFile[IO, String]             = mock[FetchFile[IO, String]]
+  private val linkFile: LinkFile[IO]                       = mock[LinkFile[IO]]
+  private implicit val storageCache: StorageCache[IO]      = mock[StorageCache[IO]]
 
   private val files: Files[IO] = Files[IO]
 
   before {
-    Mockito.reset(storageCache, saveFile, fetchFile, linkFile, fetchDigest)
+    Mockito.reset(storageCache, saveFile, fetchFile, linkFile, fetchFileAttributes)
   }
 
   trait Base {
@@ -83,22 +86,26 @@ class FilesSpec
     implicit val project = Project(resId.value, "proj", "org", None, base, voc, Map.empty, projectRef.id, genUUID, 1L, deprecated = false, Instant.EPOCH, subject.id, Instant.EPOCH, subject.id)
     // format: on
 
-    val value      = Json.obj()
-    val types      = Set[AbsoluteIri](nxv.File)
-    val desc       = FileDescription("name", `text/plain(UTF-8)`)
-    val source     = "some text"
-    val location   = Uri("file:///tmp/other")
-    val path       = Uri.Path("other")
-    val attributes = desc.process(StoredSummary(location, path, 20L, Digest("MD5", "1234")))
-    val storage    = DiskStorage.default(projectRef)
-    val fileLink   = jsonContentOf("/resources/file-link.json")
+    val value         = Json.obj()
+    val types         = Set[AbsoluteIri](nxv.File)
+    val desc          = FileDescription("name", `text/plain(UTF-8)`)
+    val source        = "some text"
+    val location      = Uri("file:///tmp/other")
+    val path          = Uri.Path("other")
+    val attributes    = desc.process(StoredSummary(location, path, 20L, Digest("MD5", "1234")))
+    val storageDigest = StorageDigest(attributes.digest.algorithm, attributes.digest.value)
+    val storageAttributes =
+      StorageFileAttributes(attributes.location, attributes.bytes, storageDigest, attributes.mediaType)
+    val emptyStorageAttr = storageAttributes.copy(digest = StorageDigest.empty)
+    val storage          = DiskStorage.default(projectRef)
+    val fileLink         = jsonContentOf("/resources/file-link.json")
 
     storageCache.get(projectRef, storage.id) shouldReturn IO(Some(storage))
 
     implicit val save: Save[IO, String] = (st: Storage) => if (st == storage) saveFile else throw new RuntimeException
 
-    implicit val fetchD: FetchDigest[IO] = (st: Storage) =>
-      if (st == storage) fetchDigest else throw new RuntimeException
+    implicit val fetchD: FetchAttributes[IO] = (st: Storage) =>
+      if (st == storage) fetchFileAttributes else throw new RuntimeException
 
     implicit val link: Link[IO] = (st: Storage) => if (st == storage) linkFile else throw new RuntimeException
 
@@ -150,68 +157,81 @@ class FilesSpec
 
     }
 
-    "performing digest update operations computed from the storage" should {
+    "performing file attribute update operations computed from the storage" should {
 
-      "update a file digest" in new Base {
+      "update file attributes" in new Base {
 
         saveFile(resId, desc, source) shouldReturn IO.pure(attributes.copy(digest = Digest.empty))
-        fetchDigest(path) shouldReturn IO.pure(attributes.digest)
+        fetchFileAttributes(path) shouldReturn IO.pure(storageAttributes)
 
         files.create(resId, storage, desc, source).value.accepted shouldBe a[Resource]
-        files.updateDigestIfEmpty(resId).value.accepted shouldEqual
+        files.updateFileAttrEmpty(resId).value.accepted shouldEqual
           ResourceF
             .simpleF(resId, value, 2L, schema = fileRef, types = types)
             .copy(file = Some(storage.reference -> attributes))
       }
 
-      "prevent updating a file digest when returned digest is not computed" in new Base {
+      "prevent updating file attributes when returned digest is not computed" in new Base {
 
         saveFile(resId, desc, source) shouldReturn IO.pure(attributes.copy(digest = Digest.empty))
-        fetchDigest(path) shouldReturn IO.pure(Digest.empty)
+        fetchFileAttributes(path) shouldReturn IO.pure(emptyStorageAttr)
 
         files.create(resId, storage, desc, source).value.accepted shouldBe a[Resource]
-        files.updateDigestIfEmpty(resId).value.rejected[FileDigestNotComputed]
+        files.updateFileAttrEmpty(resId).value.rejected[FileDigestNotComputed]
       }
 
-      "prevent updating a file digest when the digest is already computed" in new Base {
+      "prevent updating file attributes when the digest is already computed" in new Base {
 
         saveFile(resId, desc, source) shouldReturn IO.pure(attributes)
 
         files.create(resId, storage, desc, source).value.accepted shouldBe a[Resource]
-        files.updateDigestIfEmpty(resId).value.rejected[FileDigestAlreadyExists]
+        files.updateFileAttrEmpty(resId).value.rejected[FileDigestAlreadyExists]
       }
 
-      "prevent updating a file digest when file does not exist" in new Base {
-        files.updateDigestIfEmpty(resId).value.rejected[NotFound] shouldEqual NotFound(
+      "prevent updating file attributes when file does not exist" in new Base {
+        files.updateFileAttrEmpty(resId).value.rejected[NotFound] shouldEqual NotFound(
           resId.ref,
           schemaOpt = Some(fileRef)
         )
       }
 
-      "prevent updating a file digest when digest fetch traises a StorageClientError" in new Base {
+      "prevent updating file attributes when file attributes fetch raises a StorageClientError" in new Base {
         saveFile(resId, desc, source) shouldReturn IO.pure(attributes.copy(digest = Digest.empty))
-        fetchDigest(path) shouldReturn IO.raiseError(StorageClientError.UnknownError(InternalServerError, ""))
+        fetchFileAttributes(path) shouldReturn IO.raiseError(StorageClientError.UnknownError(InternalServerError, ""))
 
         files.create(resId, storage, desc, source).value.accepted shouldBe a[Resource]
-        files.updateDigestIfEmpty(resId).value.failed[InternalError]
+        files.updateFileAttrEmpty(resId).value.failed[InternalError]
 
       }
     }
 
-    "performing digest update operations passed by the client" should {
+    "performing file attributes update operations passed by the client" should {
 
-      def digestJson(digest: Digest): Json =
+      def jsonFileAttr(
+          digest: Digest,
+          mediaType: String,
+          location: String,
+          bytes: Long,
+          tpe: String = nxv.UpdateFileAttributes.prefix
+      ): Json =
         Json.obj(
-          "value"     -> Json.fromString(digest.value),
-          "algorithm" -> Json.fromString(digest.algorithm),
-          "@type"     -> Json.fromString(nxv.UpdateDigest.prefix)
+          "@type"     -> tpe.asJson,
+          "digest"    -> Json.obj("value" -> digest.value.asJson, "algorithm" -> digest.algorithm.asJson),
+          "mediaType" -> mediaType.asJson,
+          "location"  -> location.asJson,
+          "bytes"     -> bytes.asJson
         )
 
       "update a file digest" in new Base {
         saveFile(resId, desc, source) shouldReturn IO.pure(attributes.copy(digest = Digest.empty))
         files.create(resId, storage, desc, source).value.accepted shouldBe a[Resource]
-
-        files.updateDigest(resId, storage, 1L, digestJson(attributes.digest)).value.accepted shouldEqual
+        val json = jsonFileAttr(
+          attributes.digest,
+          attributes.mediaType.toString(),
+          attributes.location.toString(),
+          attributes.bytes
+        )
+        files.updateFileAttr(resId, storage, 1L, json).value.accepted shouldEqual
           ResourceF
             .simpleF(resId, value, 2L, schema = fileRef, types = types)
             .copy(file = Some(storage.reference -> attributes))
@@ -220,17 +240,24 @@ class FilesSpec
       "prevent updating a file digest when the revision is wrong" in new Base {
         saveFile(resId, desc, source) shouldReturn IO.pure(attributes.copy(digest = Digest.empty))
         files.create(resId, storage, desc, source).value.accepted shouldBe a[Resource]
-        files
-          .updateDigest(resId, storage, 3L, digestJson(attributes.digest))
-          .value
-          .rejected[IncorrectRev] shouldEqual IncorrectRev(resId.ref, 3L, 1L)
+        val json = jsonFileAttr(
+          attributes.digest,
+          attributes.mediaType.toString(),
+          attributes.location.toString(),
+          attributes.bytes
+        )
+        files.updateFileAttr(resId, storage, 3L, json).value.rejected[IncorrectRev] shouldEqual
+          IncorrectRev(resId.ref, 3L, 1L)
       }
 
       "prevent updating a file digest when file does not exist" in new Base {
-        files
-          .updateDigest(resId, storage, 1L, digestJson(attributes.digest))
-          .value
-          .rejected[NotFound] shouldEqual NotFound(resId.ref)
+        val json = jsonFileAttr(
+          attributes.digest,
+          attributes.mediaType.toString(),
+          attributes.location.toString(),
+          attributes.bytes
+        )
+        files.updateFileAttr(resId, storage, 1L, json).value.rejected[NotFound] shouldEqual NotFound(resId.ref)
       }
     }
 

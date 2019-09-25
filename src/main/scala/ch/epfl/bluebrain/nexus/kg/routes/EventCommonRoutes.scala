@@ -63,7 +63,7 @@ private[routes] abstract class EventCommonRoutes(implicit as: ActorSystem, confi
   private def aToSse[A: Encoder](a: A, offset: Offset): ServerSentEvent = {
     val json = a.asJson.sortKeys(AppConfig.orderedKeys)
     ServerSentEvent(
-      data = json.pretty(printer),
+      data = json.printWith(printer),
       eventType = json.hcursor.get[String]("@type").toOption,
       id = offset match {
         case NoOffset            => None

@@ -6,7 +6,7 @@ import ch.epfl.bluebrain.nexus.kg.config.Contexts.statisticsCtxUri
 import ch.epfl.bluebrain.nexus.rdf.syntax._
 import io.circe.Encoder
 import io.circe.generic.extras.Configuration
-import io.circe.generic.extras.semiauto.deriveEncoder
+import io.circe.generic.extras.semiauto.deriveConfiguredEncoder
 
 /**
   * Representation of statistics.
@@ -64,6 +64,6 @@ object Statistics {
     )
 
   private implicit val config: Configuration = Configuration.default
-  implicit val statisticsEncoder: Encoder[Statistics] = deriveEncoder[Statistics]
+  implicit val statisticsEncoder: Encoder[Statistics] = deriveConfiguredEncoder[Statistics]
     .mapJson(_.addContext(statisticsCtxUri))
 }

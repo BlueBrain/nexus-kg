@@ -15,6 +15,7 @@ import ch.epfl.bluebrain.nexus.kg.KgError
 import ch.epfl.bluebrain.nexus.kg.resources.ResId
 import ch.epfl.bluebrain.nexus.kg.resources.file.File._
 import ch.epfl.bluebrain.nexus.kg.storage.Storage._
+import ch.epfl.bluebrain.nexus.storage.client.types.{FileAttributes => StorageFileAttributes}
 
 import scala.concurrent.{ExecutionContext, Future}
 
@@ -22,7 +23,8 @@ object S3StorageOperations {
 
   final class Verify[F[_]](storage: S3Storage)(implicit F: Effect[F], as: ActorSystem) extends VerifyStorage[F] {
 
-    private implicit val mt: Materializer = ActorMaterializer()
+    private implicit val mt: Materializer               = ActorMaterializer()
+    private implicit val contextShift: ContextShift[IO] = IO.contextShift(as.dispatcher)
 
     override def apply: F[Either[String, Unit]] = {
       val future = IO(
@@ -43,7 +45,8 @@ object S3StorageOperations {
 
   final class Fetch[F[_]](storage: S3Storage)(implicit F: Effect[F], as: ActorSystem) extends FetchFile[F, AkkaSource] {
 
-    private implicit val mt: Materializer = ActorMaterializer()
+    private implicit val mt: Materializer               = ActorMaterializer()
+    private implicit val contextShift: ContextShift[IO] = IO.contextShift(as.dispatcher)
 
     override def apply(fileMeta: FileAttributes): F[AkkaSource] = {
       val future = IO(
@@ -72,8 +75,9 @@ object S3StorageOperations {
 
   final class Save[F[_]](storage: S3Storage)(implicit F: Effect[F], as: ActorSystem) extends SaveFile[F, AkkaSource] {
 
-    private implicit val ec: ExecutionContext = as.dispatcher
-    private implicit val mt: Materializer     = ActorMaterializer()
+    private implicit val ec: ExecutionContext           = as.dispatcher
+    private implicit val mt: Materializer               = ActorMaterializer()
+    private implicit val contextShift: ContextShift[IO] = IO.contextShift(ec)
 
     private val attributes = S3Attributes.settings(storage.settings.toAlpakka)
 
@@ -126,8 +130,9 @@ object S3StorageOperations {
 
   final class Link[F[_]](storage: S3Storage)(implicit F: Effect[F], as: ActorSystem) extends LinkFile[F] {
 
-    private implicit val ec: ExecutionContext = as.dispatcher
-    private implicit val mt: Materializer     = ActorMaterializer()
+    private implicit val ec: ExecutionContext           = as.dispatcher
+    private implicit val mt: Materializer               = ActorMaterializer()
+    private implicit val contextShift: ContextShift[IO] = IO.contextShift(ec)
 
     override def apply(id: ResId, fileDesc: FileDescription, key: Uri.Path): F[FileAttributes] = {
       val location: Uri = s"${storage.settings.address}/${storage.bucket}/$key"
@@ -166,12 +171,12 @@ object S3StorageOperations {
   }
 
   /**
-    * [[FetchFileDigest]] implementation for [[S3Storage]] that always throws an error since this operation is not supported.
+    * [[FetchFileAttributes]] implementation for [[S3Storage]] that always throws an error since this operation is not supported.
     * This is the case because linkFile is already always computing the digest.
     * We might want to change this behaviour in the future, but we don't have a use case for it no.
     */
-  final class FetchDigest[F[_]]()(implicit F: Effect[F]) extends FetchFileDigest[F] {
-    override def apply(path: Uri.Path): F[Digest] =
+  final class FetchAttributes[F[_]]()(implicit F: Effect[F]) extends FetchFileAttributes[F] {
+    override def apply(path: Uri.Path): F[StorageFileAttributes] =
       F.raiseError(KgError.UnsupportedOperation)
   }
 }

@@ -15,7 +15,7 @@ import ch.epfl.bluebrain.nexus.kg.config.AppConfig.ArchivesConfig
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary.nxv
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection._
 import ch.epfl.bluebrain.nexus.kg.resources.syntax._
-import ch.epfl.bluebrain.nexus.kg.resources.{Id, ProjectLabel, Ref, Rejection, ResId}
+import ch.epfl.bluebrain.nexus.kg.resources.{Id, ProjectLabel, Rejection, ResId}
 import ch.epfl.bluebrain.nexus.kg.storage.AkkaSource
 import ch.epfl.bluebrain.nexus.rdf.Iri.{AbsoluteIri, Path}
 import ch.epfl.bluebrain.nexus.rdf.Vocabulary.rdf
@@ -41,11 +41,6 @@ final case class Archive(resId: ResId, created: Instant, createdBy: Identity, va
 object Archive {
 
   val write: Permission = Permission.unsafe("archives/write")
-
-  private implicit class EncoderResultSyntax[A](private val result: NodeEncoder.EncoderResult[A]) extends AnyVal {
-    def onError(ref: Ref, field: String): Either[Rejection, A] =
-      result.left.map(_ => InvalidResourceFormat(ref, s"'$field' field does not have the right format."): Rejection)
-  }
 
   /**
     * Enumeration of resource descriptions

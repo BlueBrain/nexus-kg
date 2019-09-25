@@ -8,6 +8,7 @@ import ch.epfl.bluebrain.nexus.kg.config.Vocabulary._
 import ch.epfl.bluebrain.nexus.kg.resources.file.File.{Digest, FileAttributes}
 import ch.epfl.bluebrain.nexus.kg.resources.syntax._
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
+import ch.epfl.bluebrain.nexus.storage.client.types.{FileAttributes => StorageFileAttributes}
 import io.circe.Json
 
 /**
@@ -172,6 +173,31 @@ object Command {
       storage: StorageReference,
       rev: Long,
       value: Digest,
+      instant: Instant,
+      subject: Subject
+  ) extends Command {
+
+    /**
+      * the collection of known resource types
+      */
+    val types: Set[AbsoluteIri] = Set(nxv.File.value)
+  }
+
+  /**
+    * An intent to update a file attributes.
+    *
+    * @param id      the resource identifier
+    * @param storage the reference to the storage that is computing the file attributes
+    * @param rev     the last known revision of the resource when this command was created
+    * @param value   the file attributes
+    * @param instant the instant when this event was recorded
+    * @param subject the subject which generated this event
+    */
+  final case class UpdateFileAttributes(
+      id: Id[ProjectRef],
+      storage: StorageReference,
+      rev: Long,
+      value: StorageFileAttributes,
       instant: Instant,
       subject: Subject
   ) extends Command {

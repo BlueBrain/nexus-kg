@@ -7,7 +7,7 @@ import ch.epfl.bluebrain.nexus.kg.config.Contexts.errorCtxUri
 import ch.epfl.bluebrain.nexus.kg.resources.{ProjectLabel, Ref}
 import ch.epfl.bluebrain.nexus.rdf.syntax._
 import io.circe.generic.extras.Configuration
-import io.circe.generic.extras.semiauto.deriveEncoder
+import io.circe.generic.extras.semiauto.deriveConfiguredEncoder
 import io.circe.{Encoder, Json}
 // $COVERAGE-OFF$
 /**
@@ -131,7 +131,7 @@ object KgError {
     implicit val config: Configuration = Configuration.default.withDiscriminator("@type")
     implicit val uriEnc: Encoder[Uri]  = Encoder.encodeString.contramap(_.toString)
 
-    val enc = deriveEncoder[KgError].mapJson(_ addContext errorCtxUri)
+    val enc = deriveConfiguredEncoder[KgError].mapJson(_ addContext errorCtxUri)
     Encoder.instance(r => enc(r).removeKeys("msg") deepMerge Json.obj("reason" -> Json.fromString(r.msg)))
   }
 

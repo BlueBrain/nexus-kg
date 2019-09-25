@@ -24,6 +24,7 @@ import journal.Logger
 import monix.eval.Task
 import monix.execution.Scheduler.Implicits.global
 
+import scala.concurrent.ExecutionContext
 import scala.util.control.NonFatal
 
 /**
@@ -33,10 +34,15 @@ import scala.util.control.NonFatal
   * @param ref   the underlying actor reference
   * @tparam F the effect type
   */
-class ProjectViewCoordinator[F[_]](cache: Caches[F], ref: ActorRef)(implicit config: AppConfig, F: Async[F]) {
+class ProjectViewCoordinator[F[_]](cache: Caches[F], ref: ActorRef)(
+    implicit config: AppConfig,
+    F: Async[F],
+    ec: ExecutionContext
+) {
 
   private implicit val timeout: Timeout = config.sourcing.askTimeout
   private val log                       = Logger[this.type]
+  private implicit val contextShift     = IO.contextShift(ec)
 
   /**
     * Fetches view statistics for a given view.

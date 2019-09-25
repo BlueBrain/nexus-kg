@@ -11,6 +11,8 @@ import ch.epfl.bluebrain.nexus.kg.config.Schemas.fileSchemaUri
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary.nxv
 import ch.epfl.bluebrain.nexus.kg.resources.file.File._
 import ch.epfl.bluebrain.nexus.kg.resources.syntax._
+import ch.epfl.bluebrain.nexus.storage.client.types.{FileAttributes => StorageFileAttributes}
+import ch.epfl.bluebrain.nexus.storage.client.types.FileAttributes.{Digest => StorageDigest}
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import ch.epfl.bluebrain.nexus.rdf.instances._
 import ch.epfl.bluebrain.nexus.rdf.syntax._
@@ -203,6 +205,33 @@ object Event {
   }
 
   /**
+    * A witness that a file attributes has been updated.
+    *
+    * @param id           the resource identifier
+    * @param organization the organization resource identifier
+    * @param storage      the reference to the storage used to fetch the attributes of the file
+    * @param rev          the revision that this event generated
+    * @param attributes   the updated file attributes
+    * @param instant      the instant when this event was recorded
+    * @param subject      the identity which generated this event
+    */
+  final case class FileAttributesUpdated(
+      id: Id[ProjectRef],
+      organization: OrganizationRef,
+      storage: StorageReference,
+      rev: Long,
+      attributes: StorageFileAttributes,
+      instant: Instant,
+      subject: Subject
+  ) extends Event {
+
+    /**
+      * the collection of known resource types
+      */
+    val types: Set[AbsoluteIri] = Set(nxv.File.value)
+  }
+
+  /**
     * A witness that a file resource has been updated.
     *
     * @param id           the resource identifier
@@ -258,13 +287,18 @@ object Event {
     private implicit val uriEncoder: Encoder[Uri]          = Encoder.encodeString.contramap(_.toString)
     private implicit val uriPathEncoder: Encoder[Uri.Path] = Encoder.encodeString.contramap(_.toString)
 
-    private implicit val storageReferenceEncoder: Encoder[StorageReference] = deriveEncoder[StorageReference]
+    private implicit val storageReferenceEncoder: Encoder[StorageReference] = deriveConfiguredEncoder[StorageReference]
 
-    private implicit val digestEncoder: Encoder[Digest] = deriveEncoder[Digest]
+    private implicit val digestEncoder: Encoder[Digest] = deriveConfiguredEncoder[Digest]
+
+    private implicit val digestStorageEncoder: Encoder[StorageDigest] = deriveConfiguredEncoder[StorageDigest]
 
     private implicit val fileAttributesEncoder: Encoder[FileAttributes] =
-      deriveEncoder[FileAttributes]
+      deriveConfiguredEncoder[FileAttributes]
         .mapJsonObject(_.remove("path").remove("uuid"))
+
+    private implicit val storageFileAttributesEncoder: Encoder[StorageFileAttributes] =
+      deriveConfiguredEncoder[StorageFileAttributes]
 
     private implicit val idEncoder: Encoder[Id[ProjectRef]] =
       Encoder.encodeJson.contramap(_.value.asJson)
@@ -273,7 +307,7 @@ object Event {
       Encoder.encodeJson.contramap(_.id.asJson)
 
     implicit def eventsEventEncoder(implicit ic: IamClientConfig): Encoder[Event] = {
-      val enc = deriveEncoder[Event]
+      val enc = deriveConfiguredEncoder[Event]
       Encoder.encodeJson.contramap[Event] { ev =>
         enc(ev).addContext(resourceCtxUri) deepMerge Json.obj(nxv.projectUuid.prefix -> ev.id.parent.id.toString.asJson)
       }

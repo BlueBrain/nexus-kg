@@ -21,11 +21,13 @@ import scala.util.control.NonFatal
 
 class ArchiveCache[F[_]](ref: ActorRef)(
     implicit config: ArchivesConfig,
-    F: Effect[F]
+    F: Effect[F],
+    ec: ExecutionContext
 ) {
 
-  private[this] val logger = Logger[this.type]
-  private implicit val tm  = Timeout(config.cacheAskTimeout)
+  private[this] val logger          = Logger[this.type]
+  private implicit val tm           = Timeout(config.cacheAskTimeout)
+  private implicit val contextShift = IO.contextShift(ec)
 
   /**
     * Retrieves the [[Archive]] from the cache

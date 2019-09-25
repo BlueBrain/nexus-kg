@@ -8,7 +8,7 @@ import ch.epfl.bluebrain.nexus.iam.client.types.Identity.Subject
 import ch.epfl.bluebrain.nexus.iam.client.types.{AccessControlLists, Caller}
 import ch.epfl.bluebrain.nexus.kg.KgError
 import ch.epfl.bluebrain.nexus.kg.KgError.InternalError
-import ch.epfl.bluebrain.nexus.kg.async.{ProjectDigestCoordinator, ProjectViewCoordinator}
+import ch.epfl.bluebrain.nexus.kg.async.{ProjectAttributesCoordinator, ProjectViewCoordinator}
 import ch.epfl.bluebrain.nexus.kg.cache.Caches
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig._
@@ -36,7 +36,7 @@ class ProjectInitializer[F[_]: Timer](
     views: Views[F],
     resolvers: Resolvers[F],
     viewCoordinator: ProjectViewCoordinator[F],
-    digestCoordinator: ProjectDigestCoordinator[F]
+    fileAttributesCoordinator: ProjectAttributesCoordinator[F]
 )(implicit F: Effect[F], cache: Caches[F], config: AppConfig, as: ActorSystem) {
   private val logger      = Logger[this.type]
   private val revK        = nxv.rev.prefix
@@ -69,7 +69,7 @@ class ProjectInitializer[F[_]: Timer](
     for {
       _ <- cache.project.replace(project)
       _ <- viewCoordinator.start(project)
-      _ <- digestCoordinator.start(project)
+      _ <- fileAttributesCoordinator.start(project)
       _ <- List(createResolver, createDiskStorage, createElasticSearchView, createSparqlView).sequence
     } yield ()
   }

@@ -22,9 +22,11 @@ import ch.epfl.bluebrain.nexus.kg.resources.file.File._
 import ch.epfl.bluebrain.nexus.kg.resources.syntax._
 import ch.epfl.bluebrain.nexus.kg.routes.SearchParams
 import ch.epfl.bluebrain.nexus.kg.storage.Storage
-import ch.epfl.bluebrain.nexus.kg.storage.Storage.StorageOperations.{Fetch, FetchDigest, Link, Save}
+import ch.epfl.bluebrain.nexus.kg.storage.Storage.StorageOperations.{Fetch, FetchAttributes, Link, Save}
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import ch.epfl.bluebrain.nexus.storage.client.StorageClientError
+import ch.epfl.bluebrain.nexus.storage.client.types.FileAttributes.{Digest => StorageDigest}
+import ch.epfl.bluebrain.nexus.storage.client.types.{FileAttributes => StorageFileAttributes}
 import io.circe.Json
 
 class Files[F[_]: Timer](repo: Repo[F])(implicit storageCache: StorageCache[F], config: AppConfig, F: Effect[F]) {
@@ -75,8 +77,10 @@ class Files[F[_]: Timer](repo: Repo[F])(implicit storageCache: StorageCache[F], 
     * @param id      the id of the resource
     * @return either a rejection or the new resource representation in the F context
     */
-  def updateDigestIfEmpty(id: ResId)(implicit subject: Subject, fetchDigest: FetchDigest[F]): RejOrResource[F] = {
-    def storageServerErrToKgError: PartialFunction[Throwable, F[Digest]] = {
+  def updateFileAttrEmpty(
+      id: ResId
+  )(implicit subject: Subject, fetchAttributes: FetchAttributes[F]): RejOrResource[F] = {
+    def storageServerErrToKgError: PartialFunction[Throwable, F[StorageFileAttributes]] = {
       case err: StorageClientError.UnknownError =>
         F.raiseError(InternalError(s"Storage error for resource '${id.ref.show}'. Error: '${err.entityAsString}'"))
       case err =>
@@ -89,24 +93,26 @@ class Files[F[_]: Timer](repo: Repo[F])(implicit storageCache: StorageCache[F], 
       currFile          <- EitherT.fromEither[F](curr.file.toRight(notFound(id.ref, schema = Some(fileRef))))
       (storageRef, attr) = currFile
       storage           <- EitherT.fromOptionF(storageCache.get(id.parent, storageRef.id), UnexpectedState(storageRef.id.ref))
-      digest            <- if (attr.digest == Digest.empty) EitherT.right(storage.fetchDigest.apply(attr.path).recoverWith(storageServerErrToKgError)) else EitherT.leftT[F, Digest](FileDigestAlreadyExists(id.ref): Rejection)
-      _                 <- if (digest == Digest.empty) EitherT.leftT[F, Resource](FileDigestNotComputed(id.ref)) else EitherT.rightT[F, Rejection](())
-      updated           <- repo.updateDigest(id, storage.reference, curr.rev, digest)
+      fileAttr          <- if (attr.digest == Digest.empty) EitherT.right(storage.fetchAttributes.apply(attr.path).recoverWith(storageServerErrToKgError))
+                           else EitherT.leftT[F, StorageFileAttributes](FileDigestAlreadyExists(id.ref): Rejection)
+      _                 <- if (fileAttr.digest == StorageDigest.empty) EitherT.leftT[F, Resource](FileDigestNotComputed(id.ref))
+                           else EitherT.rightT[F, Rejection](())
+      updated           <- repo.updateFileAttributes(id, storage.reference, curr.rev, fileAttr)
     } yield updated
     // format: on
   }
 
   /**
-    * Updates the digest of a file resource.
+    * Updates the file attributes of a file resource.
     *
     * @param id      the id of the resource
     * @param storage the storage reference
     * @param rev     the last known revision of the resource
-    * @param digest  the digest of the file in a json format
+    * @param attr  the attributes of the file in a json format
     * @return either a rejection or the new resource representation in the F context
     */
-  def updateDigest(id: ResId, storage: Storage, rev: Long, digest: Json)(implicit subject: Subject): RejOrResource[F] =
-    EitherT.fromEither[F](Digest(id, digest)).flatMap(repo.updateDigest(id, storage.reference, rev, _))
+  def updateFileAttr(id: ResId, storage: Storage, rev: Long, attr: Json)(implicit subject: Subject): RejOrResource[F] =
+    EitherT.fromEither[F](FileAttributes(id, attr)).flatMap(repo.updateFileAttributes(id, storage.reference, rev, _))
 
   /**
     * Replaces a file resource.

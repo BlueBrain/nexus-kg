@@ -26,9 +26,10 @@ import ch.epfl.bluebrain.nexus.kg.{resultOrFailures, KgError}
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import ch.epfl.bluebrain.nexus.rdf.cursor.GraphCursor
 import ch.epfl.bluebrain.nexus.rdf.encoder.NodeEncoder
+import ch.epfl.bluebrain.nexus.rdf.encoder.NodeEncoderError.IllegalConversion
 import ch.epfl.bluebrain.nexus.rdf.syntax._
 import io.circe.Json
-import io.circe.parser._
+import io.circe.parser
 import shapeless.{TypeCase, Typeable}
 
 import scala.util.Try
@@ -193,6 +194,9 @@ object View {
       }
   }
 
+  private def parse(string: String): NodeEncoder.EncoderResult[Json] =
+    parser.parse(string).left.map(_ => IllegalConversion(""))
+
   /**
     * Attempts to transform the resource into a [[ch.epfl.bluebrain.nexus.kg.indexing.View]].
     *
@@ -200,21 +204,19 @@ object View {
     * @return Right(view) if the resource is compatible with a View, Left(rejection) otherwise
     */
   final def apply(res: ResourceV): Either[Rejection, View] = {
-    val c          = res.value.graph.cursor()
-    val uuidResult = c.downField(nxv.uuid).focus.as[UUID]
+    val c = res.value.graph.cursor()
 
     def elasticSearch(): Either[Rejection, View] =
       // format: off
       for {
-        uuid          <- uuidResult.toRejectionOnLeft(res.id.ref)
-        mappingStr    <- c.downField(nxv.mapping).focus.as[String].toRejectionOnLeft(res.id.ref)
-        mapping       <- parse(mappingStr).left.map[Rejection](_ => InvalidResourceFormat(res.id.ref, "mappings cannot be parsed into Json"))
-        schemas       <- c.downField(nxv.resourceSchemas).values.asListOf[AbsoluteIri].orElse(List.empty).map(_.toSet).toRejectionOnLeft(res.id.ref)
-        types         <- c.downField(nxv.resourceTypes).values.asListOf[AbsoluteIri].orElse(List.empty).map(_.toSet).toRejectionOnLeft(res.id.ref)
-        tag            = c.downField(nxv.resourceTag).focus.as[String].toOption
-        includeMeta   <- c.downField(nxv.includeMetadata).focus.as[Boolean].orElse(false).toRejectionOnLeft(res.id.ref)
-        includeDep    <- c.downField(nxv.includeDeprecated).focus.as[Boolean].orElse(true).toRejectionOnLeft(res.id.ref)
-        sourceAsText  <- c.downField(nxv.sourceAsText).focus.as[Boolean].orElse(false).toRejectionOnLeft(res.id.ref)
+        uuid          <- c.downField(nxv.uuid).focus.as[UUID].onError(res.id.ref, nxv.uuid.prefix)
+        mapping       <- c.downField(nxv.mapping).focus.as[String].flatMap(parse).onError(res.id.ref, nxv.mapping.prefix)
+        schemas       <- c.downField(nxv.resourceSchemas).values.asListOf[AbsoluteIri].orElse(List.empty).map(_.toSet).onError(res.id.ref, nxv.resourceSchemas.prefix)
+        types         <- c.downField(nxv.resourceTypes).values.asListOf[AbsoluteIri].orElse(List.empty).map(_.toSet).onError(res.id.ref, nxv.resourceTypes.prefix)
+        tag           <- c.downField(nxv.resourceTag).focus.asOption[String].flatMap(nonEmpty).onError(res.id.ref, nxv.resourceTag.prefix)
+        includeMeta   <- c.downField(nxv.includeMetadata).focus.as[Boolean].orElse(false).onError(res.id.ref, nxv.includeMetadata.prefix)
+        includeDep    <- c.downField(nxv.includeDeprecated).focus.as[Boolean].orElse(true).onError(res.id.ref, nxv.includeDeprecated.prefix)
+        sourceAsText  <- c.downField(nxv.sourceAsText).focus.as[Boolean].orElse(false).onError(res.id.ref, nxv.sourceAsText.prefix)
       } yield
         ElasticSearchView(mapping, schemas, types, tag, includeMeta, includeDep, sourceAsText, res.id.parent, res.id.value, uuid, res.rev, res.deprecated)
       // format: on
@@ -222,12 +224,12 @@ object View {
     def sparql(): Either[Rejection, View] =
       // format: off
       for {
-        uuid          <- uuidResult.toRejectionOnLeft(res.id.ref)
-        schemas       <- c.downField(nxv.resourceSchemas).values.asListOf[AbsoluteIri].orElse(List.empty).map(_.toSet).toRejectionOnLeft(res.id.ref)
-        types         <- c.downField(nxv.resourceTypes).values.asListOf[AbsoluteIri].orElse(List.empty).map(_.toSet).toRejectionOnLeft(res.id.ref)
-        tag            = c.downField(nxv.resourceTag).focus.as[String].toOption
-        includeMeta   <- c.downField(nxv.includeMetadata).focus.as[Boolean].orElse(false).toRejectionOnLeft(res.id.ref)
-        includeDep    <- c.downField(nxv.includeDeprecated).focus.as[Boolean].orElse(true).toRejectionOnLeft(res.id.ref)
+        uuid          <- c.downField(nxv.uuid).focus.as[UUID].onError(res.id.ref, nxv.uuid.prefix)
+        schemas       <- c.downField(nxv.resourceSchemas).values.asListOf[AbsoluteIri].orElse(List.empty).map(_.toSet).onError(res.id.ref, nxv.resourceSchemas.prefix)
+        types         <- c.downField(nxv.resourceTypes).values.asListOf[AbsoluteIri].orElse(List.empty).map(_.toSet).onError(res.id.ref, nxv.resourceTypes.prefix)
+        tag           <- c.downField(nxv.resourceTag).focus.asOption[String].flatMap(nonEmpty).onError(res.id.ref, nxv.resourceTag.prefix)
+        includeMeta   <- c.downField(nxv.includeMetadata).focus.as[Boolean].orElse(false).onError(res.id.ref, nxv.includeMetadata.prefix)
+        includeDep    <- c.downField(nxv.includeDeprecated).focus.as[Boolean].orElse(true).onError(res.id.ref, nxv.includeDeprecated.prefix)
       } yield
         SparqlView(schemas, types, tag, includeMeta,includeDep, res.id.parent, res.id.value, uuid, res.rev, res.deprecated)
     // format: on
@@ -235,13 +237,13 @@ object View {
     def viewRefs[A: NodeEncoder: Show](cursor: List[GraphCursor]): Either[Rejection, Set[ViewRef[A]]] =
       cursor.foldM(Set.empty[ViewRef[A]]) { (acc, blankC) =>
         for {
-          project <- blankC.downField(nxv.project).focus.as[A].toRejectionOnLeft(res.id.ref)
-          id      <- blankC.downField(nxv.viewId).focus.as[AbsoluteIri].toRejectionOnLeft(res.id.ref)
+          project <- blankC.downField(nxv.project).focus.as[A].onError(res.id.ref, nxv.project.prefix)
+          id      <- blankC.downField(nxv.viewId).focus.as[AbsoluteIri].onError(res.id.ref, nxv.viewId.prefix)
         } yield acc + ViewRef(project, id)
       }
 
     def aggregatedEsView(): Either[Rejection, View] =
-      uuidResult.toRejectionOnLeft(res.id.ref).flatMap { uuid =>
+      c.downField(nxv.uuid).focus.as[UUID].onError(res.id.ref, nxv.uuid.prefix).flatMap { uuid =>
         val cursorList = c.downField(nxv.views).downArray.toList
         viewRefs[ProjectLabel](cursorList) match {
           case Right(labels) =>
@@ -253,7 +255,7 @@ object View {
       }
 
     def aggregatedSparqlView(): Either[Rejection, View] =
-      uuidResult.toRejectionOnLeft(res.id.ref).flatMap { uuid =>
+      c.downField(nxv.uuid).focus.as[UUID].onError(res.id.ref, nxv.uuid.prefix).flatMap { uuid =>
         val cursorList = c.downField(nxv.views).downArray.toList
         viewRefs[ProjectLabel](cursorList) match {
           case Right(labels) =>

@@ -15,7 +15,7 @@ import ch.epfl.bluebrain.nexus.rdf.MarshallingError
 import ch.epfl.bluebrain.nexus.rdf.MarshallingError.{ConversionError, RootNodeNotFound}
 import ch.epfl.bluebrain.nexus.rdf.syntax._
 import io.circe.generic.extras.Configuration
-import io.circe.generic.extras.semiauto.deriveEncoder
+import io.circe.generic.extras.semiauto.deriveConfiguredEncoder
 import io.circe.parser.parse
 import io.circe.{Encoder, Json}
 
@@ -235,7 +235,7 @@ object Rejection {
 
   implicit val rejectionEncoder: Encoder[Rejection] = {
     implicit val rejectionConfig: Configuration = Configuration.default.withDiscriminator("@type")
-    val enc                                     = deriveEncoder[Rejection].mapJson(_ addContext errorCtxUri)
+    val enc                                     = deriveConfiguredEncoder[Rejection].mapJson(_ addContext errorCtxUri)
     def reason(r: Rejection): Json =
       Json.obj("reason" -> Json.fromString(r.msg))
 
