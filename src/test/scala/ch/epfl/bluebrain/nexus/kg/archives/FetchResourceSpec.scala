@@ -110,7 +110,7 @@ class FetchResourceSpec
       resources.fetchSource(idRes) shouldReturn EitherT.rightT[Task, Rejection](json)
       val fetch                                  = fetchResource()
       val ArchiveSource(bytes, rPath, _, source) = fetch(description).value.runToFuture.futureValue.value
-      val response                               = printer.pretty(json.sortKeys(AppConfig.orderedKeys))
+      val response                               = printer.print(json.sortKeys(AppConfig.orderedKeys))
       rPath shouldEqual somePath.asString
       bytes.toInt shouldEqual response.size
       consume(source) shouldEqual response
@@ -128,7 +128,7 @@ class FetchResourceSpec
       resources.fetch(Id(description.project.ref, id), 1L) shouldReturn EitherT.rightT[Task, Rejection](resourceV)
       val fetch                                  = fetchResource()
       val ArchiveSource(bytes, rPath, _, source) = fetch(description).value.runToFuture.futureValue.value
-      val response                               = printer.pretty(finalJson.addContext(resourceCtxUri).sortKeys(AppConfig.orderedKeys))
+      val response                               = printer.print(finalJson.addContext(resourceCtxUri).sortKeys(AppConfig.orderedKeys))
       rPath shouldEqual Iri.Path.rootless(s"${project.show}/${urlEncode(id.asString)}.json").right.value.pctEncoded
       bytes.toInt shouldEqual response.size
       consume(source) shouldEqual response

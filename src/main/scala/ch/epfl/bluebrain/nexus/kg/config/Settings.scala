@@ -36,7 +36,7 @@ class Settings(config: Config) extends Extension {
   private implicit val absoluteIriConverter: ConfigConvert[AbsoluteIri] =
     ConfigConvert.viaString[AbsoluteIri](catchReadError(s => url"$s".value), _.toString)
 
-  val appConfig: AppConfig = loadConfigOrThrow[AppConfig](config, "app")
+  val appConfig: AppConfig = ConfigSource.fromConfig(config).at("app").loadOrThrow[AppConfig]
 
 }
 

@@ -53,7 +53,7 @@ object FetchResource {
       private implicit val outputFormat: JsonLDOutputFormat = Compacted
 
       private def toByteString(json: Json): ByteString =
-        ByteString(printer.prettyByteBuffer(json.sortKeys(AppConfig.orderedKeys)))
+        ByteString(printer.printToByteBuffer(json.sortKeys(AppConfig.orderedKeys)))
 
       private def generatePath(optPath: Option[Path], defaultPath: => String): F[Path] =
         optPath match {

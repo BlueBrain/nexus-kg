@@ -23,7 +23,8 @@ object S3StorageOperations {
 
   final class Verify[F[_]](storage: S3Storage)(implicit F: Effect[F], as: ActorSystem) extends VerifyStorage[F] {
 
-    private implicit val mt: Materializer = ActorMaterializer()
+    private implicit val mt: Materializer               = ActorMaterializer()
+    private implicit val contextShift: ContextShift[IO] = IO.contextShift(as.dispatcher)
 
     override def apply: F[Either[String, Unit]] = {
       val future = IO(
@@ -44,7 +45,8 @@ object S3StorageOperations {
 
   final class Fetch[F[_]](storage: S3Storage)(implicit F: Effect[F], as: ActorSystem) extends FetchFile[F, AkkaSource] {
 
-    private implicit val mt: Materializer = ActorMaterializer()
+    private implicit val mt: Materializer               = ActorMaterializer()
+    private implicit val contextShift: ContextShift[IO] = IO.contextShift(as.dispatcher)
 
     override def apply(fileMeta: FileAttributes): F[AkkaSource] = {
       val future = IO(
@@ -73,8 +75,9 @@ object S3StorageOperations {
 
   final class Save[F[_]](storage: S3Storage)(implicit F: Effect[F], as: ActorSystem) extends SaveFile[F, AkkaSource] {
 
-    private implicit val ec: ExecutionContext = as.dispatcher
-    private implicit val mt: Materializer     = ActorMaterializer()
+    private implicit val ec: ExecutionContext           = as.dispatcher
+    private implicit val mt: Materializer               = ActorMaterializer()
+    private implicit val contextShift: ContextShift[IO] = IO.contextShift(ec)
 
     private val attributes = S3Attributes.settings(storage.settings.toAlpakka)
 
@@ -127,8 +130,9 @@ object S3StorageOperations {
 
   final class Link[F[_]](storage: S3Storage)(implicit F: Effect[F], as: ActorSystem) extends LinkFile[F] {
 
-    private implicit val ec: ExecutionContext = as.dispatcher
-    private implicit val mt: Materializer     = ActorMaterializer()
+    private implicit val ec: ExecutionContext           = as.dispatcher
+    private implicit val mt: Materializer               = ActorMaterializer()
+    private implicit val contextShift: ContextShift[IO] = IO.contextShift(ec)
 
     override def apply(id: ResId, fileDesc: FileDescription, key: Uri.Path): F[FileAttributes] = {
       val location: Uri = s"${storage.settings.address}/${storage.bucket}/$key"

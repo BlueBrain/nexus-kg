@@ -18,6 +18,7 @@ import ch.epfl.bluebrain.nexus.sourcing.projections.Projections
 import journal.Logger
 import monix.eval.Task
 
+import scala.concurrent.ExecutionContext
 import scala.util.control.NonFatal
 
 /**
@@ -29,10 +30,12 @@ import scala.util.control.NonFatal
   */
 class ProjectAttributesCoordinator[F[_]](projectCache: ProjectCache[F], ref: ActorRef)(
     implicit config: AppConfig,
-    F: Async[F]
+    F: Async[F],
+    ec: ExecutionContext
 ) {
   private implicit val timeout: Timeout = config.sourcing.askTimeout
   private val log                       = Logger[this.type]
+  private implicit val contextShift     = IO.contextShift(ec)
 
   /**
     * Fetches attributes statistics for a given project.
@@ -105,7 +108,8 @@ object ProjectAttributesCoordinator {
       as: ActorSystem,
       P: Projections[Task, Event]
   ): ProjectAttributesCoordinator[Task] = {
-    val coordinatorRef = ProjectAttributesCoordinatorActor.start(files, None, config.cluster.shards)
+    implicit val ec: ExecutionContext = as.dispatcher
+    val coordinatorRef                = ProjectAttributesCoordinatorActor.start(files, None, config.cluster.shards)
     new ProjectAttributesCoordinator[Task](projectCache, coordinatorRef)
   }
 }

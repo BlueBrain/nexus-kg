@@ -287,18 +287,18 @@ object Event {
     private implicit val uriEncoder: Encoder[Uri]          = Encoder.encodeString.contramap(_.toString)
     private implicit val uriPathEncoder: Encoder[Uri.Path] = Encoder.encodeString.contramap(_.toString)
 
-    private implicit val storageReferenceEncoder: Encoder[StorageReference] = deriveEncoder[StorageReference]
+    private implicit val storageReferenceEncoder: Encoder[StorageReference] = deriveConfiguredEncoder[StorageReference]
 
-    private implicit val digestEncoder: Encoder[Digest] = deriveEncoder[Digest]
+    private implicit val digestEncoder: Encoder[Digest] = deriveConfiguredEncoder[Digest]
 
-    private implicit val digestStorageEncoder: Encoder[StorageDigest] = deriveEncoder[StorageDigest]
+    private implicit val digestStorageEncoder: Encoder[StorageDigest] = deriveConfiguredEncoder[StorageDigest]
 
     private implicit val fileAttributesEncoder: Encoder[FileAttributes] =
-      deriveEncoder[FileAttributes]
+      deriveConfiguredEncoder[FileAttributes]
         .mapJsonObject(_.remove("path").remove("uuid"))
 
     private implicit val storageFileAttributesEncoder: Encoder[StorageFileAttributes] =
-      deriveEncoder[StorageFileAttributes]
+      deriveConfiguredEncoder[StorageFileAttributes]
 
     private implicit val idEncoder: Encoder[Id[ProjectRef]] =
       Encoder.encodeJson.contramap(_.value.asJson)
@@ -307,7 +307,7 @@ object Event {
       Encoder.encodeJson.contramap(_.id.asJson)
 
     implicit def eventsEventEncoder(implicit ic: IamClientConfig): Encoder[Event] = {
-      val enc = deriveEncoder[Event]
+      val enc = deriveConfiguredEncoder[Event]
       Encoder.encodeJson.contramap[Event] { ev =>
         enc(ev).addContext(resourceCtxUri) deepMerge Json.obj(nxv.projectUuid.prefix -> ev.id.parent.id.toString.asJson)
       }

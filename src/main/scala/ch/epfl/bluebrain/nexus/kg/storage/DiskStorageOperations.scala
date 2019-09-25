@@ -7,7 +7,7 @@ import akka.actor.ActorSystem
 import akka.http.scaladsl.model.Uri
 import akka.stream.scaladsl.{FileIO, Keep}
 import akka.stream.{ActorMaterializer, Materializer}
-import cats.effect.{Effect, IO}
+import cats.effect.{ContextShift, Effect, IO}
 import cats.implicits._
 import ch.epfl.bluebrain.nexus.kg.KgError
 import ch.epfl.bluebrain.nexus.kg.resources.ResId
@@ -59,8 +59,9 @@ object DiskStorageOperations {
   final class SaveDiskFile[F[_]](storage: DiskStorage)(implicit F: Effect[F], as: ActorSystem)
       extends SaveFile[F, AkkaSource] {
 
-    private implicit val ec: ExecutionContext = as.dispatcher
-    private implicit val mt: Materializer     = ActorMaterializer()
+    private implicit val ec: ExecutionContext           = as.dispatcher
+    private implicit val mt: Materializer               = ActorMaterializer()
+    private implicit val contextShift: ContextShift[IO] = IO.contextShift(ec)
 
     override def apply(id: ResId, fileDesc: FileDescription, source: AkkaSource): F[FileAttributes] =
       getLocation(fileDesc.uuid, fileDesc.filename).flatMap {

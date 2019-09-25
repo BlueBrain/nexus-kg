@@ -19,7 +19,7 @@ import ch.epfl.bluebrain.nexus.rdf.syntax._
 import ch.epfl.bluebrain.nexus.storage.client.types.FileAttributes.{Digest => StorageDigest}
 import ch.epfl.bluebrain.nexus.storage.client.types.{FileAttributes => StorageFileAttributes}
 import io.circe.generic.extras.Configuration
-import io.circe.generic.extras.semiauto.{deriveDecoder, deriveEncoder}
+import io.circe.generic.extras.semiauto.{deriveConfiguredDecoder, deriveConfiguredEncoder}
 import io.circe.syntax._
 import io.circe.{Decoder, Encoder, Json}
 import shapeless.{:+:, CNil}
@@ -43,18 +43,18 @@ object Serializer {
   private implicit val uriPathEncoder: Encoder[Uri.Path] = Encoder.encodeString.contramap(_.toString)
   private implicit val uriPathDecoder: Decoder[Uri.Path] = Decoder.decodeString.emapTry(uri => Try(Uri.Path(uri)))
 
-  private implicit val digestDecoder: Decoder[Digest] = deriveDecoder[Digest]
-  private implicit val digestEncoder: Encoder[Digest] = deriveEncoder[Digest]
+  private implicit val digestDecoder: Decoder[Digest] = deriveConfiguredDecoder[Digest]
+  private implicit val digestEncoder: Encoder[Digest] = deriveConfiguredEncoder[Digest]
 
-  private implicit val storageDigestEncoder: Encoder[StorageDigest] = deriveEncoder[StorageDigest]
+  private implicit val storageDigestEncoder: Encoder[StorageDigest] = deriveConfiguredEncoder[StorageDigest]
   private implicit val storageFileAttributesEncoder: Encoder[StorageFileAttributes] =
-    deriveEncoder[StorageFileAttributes]
+    deriveConfiguredEncoder[StorageFileAttributes]
 
-  private implicit val fileAttributesEncoder: Encoder[FileAttributes] = deriveEncoder[FileAttributes]
-  private implicit val fileAttributesDecoder: Decoder[FileAttributes] = deriveDecoder[FileAttributes]
+  private implicit val fileAttributesEncoder: Encoder[FileAttributes] = deriveConfiguredEncoder[FileAttributes]
+  private implicit val fileAttributesDecoder: Decoder[FileAttributes] = deriveConfiguredDecoder[FileAttributes]
 
-  private implicit val storageReferenceEncoder: Encoder[StorageReference] = deriveEncoder[StorageReference]
-  private implicit val storageReferenceDecoder: Decoder[StorageReference] = deriveDecoder[StorageReference]
+  private implicit val storageReferenceEncoder: Encoder[StorageReference] = deriveConfiguredEncoder[StorageReference]
+  private implicit val storageReferenceDecoder: Decoder[StorageReference] = deriveConfiguredDecoder[StorageReference]
 
   private implicit val encodeResId: Encoder[ResId] =
     Encoder.forProduct2("project", "id")(r => (r.parent.id, r.value.show))
@@ -65,7 +65,7 @@ object Serializer {
     }
 
   implicit def eventEncoder(implicit iamClientConfig: IamClientConfig): Encoder[Event] = {
-    val enc = deriveEncoder[Event]
+    val enc = deriveConfiguredEncoder[Event]
     Encoder.instance { ev =>
       val json = enc(ev).removeKeys("id") deepMerge ev.id.asJson
       ev match {
@@ -76,7 +76,7 @@ object Serializer {
   }
 
   implicit val eventDecoder: Decoder[Event] = {
-    val dec = deriveDecoder[Event]
+    val dec = deriveConfiguredDecoder[Event]
     Decoder.instance { hc =>
       val json = hc.value
       for {
