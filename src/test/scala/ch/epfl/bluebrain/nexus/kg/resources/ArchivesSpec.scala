@@ -33,6 +33,7 @@ import ch.epfl.bluebrain.nexus.rdf.{Iri, RootedGraph}
 import io.circe.Json
 import org.mockito.{ArgumentMatchersSugar, IdiomaticMockito, Mockito}
 import org.scalatest._
+import ch.epfl.bluebrain.nexus.kg.urlEncode
 
 import scala.concurrent.ExecutionContext
 import scala.concurrent.duration._
@@ -115,7 +116,7 @@ class ArchivesSpec
     )
 
     def resourceV(json: Json, rev: Long = 1L, types: Set[AbsoluteIri]): ResourceV = {
-      val ctx = Json.obj("@context" -> (archiveCtx.contextValue deepMerge archiveCtx.contextValue))
+      val ctx = archiveCtx.appendContextOf(resourceCtx)
       val graph = (json deepMerge Json.obj("@id" -> Json.fromString(id.asString)))
         .replaceContext(ctx)
         .asGraph(resId.value)
@@ -167,11 +168,13 @@ class ArchivesSpec
           resourceV(archiveJson, 1L, Set[AbsoluteIri](nxv.Archive))
         result.value.ctx shouldEqual expected.value.ctx
         result shouldEqual expected.copy(value = result.value)
-        val expectedJson = jsonContentOf("/archive/archive-explicit.json", Map(quote("{id}") -> id.toString()))
-        result.value.graph.as[Json](archiveCtx).right.value.removeKeys("@context") should equalIgnoreArrayOrder(
-          expectedJson
+        val expectedJson = jsonContentOf(
+          "/archive/archive-explicit.json",
+          Map(quote("{id}") -> id.toString(), quote("{encodedId}") -> urlEncode(id.toString()))
         )
-
+        val jsonResult =
+          result.value.graph.as[Json](archiveCtx.appendContextOf(resourceCtx)).right.value
+        jsonResult.removeKeys("@context", "_updatedAt", "_createdAt") should equalIgnoreArrayOrder(expectedJson)
       }
 
       "return NotFound when the provided archive does not exists" in new Base {

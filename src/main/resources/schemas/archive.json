@@ -2,7 +2,8 @@
   "@context": [
     "https://bluebrain.github.io/nexus/contexts/shacl-20170720.json",
     {
-      "this": "https://bluebrain.github.io/nexus/schemas/archive/shapes/"
+      "this": "https://bluebrain.github.io/nexus/schemas/archive/shapes/",
+      "nxva": "https://bluebrain.github.io/nexus/vocabulary/archive/"
     }
   ],
   "@id": "https://bluebrain.github.io/nexus/schemas/archive.json",
@@ -53,21 +54,21 @@
           "maxCount": 1
         },
         {
-          "path": "nxv:project",
+          "path": "nxva:project",
           "name": "project",
           "description": "The project where the resource belongs.",
           "datatype": "xsd:string",
           "maxCount": 1
         },
         {
-          "path": "nxv:rev",
+          "path": "nxva:rev",
           "name": "rev",
           "description": "The optional revision of the resource.",
           "datatype": "xsd:long",
           "maxCount": 1
         },
         {
-          "path": "nxv:tag",
+          "path": "nxva:tag",
           "name": "tag",
           "description": "The optional tag of the resource.",
           "datatype": "xsd:string",
@@ -105,21 +106,21 @@
           "maxCount": 1
         },
         {
-          "path": "nxv:project",
+          "path": "nxva:project",
           "name": "project",
           "description": "The project where the resource belongs.",
           "datatype": "xsd:string",
           "maxCount": 1
         },
         {
-          "path": "nxv:rev",
+          "path": "nxva:rev",
           "name": "rev",
           "description": "The optional revision of the resource.",
           "datatype": "xsd:long",
           "maxCount": 1
         },
         {
-          "path": "nxv:tag",
+          "path": "nxva:tag",
           "name": "tag",
           "description": "The optional tag of the resource.",
           "datatype": "xsd:string",

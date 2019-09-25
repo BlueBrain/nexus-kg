@@ -120,19 +120,21 @@ class Archives[F[_]](
     * @param id the id of the collection source
     * @return either a rejection or the resourceV in the F context
     */
-  def fetch(id: ResId): RejOrResourceV[F] =
+  def fetch(id: ResId)(implicit project: Project): RejOrResourceV[F] =
     fetchArchive(id).flatMap {
       case a @ Archive(resId, created, createdBy, _) =>
-        val source = Json.obj().addContext(archiveCtxUri)
-        val ctx    = archiveCtx.contextValue
+        val source = Json.obj().addContext(archiveCtxUri).addContext(resourceCtxUri)
+        val ctx    = archiveCtx.contextValue deepMerge resourceCtx.contextValue
         val eitherValue: EitherT[F, Rejection, ResourceF.Value] =
           EitherT
             .fromEither[F](a.asGraph[EncoderResult](resId.value).map(Value(source, ctx, _)))
             .leftSemiflatMap(e => Rejection.fromMarshallingErr[F](resId.value, e))
         eitherValue.map { value =>
           // format: off
-          ResourceF(resId, 1L, Set(nxv.Archive), false, Map.empty, None, created, created, createdBy, createdBy, archiveRef, value)
+          val resource = ResourceF(resId, 1L, Set(nxv.Archive), false, Map.empty, None, created, created, createdBy, createdBy, archiveRef, value)
           // format: on
+          val graph = RootedGraph(value.graph.rootNode, value.graph.triples ++ resource.metadata())
+          resource.copy(value = value.copy(graph = graph))
         }
     }
 }
