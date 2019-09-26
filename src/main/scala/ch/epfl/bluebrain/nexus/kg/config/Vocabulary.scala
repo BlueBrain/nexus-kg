@@ -13,11 +13,24 @@ import ch.epfl.bluebrain.nexus.rdf.syntax.node.unsafe._
 object Vocabulary {
 
   /**
+    * Nexus archive vocabulary.
+    */
+  object nxva {
+    private[Vocabulary] implicit val uri: Iri.AbsoluteIri =
+      url"https://bluebrain.github.io/nexus/vocabulary/archive/".value
+
+    // Archive vocabulary
+    val rev     = PrefixMapping.prefix("rev")
+    val tag     = PrefixMapping.prefix("tag")
+    val project = PrefixMapping.prefix("project")
+  }
+
+  /**
     * Nexus vocabulary.
     */
   object nxv {
-    val base: Iri.AbsoluteIri          = url"https://bluebrain.github.io/nexus/vocabulary/".value
-    private[Vocabulary] implicit val _ = IriNode(base)
+    val base: Iri.AbsoluteIri                             = url"https://bluebrain.github.io/nexus/vocabulary/".value
+    private[Vocabulary] implicit val uri: Iri.AbsoluteIri = base
 
     /**
       * @param suffix the segment to suffix to the base
@@ -66,7 +79,7 @@ object Vocabulary {
     val tag  = PrefixMapping.prefix("tag")
     val tags = PrefixMapping.prefix("tags")
 
-    // Bundle resources vocabulary
+    // Archive vocabulary
     val resources      = PrefixMapping.prefix("resources")
     val originalSource = PrefixMapping.prefix("originalSource")
     val file           = PrefixMapping.prefix("file")
@@ -166,15 +179,16 @@ object Vocabulary {
       *
       * @param lastSegment the last segment to append to the ''base'' to build the metadata vocabulary term
       */
-    def metadata(lastSegment: String)(implicit base: IriNode): PrefixMapping =
-      PrefixMapping("_" + lastSegment, url"${base.value.show + lastSegment}".value)
+    def metadata(lastSegment: String)(implicit base: AbsoluteIri): PrefixMapping =
+      PrefixMapping("_" + lastSegment, url"${base.show + lastSegment}".value)
 
     /**
       * Constructs a [[PrefixMapping]] vocabulary term from the given ''base'' and the provided ''lastSegment''.
       *
       * @param lastSegment the last segment to append to the ''base'' to build the vocabulary term
       */
-    def prefix(lastSegment: String): PrefixMapping = new PrefixMapping(lastSegment, nxv.withSuffix(lastSegment).value)
+    def prefix(lastSegment: String)(implicit base: AbsoluteIri): PrefixMapping =
+      new PrefixMapping(lastSegment, IriNode(base + lastSegment).value)
 
     implicit def prefixMappingIri(m: PrefixMapping): IriNode               = IriNode(m.value)
     implicit def prefixMappingAbsoluteIri(m: PrefixMapping): AbsoluteIri   = m.value

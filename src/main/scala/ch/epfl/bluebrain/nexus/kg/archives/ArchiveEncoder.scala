@@ -29,9 +29,9 @@ object ArchiveEncoder {
       tag: Option[String],
       path: Option[Path]
   ): Set[Triple] = {
-    Set[Triple]((ss, nxv.resourceId, id), (ss, nxv.project, project.show)) ++
-      rev.map[Triple](r => (ss, nxv.rev, r)) ++
-      tag.map[Triple](t => (ss, nxv.tag, t)) ++
+    Set[Triple]((ss, nxv.resourceId, id), (ss, nxva.project, project.show)) ++
+      rev.map[Triple](r => (ss, nxva.rev, r)) ++
+      tag.map[Triple](t => (ss, nxva.tag, t)) ++
       path.map[Triple](p => (ss, nxv.path, p.pctEncoded))
   }
 

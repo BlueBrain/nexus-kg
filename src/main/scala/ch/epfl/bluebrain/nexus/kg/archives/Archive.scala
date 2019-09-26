@@ -12,11 +12,12 @@ import ch.epfl.bluebrain.nexus.iam.client.types.{Identity, Permission}
 import ch.epfl.bluebrain.nexus.kg.archives.Archive.ResourceDescription
 import ch.epfl.bluebrain.nexus.kg.cache.ProjectCache
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig.ArchivesConfig
-import ch.epfl.bluebrain.nexus.kg.config.Vocabulary.nxv
+import ch.epfl.bluebrain.nexus.kg.config.Vocabulary.{nxv, nxva}
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection._
 import ch.epfl.bluebrain.nexus.kg.resources.syntax._
 import ch.epfl.bluebrain.nexus.kg.resources.{Id, ProjectLabel, Rejection, ResId}
 import ch.epfl.bluebrain.nexus.kg.storage.AkkaSource
+import ch.epfl.bluebrain.nexus.rdf.Iri.Path.{Segment, Slash}
 import ch.epfl.bluebrain.nexus.rdf.Iri.{AbsoluteIri, Path}
 import ch.epfl.bluebrain.nexus.rdf.Vocabulary.rdf
 import ch.epfl.bluebrain.nexus.rdf.cursor.GraphCursor
@@ -25,6 +26,8 @@ import ch.epfl.bluebrain.nexus.rdf.encoder.NodeEncoderError.IllegalConversion
 import ch.epfl.bluebrain.nexus.rdf.instances._
 import ch.epfl.bluebrain.nexus.rdf.syntax._
 import ch.epfl.bluebrain.nexus.rdf.{Node, RootedGraph}
+
+import scala.annotation.tailrec
 
 /**
   * Describes a set of resources
@@ -45,7 +48,9 @@ object Archive {
   /**
     * Enumeration of resource descriptions
     */
-  sealed trait ResourceDescription extends Product with Serializable
+  sealed trait ResourceDescription extends Product with Serializable {
+    def path: Option[Path]
+  }
 
   /**
     * Description of a file resource
@@ -89,8 +94,8 @@ object Archive {
     node
       .as[String]
       .flatMap(Path.rootless(_) match {
-        case Right(path) if path.nonEmpty => Right(path)
-        case _                            => Left(IllegalConversion(""))
+        case Right(path) if path.nonEmpty && path != Path./ && !path.endsWithSlash => Right(path)
+        case _                                                                     => Left(IllegalConversion(""))
       })
 
   private def resourceDescriptions[F[_]: Monad](mainId: AbsoluteIri, iter: Iterable[GraphCursor])(
@@ -101,9 +106,9 @@ object Archive {
       val result = for {
         id           <- c.downField(nxv.resourceId).focus.as[AbsoluteIri].onError(mainId.ref, "resourceId")
         tpe          <- c.downField(rdf.tpe).focus.as[AbsoluteIri].onError(id.ref, "@type")
-        rev          <- c.downField(nxv.rev).focus.asOption[Long].onError(id.ref, "rev")
-        tag          <- c.downField(nxv.tag).focus.asOption[String].onError(id.ref, "tag")
-        projectLabel <- c.downField(nxv.project).focus.asOption[ProjectLabel].onError(id.ref, "project")
+        rev          <- c.downField(nxva.rev).focus.asOption[Long].onError(id.ref, nxva.rev.prefix)
+        tag          <- c.downField(nxva.tag).focus.asOption[String].onError(id.ref, nxva.tag.prefix)
+        projectLabel <- c.downField(nxva.project).focus.asOption[ProjectLabel].onError(id.ref, nxva.project.prefix)
         origSource   <- c.downField(nxv.originalSource).focus.as[Boolean](true).onError(id.ref, nxv.originalSource.prefix)
         path         <- c.downField(nxv.path).focus.asOption[Path].onError(id.ref, nxv.path.prefix)
       } yield (id, tpe, rev, tag, projectLabel, origSource, path)
@@ -156,7 +161,13 @@ object Archive {
     }
 
     def duplicatedPathCheck(resources: Set[ResourceDescription]): EitherT[F, Rejection, Unit] = {
-      val (duplicated, _) = resources.foldLeft((false, Set.empty[Path])) {
+      val parents = resources.foldLeft(Set.empty[Path]) {
+        case (acc, c) if c.path.exists(acc.contains)    => acc
+        case (acc, Resource(_, _, _, _, _, Some(path))) => acc ++ parentsOf(path)
+        case (acc, File(_, _, _, _, Some(path)))        => acc ++ parentsOf(path)
+        case (acc, _)                                   => acc
+      }
+      val (duplicated, _) = resources.foldLeft((false, parents)) {
         case ((true, acc), _)                                => (true, acc)
         case ((_, acc), Resource(_, _, _, _, _, Some(path))) => (acc.contains(path), acc + path)
         case ((_, acc), File(_, _, _, _, Some(path)))        => (acc.contains(path), acc + path)
@@ -164,6 +175,17 @@ object Archive {
       }
       if (duplicated) EitherT.leftT[F, Unit](InvalidResourceFormat(id.ref, "Duplicated 'path' fields"): Rejection)
       else EitherT.rightT[F, Rejection](())
+    }
+
+    def parentsOf(path: Path): Set[Path] = {
+      @tailrec def inner(p: Path, acc: Set[Path] = Set.empty): Set[Path] =
+        p match {
+          case Segment(_, Slash(parent)) => inner(parent, acc + parent)
+          case Segment(_, parent)        => inner(parent, acc + parent)
+          case Slash(parent)             => inner(parent, acc + parent)
+          case _                         => acc
+        }
+      inner(path).filterNot(p => p.isEmpty || p == Path./)
     }
 
     def maxResourcesCheck(resources: Set[ResourceDescription]): EitherT[F, Rejection, Unit] =

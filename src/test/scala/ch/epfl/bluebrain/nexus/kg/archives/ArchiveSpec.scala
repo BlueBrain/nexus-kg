@@ -201,8 +201,7 @@ class ArchiveSpec
     }
 
     "reject when resourceId is missing" in new Ctx {
-      Archive[IO](id.value, graph(Json.obj())).value
-        .rejected[InvalidResourceFormat] shouldEqual
+      Archive[IO](id.value, graph(Json.obj())).value.rejected[InvalidResourceFormat] shouldEqual
         InvalidResourceFormat(id.ref, error("resourceId"))
     }
 
@@ -210,9 +209,27 @@ class ArchiveSpec
       val path          = s"${genString()}/${genString()}/${genString()}.ext"
       val resource1Json = jsonResource(id = Some(genIri), path = Some(path))
       val resource2Json = jsonResource(id = Some(genIri), path = Some(path))
-      Archive[IO](id.value, graph(resource1Json, resource2Json)).value
-        .rejected[InvalidResourceFormat] shouldEqual
+      Archive[IO](id.value, graph(resource1Json, resource2Json)).value.rejected[InvalidResourceFormat] shouldEqual
         InvalidResourceFormat(id.ref, "Duplicated 'path' fields")
+    }
+
+    "reject duplicated parent paths" in new Ctx {
+      val s1            = genString()
+      val s2            = genString()
+      val path          = s"$s1/$s2/${genString()}.ext"
+      val path2         = s"$s1/$s2"
+      val resource1Json = jsonResource(id = Some(genIri), path = Some(path))
+      val resource2Json = jsonResource(id = Some(genIri), path = Some(path2))
+      Archive[IO](id.value, graph(resource1Json, resource2Json)).value.rejected[InvalidResourceFormat] shouldEqual
+        InvalidResourceFormat(id.ref, "Duplicated 'path' fields")
+    }
+
+    "reject wrong paths" in new Ctx {
+      val path          = s"${genString()}/${genString()}/"
+      val idElem        = genIri
+      val resource1Json = jsonResource(id = Some(idElem), path = Some(path))
+      Archive[IO](id.value, graph(resource1Json)).value.rejected[InvalidResourceFormat] shouldEqual
+        InvalidResourceFormat(idElem.ref, "'path' field does not have the right format.")
     }
   }
 

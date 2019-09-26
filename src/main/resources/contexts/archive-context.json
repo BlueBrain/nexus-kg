@@ -1,8 +1,9 @@
 {
   "@context": {
     "nxv": "https://bluebrain.github.io/nexus/vocabulary/",
+    "nxva": "https://bluebrain.github.io/nexus/vocabulary/archive/",
     "xsd": "http://www.w3.org/2001/XMLSchema#",
-    "tag": "nxv:tag",
+    "tag": "nxva:tag",
     "Archive": "nxv:Archive",
     "File": "nxv:File",
     "Resource": "nxv:Resource",
@@ -11,7 +12,7 @@
       "@id": "nxv:resourceId"
     },
     "rev": {
-      "@id": "nxv:rev",
+      "@id": "nxva:rev",
       "@type": "xsd:long"
     },
     "resources": {
@@ -20,7 +21,7 @@
     },
     "originalSource": "nxv:originalSource",
     "path": "nxv:path",
-    "project": "nxv:project"
+    "project": "nxva:project"
   },
   "@id": "https://bluebrain.github.io/nexus/contexts/archive.json"
 }
