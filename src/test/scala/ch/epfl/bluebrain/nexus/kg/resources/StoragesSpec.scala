@@ -96,8 +96,9 @@ class StoragesSpec
     def updateId(json: Json) =
       json deepMerge Json.obj("@id" -> Json.fromString(id.show))
 
-    val diskStorage       = updateId(jsonContentOf("/storage/disk.json"))
-    val diskStorageSource = updateId(jsonContentOf("/storage/disk-source.json"))
+    val diskStorage         = updateId(jsonContentOf("/storage/disk.json"))
+    val diskStorageSource   = updateId(jsonContentOf("/storage/disk-source.json"))
+    val remoteStorageSource = updateId(jsonContentOf("/storage/remote-source.json"))
     // format: off
     val remoteDiskStorage = updateId(jsonContentOf("/storage/remoteDisk.json", Map(quote("{folder}") -> "folder", quote("{cred}") -> "cred", quote("{read}") -> "resources/read", quote("{write}") -> "files/write")))
     val diskStorageModel = DiskStorage(projectRef, id, 1L, deprecated = false, default = false, "SHA-256", Paths.get("/tmp"), readPerms, writePerms, 10737418240L)
@@ -252,7 +253,7 @@ class StoragesSpec
         storages.update(resId, 2L, remoteDiskStorage).value.accepted shouldBe a[Resource]
 
         storages.fetch(resId, 3L).value.accepted shouldEqual storages.fetch(resId).value.accepted
-        storages.fetchSource(resId, 1L).value.accepted should equalIgnoreArrayOrder(diskStorageSource)
+        storages.fetchSource(resId, 3L).value.accepted should equalIgnoreArrayOrder(remoteStorageSource)
 
         val resultRemote = storages.fetch(resId, 3L).value.accepted
         val expectedRemote =

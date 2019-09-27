@@ -131,7 +131,7 @@ class Storages[F[_]: Timer](repo: Repo[F])(
     * @return Right(source) in the F context when found and Left(NotFound) in the F context when not found
     */
   def fetchSource(id: ResId): RejOrSource[F] =
-    repo.get(id, Some(storageRef)).map(_.value).toRight(notFound(id.ref, schema = Some(storageRef)))
+    repo.get(id, Some(storageRef)).map(_.value).map(removeSecrets).toRight(notFound(id.ref, schema = Some(storageRef)))
 
   /**
     * Fetches the provided revision of the storage source
@@ -144,6 +144,7 @@ class Storages[F[_]: Timer](repo: Repo[F])(
     repo
       .get(id, rev, Some(storageRef))
       .map(_.value)
+      .map(removeSecrets)
       .toRight(notFound(id.ref, rev = Some(rev), schema = Some(storageRef)))
 
   /**
@@ -157,7 +158,11 @@ class Storages[F[_]: Timer](repo: Repo[F])(
     repo
       .get(id, tag, Some(storageRef))
       .map(_.value)
+      .map(removeSecrets)
       .toRight(notFound(id.ref, tag = Some(tag), schema = Some(storageRef)))
+
+  private def removeSecrets(json: Json): Json =
+    json.removeKeys(nxv.credentials.prefix, nxv.accessKey.prefix, nxv.secretKey.prefix)
 
   /**
     * Fetches the latest revision of a storage.

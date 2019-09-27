@@ -37,6 +37,7 @@ import ch.epfl.bluebrain.nexus.rdf.Vocabulary.rdf
 import ch.epfl.bluebrain.nexus.rdf.instances._
 import ch.epfl.bluebrain.nexus.rdf.syntax._
 import io.circe.Json
+import io.circe.parser.parse
 import org.apache.jena.rdf.model.Model
 
 class Views[F[_]: Timer](repo: Repo[F])(
@@ -138,7 +139,7 @@ class Views[F[_]: Timer](repo: Repo[F])(
     * @return Right(source) in the F context when found and Left(NotFound) in the F context when not found
     */
   def fetchSource(id: ResId): RejOrSource[F] =
-    repo.get(id, Some(viewRef)).map(_.value).toRight(notFound(id.ref, schema = Some(viewRef)))
+    repo.get(id, Some(viewRef)).map(_.value).map(transformMapping).toRight(notFound(id.ref, schema = Some(viewRef)))
 
   /**
     * Fetches the provided revision of the view source
@@ -148,7 +149,11 @@ class Views[F[_]: Timer](repo: Repo[F])(
     * @return Right(source) in the F context when found and Left(NotFound) in the F context when not found
     */
   def fetchSource(id: ResId, rev: Long): RejOrSource[F] =
-    repo.get(id, rev, Some(viewRef)).map(_.value).toRight(notFound(id.ref, rev = Some(rev), schema = Some(viewRef)))
+    repo
+      .get(id, rev, Some(viewRef))
+      .map(_.value)
+      .map(transformMapping)
+      .toRight(notFound(id.ref, rev = Some(rev), schema = Some(viewRef)))
 
   /**
     * Fetches the provided tag of the view source
@@ -158,7 +163,17 @@ class Views[F[_]: Timer](repo: Repo[F])(
     * @return Right(source) in the F context when found and Left(NotFound) in the F context when not found
     */
   def fetchSource(id: ResId, tag: String): RejOrSource[F] =
-    repo.get(id, tag, Some(viewRef)).map(_.value).toRight(notFound(id.ref, tag = Some(tag), schema = Some(viewRef)))
+    repo
+      .get(id, tag, Some(viewRef))
+      .map(_.value)
+      .map(transformMapping)
+      .toRight(notFound(id.ref, tag = Some(tag), schema = Some(viewRef)))
+
+  private def transformMapping(json: Json): Json =
+    json.hcursor.downField(nxv.mapping.prefix).focus.flatMap(_.asString).flatMap(parse(_).toOption) match {
+      case Some(parsed) => json deepMerge Json.obj(nxv.mapping.prefix -> parsed)
+      case None         => json
+    }
 
   /**
     * Fetches the latest revision of a view.
