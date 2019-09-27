@@ -72,11 +72,7 @@ class ArchiveRoutes private[routes] (archives: Archives[Task])(
         operationName(s"/${config.http.prefix}/archives/{}/{}/{}") {
           (hasPermission(write) & projectNotDeprecated) {
             entity(as[Json]) { source =>
-              val created = archives.create(resId, source)
-              (outputFormat(strict = true, Tar)) {
-                case _: JsonLDOutputFormat => complete(created.value.runWithStatus(Created))
-                case _                     => created.map(ResourceRedirect.apply).value.completeRedirect()
-              }
+              complete(archives.create(resId, source).value.runWithStatus(Created))
             }
           }
         }

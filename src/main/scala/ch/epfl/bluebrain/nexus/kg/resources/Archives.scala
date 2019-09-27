@@ -1,6 +1,6 @@
 package ch.epfl.bluebrain.nexus.kg.resources
 
-import java.time.Clock
+import java.time.{Clock, Duration, Instant}
 
 import akka.actor.ActorSystem
 import cats.data.EitherT
@@ -133,10 +133,17 @@ class Archives[F[_]](
           // format: off
           val resource = ResourceF(resId, 1L, Set(nxv.Archive), false, Map.empty, None, created, created, createdBy, createdBy, archiveRef, value)
           // format: on
-          val graph = RootedGraph(value.graph.rootNode, value.graph.triples ++ resource.metadata())
+          val graph =
+            RootedGraph(value.graph.rootNode, value.graph.triples ++ resource.metadata() + expireMetadata(id, created))
           resource.copy(value = value.copy(graph = graph))
         }
     }
+
+  private def expireMetadata(id: ResId, created: Instant): Triple = {
+    val delta   = Duration.between(created, clock.instant())
+    val expires = Math.max(config.archives.cacheInvalidateAfter.toSeconds - delta.getSeconds, 0)
+    (id.value, nxv.expiresInSeconds, expires): Triple
+  }
 }
 
 object Archives {
