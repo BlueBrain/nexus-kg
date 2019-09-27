@@ -80,9 +80,10 @@ object Vocabulary {
     val tags = PrefixMapping.prefix("tags")
 
     // Archive vocabulary
-    val resources      = PrefixMapping.prefix("resources")
-    val originalSource = PrefixMapping.prefix("originalSource")
-    val file           = PrefixMapping.prefix("file")
+    val resources        = PrefixMapping.prefix("resources")
+    val originalSource   = PrefixMapping.prefix("originalSource")
+    val file             = PrefixMapping.prefix("file")
+    val expiresInSeconds = PrefixMapping.metadata("expiresInSeconds")
 
     // Resolvers payload vocabulary
     val priority      = PrefixMapping.prefix("priority")

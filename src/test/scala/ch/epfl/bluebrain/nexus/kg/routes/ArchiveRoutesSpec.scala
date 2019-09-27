@@ -167,9 +167,8 @@ class ArchiveRoutesSpec
       Put(s"/v1/archives/$organization/$project/$urlEncodedId", json) ~> addCredentials(oauthToken) ~> Accept(
         MediaRanges.`*/*`
       ) ~> routes ~> check {
-        status shouldEqual StatusCodes.SeeOther
-        header[Location].value
-          .value() shouldEqual s"http://127.0.0.1:8080/v1/archives/$organization/$project/nxv:$genUuid"
+        status shouldEqual StatusCodes.Created
+        responseAs[Json] should equalIgnoreArrayOrder(response())
       }
     }
 

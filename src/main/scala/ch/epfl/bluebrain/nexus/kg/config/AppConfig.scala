@@ -345,6 +345,7 @@ object AppConfig {
       nxv.incoming.prefix,
       nxv.outgoing.prefix,
       nxv.instant.prefix,
+      nxv.expiresInSeconds.prefix,
       nxv.eventSubject.prefix
     )
   )
