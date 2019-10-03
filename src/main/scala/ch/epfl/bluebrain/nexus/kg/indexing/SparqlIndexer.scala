@@ -4,6 +4,7 @@ import java.util.Properties
 
 import akka.actor.{ActorRef, ActorSystem, Props}
 import akka.http.scaladsl.model.Uri
+import akka.stream.{ActorMaterializer, Materializer}
 import cats.Monad
 import cats.effect.{Effect, Timer}
 import cats.implicits._
@@ -84,9 +85,9 @@ object SparqlIndexer {
       config: AppConfig
   ): StreamSupervisor[F, ProjectionProgress] = {
 
-    val sparqlErrorMonadError             = ch.epfl.bluebrain.nexus.kg.instances.sparqlErrorMonadError
-    implicit val indexing: IndexingConfig = config.sparql.indexing
-
+    val sparqlErrorMonadError               = ch.epfl.bluebrain.nexus.kg.instances.sparqlErrorMonadError
+    implicit val indexing: IndexingConfig   = config.sparql.indexing
+    implicit val materializer: Materializer = ActorMaterializer()
     val properties: Map[String, String] = {
       val props = new Properties()
       props.load(getClass.getResourceAsStream("/blazegraph/index.properties"))

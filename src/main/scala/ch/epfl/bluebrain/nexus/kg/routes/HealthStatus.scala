@@ -6,15 +6,8 @@ import akka.cluster.{Cluster, MemberStatus}
 import akka.event.Logging
 import akka.persistence.cassandra.CassandraPluginConfig
 import akka.persistence.cassandra.session.scaladsl.CassandraSession
-import ch.epfl.bluebrain.nexus.admin.client.AdminClient
-import ch.epfl.bluebrain.nexus.commons.es.client.ElasticSearchClient
-import ch.epfl.bluebrain.nexus.commons.sparql.client.BlazegraphClient
-import ch.epfl.bluebrain.nexus.iam.client.IamClient
-import ch.epfl.bluebrain.nexus.iam.client.types.AuthToken
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig.PersistenceConfig
-import journal.Logger
 import monix.eval.Task
-import ch.epfl.bluebrain.nexus.rdf.Iri.Path._
 
 import scala.concurrent.Future
 
@@ -54,37 +47,5 @@ object HealthStatus {
           cluster.state.leader.isDefined && cluster.state.members.nonEmpty &&
           !cluster.state.members.exists(_.status != MemberStatus.Up) && cluster.state.unreachable.isEmpty
       )
-  }
-
-  class IamHealthStatus(client: IamClient[Task]) extends HealthStatus {
-    private implicit val log                      = Logger(s"${getClass.getSimpleName}")
-    private implicit val token: Option[AuthToken] = None
-
-    override def check: Task[Boolean] = client.acls(/).map(_ => true).transformAndCatchError("fetch ACLs")
-  }
-
-  class AdminHealthStatus(client: AdminClient[Task]) extends HealthStatus {
-    private implicit val log                      = Logger(s"${getClass.getSimpleName}")
-    private implicit val token: Option[AuthToken] = None
-    override def check: Task[Boolean]             = client.fetchOrganization("test").transformAndCatchError("fetch organization")
-  }
-
-  class ElasticSearchHealthStatus(client: ElasticSearchClient[Task]) extends HealthStatus {
-    private implicit val log          = Logger(s"${getClass.getSimpleName}")
-    override def check: Task[Boolean] = client.existsIndex("test").transformAndCatchError("index exists")
-  }
-
-  class SparqlHealthStatus(client: BlazegraphClient[Task]) extends HealthStatus {
-    private implicit val log          = Logger(s"${getClass.getSimpleName}")
-    override def check: Task[Boolean] = client.namespaceExists.transformAndCatchError("namespace exists")
-  }
-
-  private implicit class TaskSyntax[A](private val task: Task[A]) extends AnyVal {
-    def transformAndCatchError(message: String)(implicit log: Logger): Task[Boolean] =
-      task.map(_ => true).onErrorRecover {
-        case err =>
-          log.error(s"Error while attempting to query '$message' for health check", err)
-          false
-      }
   }
 }

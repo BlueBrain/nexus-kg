@@ -11,7 +11,6 @@ import ch.epfl.bluebrain.nexus.kg.storage.Storage._
 import ch.epfl.bluebrain.nexus.storage.client.StorageClient
 import ch.epfl.bluebrain.nexus.storage.client.types.FileAttributes.{Digest => StorageDigest}
 import ch.epfl.bluebrain.nexus.storage.client.types.{FileAttributes => StorageFileAttributes}
-import com.github.ghik.silencer.silent
 
 object RemoteDiskStorageOperations {
 
@@ -90,8 +89,7 @@ object RemoteDiskStorageOperations {
     * @param storage the [[RemoteDiskStorage]]
     * @param client  the remote storage client
     */
-  @silent
-  final class FetchAttributes[F[_]: Effect](storage: RemoteDiskStorage, client: StorageClient[F])
+  final class FetchAttributes[F[_]](storage: RemoteDiskStorage, client: StorageClient[F])
       extends FetchFileAttributes[F] {
     implicit val cred = storage.credentials.map(AuthToken)
 

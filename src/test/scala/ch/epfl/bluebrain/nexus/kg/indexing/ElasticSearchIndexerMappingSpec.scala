@@ -141,7 +141,7 @@ class ElasticSearchIndexerMappingSpec
             "_original_source" -> Json.fromString(json.noSpaces),
             "_constrainedBy"   -> Json.fromString(schema.iri.show),
             "_createdAt"       -> Json.fromString(instantString),
-            "_createdBy"       -> Json.fromString((appConfig.iam.publicIri + "anonymous").toString()),
+            "_createdBy"       -> Json.fromString((appConfig.iam.basePublicIri + "anonymous").toString()),
             "_deprecated"      -> Json.fromBoolean(false),
             "_rev"             -> Json.fromLong(2L),
             "_self"            -> Json.fromString(s"http://127.0.0.1:8080/v1/resources/bbp/core/$exSchema/$exResource"),
@@ -153,7 +153,7 @@ class ElasticSearchIndexerMappingSpec
             ),
             "_project"   -> Json.fromString("http://localhost:8080/v1/projects/bbp/core"),
             "_updatedAt" -> Json.fromString(instantString),
-            "_updatedBy" -> Json.fromString((appConfig.iam.publicIri + "anonymous").toString())
+            "_updatedBy" -> Json.fromString((appConfig.iam.basePublicIri + "anonymous").toString())
           )
         mapper(ev).some shouldEqual res.id -> BulkOp.Index(index, id.value.asString, elasticSearchJson)
       }
@@ -217,7 +217,7 @@ class ElasticSearchIndexerMappingSpec
             "_original_source" -> Json.fromString(json.noSpaces),
             "_constrainedBy"   -> Json.fromString(nxv.Resource.value.show),
             "_createdAt"       -> Json.fromString(instantString),
-            "_createdBy"       -> Json.fromString((appConfig.iam.publicIri + "anonymous").toString()),
+            "_createdBy"       -> Json.fromString((appConfig.iam.basePublicIri + "anonymous").toString()),
             "_deprecated"      -> Json.fromBoolean(true),
             "_self"            -> Json.fromString(s"http://127.0.0.1:8080/v1/resources/bbp/core/nxv:Resource/$exResource"),
             "_incoming" -> Json.fromString(
@@ -229,7 +229,7 @@ class ElasticSearchIndexerMappingSpec
             "_project"   -> Json.fromString("http://localhost:8080/v1/projects/bbp/core"),
             "_rev"       -> Json.fromLong(2L),
             "_updatedAt" -> Json.fromString(instantString),
-            "_updatedBy" -> Json.fromString((appConfig.iam.publicIri + "anonymous").toString())
+            "_updatedBy" -> Json.fromString((appConfig.iam.basePublicIri + "anonymous").toString())
           )
         mapper(ev.copy(schema = Ref(nxv.Resource.value))).some shouldEqual
           res.id -> BulkOp.Index(index, id.value.asString, elasticSearchJson)

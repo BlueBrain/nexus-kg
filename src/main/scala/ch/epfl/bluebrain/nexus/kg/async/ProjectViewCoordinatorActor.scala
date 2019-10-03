@@ -8,6 +8,7 @@ import akka.cluster.sharding.ShardRegion.{ExtractEntityId, ExtractShardId}
 import akka.cluster.sharding.{ClusterSharding, ClusterShardingSettings, ShardRegion}
 import akka.pattern.pipe
 import akka.persistence.query.{NoOffset, Offset, Sequence, TimeBasedUUID}
+import akka.stream.{ActorMaterializer, Materializer}
 import cats.implicits._
 import ch.epfl.bluebrain.nexus.admin.client.types.Project
 import ch.epfl.bluebrain.nexus.commons.cache.KeyValueStoreSubscriber.KeyValueStoreChange._
@@ -307,6 +308,8 @@ object ProjectViewCoordinatorActor {
       as: ActorSystem,
       projections: Projections[Task, Event]
   ): ActorRef = {
+
+    implicit val mt: Materializer = ActorMaterializer()
 
     val props = Props(
       new ProjectViewCoordinatorActor(viewCache) {

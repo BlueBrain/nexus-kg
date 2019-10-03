@@ -196,15 +196,8 @@ object Routes {
     implicit val projectCache: ProjectCache[Task] = cache.project
     implicit val viewCache: ViewCache[Task]       = cache.view
 
-    val healthStatusGroup = HealthStatusGroup(
-      new CassandraHealthStatus(),
-      new ClusterHealthStatus(Cluster(system)),
-      new IamHealthStatus(clients.iamClient),
-      new AdminHealthStatus(clients.adminClient),
-      new ElasticSearchHealthStatus(clients.elasticSearch),
-      new SparqlHealthStatus(clients.sparql)
-    )
-    val appInfoRoutes = AppInfoRoutes(config.description, healthStatusGroup).routes
+    val healthStatusGroup = HealthStatusGroup(new CassandraHealthStatus(), new ClusterHealthStatus(Cluster(system)))
+    val appInfoRoutes     = AppInfoRoutes(config.description, healthStatusGroup).routes
 
     def list(implicit acls: AccessControlLists, caller: Caller, project: Project): Route =
       (get & paginated & searchParams & pathEndOrSingleSlash) { (pagination, params) =>

@@ -389,7 +389,7 @@ object Storage {
     // format: off
     for {
       default       <- c.downField(nxv.default).focus.as[Boolean].onError(res.id.ref, nxv.default.prefix)
-      endpoint      <- c.downField(nxv.endpoint).focus.as[Uri].orElse(config.remoteDisk.defaultEndpoint).onError(res.id.ref, nxv.endpoint.prefix)
+      endpoint      <- c.downField(nxv.endpoint).focus.as[Uri].orElse(config.remoteDisk.endppint).onError(res.id.ref, nxv.endpoint.prefix)
       credentials   <- if(endpoint == config.remoteDisk.defaultEndpoint) c.downField(nxv.credentials).focus.asOption[String].map(_ orElse config.remoteDisk.defaultCredentials.map(_.value)).onError(res.id.ref, nxv.credentials.prefix)
                        else c.downField(nxv.credentials).focus.asOption[String].onError(res.id.ref, nxv.credentials.prefix)
       folder        <- c.downField(nxv.folder).focus.as[String].onError(res.id.ref, nxv.folder.prefix)

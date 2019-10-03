@@ -39,7 +39,7 @@ class StorageSpec
   private implicit val storageConfig =
     StorageConfig(
       DiskStorageConfig(Paths.get("/tmp/"), "SHA-256", readDisk, writeDisk, false, 1000L),
-      RemoteDiskStorageConfig("http://example.com", None, "SHA-256", read, write, true, 2000L),
+      RemoteDiskStorageConfig("http://example.com", "v1", None, "SHA-256", read, write, true, 2000L),
       S3StorageConfig("MD5", readS3, writeS3, true, 3000L),
       "password",
       "salt",
