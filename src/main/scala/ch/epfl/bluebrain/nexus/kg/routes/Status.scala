@@ -11,7 +11,7 @@ import monix.eval.Task
 
 import scala.concurrent.Future
 
-sealed trait HealthStatus {
+sealed trait Status {
 
   /**
     * Checks the connectivity.
@@ -22,9 +22,9 @@ sealed trait HealthStatus {
   def check: Task[Boolean]
 }
 
-object HealthStatus {
+object Status {
 
-  class CassandraHealthStatus(implicit as: ActorSystem, persistence: PersistenceConfig) extends HealthStatus {
+  class CassandraStatus(implicit as: ActorSystem, persistence: PersistenceConfig) extends Status {
     implicit val ec     = as.dispatcher
     private val log     = Logging(as, "CassandraHeathCheck")
     private val config  = new CassandraPluginConfig(as, as.settings.config.getConfig(persistence.journalPlugin))
@@ -40,7 +40,7 @@ object HealthStatus {
       })
   }
 
-  class ClusterHealthStatus(cluster: Cluster) extends HealthStatus {
+  class ClusterStatus(cluster: Cluster) extends Status {
     override def check: Task[Boolean] =
       Task.pure(
         !cluster.isTerminated &&

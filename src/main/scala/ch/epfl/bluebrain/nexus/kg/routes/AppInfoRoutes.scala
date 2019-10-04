@@ -11,7 +11,7 @@ import ch.epfl.bluebrain.nexus.iam.client.types.{ServiceDescription => IamServic
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig.Description
 import ch.epfl.bluebrain.nexus.kg.marshallers.instances._
 import ch.epfl.bluebrain.nexus.kg.routes.AppInfoRoutes._
-import ch.epfl.bluebrain.nexus.kg.routes.HealthStatus._
+import ch.epfl.bluebrain.nexus.kg.routes.Status._
 import ch.epfl.bluebrain.nexus.storage.client.types.{ServiceDescription => StorageServiceDescription}
 import io.circe.generic.auto._
 import io.circe.syntax._
@@ -24,7 +24,7 @@ import monix.execution.Scheduler.Implicits.global
 /**
   * Akka HTTP route definition for service description and health status
   */
-class AppInfoRoutes(serviceDescription: ServiceDescription, healthStatus: HealthStatusGroup)(
+class AppInfoRoutes(serviceDescription: ServiceDescription, status: StatusGroup)(
     implicit clients: Clients[Task]
 ) {
 
@@ -35,9 +35,9 @@ class AppInfoRoutes(serviceDescription: ServiceDescription, healthStatus: Health
           complete(OK -> serviceDescription)
         }
       },
-      (get & pathPrefix("health") & pathEndOrSingleSlash) {
-        operationName("/health") {
-          complete(healthStatus.check.runWithStatus(OK))
+      (get & pathPrefix("status") & pathEndOrSingleSlash) {
+        operationName("/status") {
+          complete(status.check.runWithStatus(OK))
         }
       },
       (get & pathPrefix("version") & pathEndOrSingleSlash) {
@@ -77,23 +77,23 @@ object AppInfoRoutes {
       }
   }
 
-  final case class HealthStatusGroup(cassandra: CassandraHealthStatus, cluster: ClusterHealthStatus) {
-    def check: Task[Health] = (cassandra.check, cluster.check).mapN(Health.apply)
+  final case class StatusGroup(cassandra: CassandraStatus, cluster: ClusterStatus) {
+    def check: Task[StatusState] = (cassandra.check, cluster.check).mapN(StatusState.apply)
   }
 
   /**
-    * A collection of health status
+    * A collection of status state
     *
     * @param cassandra     the cassandra status
     * @param cluster       the cluster status
     */
-  final case class Health(cassandra: Boolean, cluster: Boolean)
+  final case class StatusState(cassandra: Boolean, cluster: Boolean)
 
-  object Health {
-    implicit val endHealth: Encoder[Health] = {
+  object StatusState {
+    implicit val statusStateEncoder: Encoder[StatusState] = {
       def status(value: Boolean): String = if (value) "up" else "inaccessible"
       Encoder.instance {
-        case Health(cassandra, cluster) =>
+        case StatusState(cassandra, cluster) =>
           Json.obj("cassandra" -> status(cassandra).asJson, "cluster" -> status(cluster).asJson)
       }
     }
@@ -121,8 +121,8 @@ object AppInfoRoutes {
     */
   def apply(
       descConfig: Description,
-      healthStatus: HealthStatusGroup
+      status: StatusGroup
   )(implicit clients: Clients[Task]): AppInfoRoutes =
-    new AppInfoRoutes(ServiceDescription(descConfig.name, descConfig.version), healthStatus)
+    new AppInfoRoutes(ServiceDescription(descConfig.name, descConfig.version), status)
 
 }

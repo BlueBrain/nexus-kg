@@ -16,8 +16,8 @@ import ch.epfl.bluebrain.nexus.iam.client.IamClient
 import ch.epfl.bluebrain.nexus.iam.client.types.{ServiceDescription => IamServiceDescription}
 import ch.epfl.bluebrain.nexus.kg.config.Settings
 import ch.epfl.bluebrain.nexus.kg.marshallers.instances._
-import ch.epfl.bluebrain.nexus.kg.routes.AppInfoRoutes.{HealthStatusGroup, ServiceDescription}
-import ch.epfl.bluebrain.nexus.kg.routes.HealthStatus._
+import ch.epfl.bluebrain.nexus.kg.routes.AppInfoRoutes.{ServiceDescription, StatusGroup}
+import ch.epfl.bluebrain.nexus.kg.routes.Status._
 import ch.epfl.bluebrain.nexus.storage.client.StorageClient
 import ch.epfl.bluebrain.nexus.storage.client.types.{ServiceDescription => StorageServiceDescription}
 import io.circe.Json
@@ -45,7 +45,7 @@ class AppInfoRoutesSpec
   private implicit val elasticSearch = mock[ElasticSearchClient[Task]]
   private implicit val sparql        = mock[BlazegraphClient[Task]]
   private implicit val storage       = mock[StorageClient[Task]]
-  private val statusGroup            = HealthStatusGroup(mock[CassandraHealthStatus], mock[ClusterHealthStatus])
+  private val statusGroup            = StatusGroup(mock[CassandraStatus], mock[ClusterStatus])
   private implicit val clients       = Clients()
   private val routes                 = AppInfoRoutes(appConfig.description, statusGroup).routes
 
@@ -64,10 +64,10 @@ class AppInfoRoutesSpec
       }
     }
 
-    "return the health status when everything is up" in {
+    "return the status when everything is up" in {
       statusGroup.cassandra.check shouldReturn Task.pure(true)
       statusGroup.cluster.check shouldReturn Task.pure(true)
-      Get("/health") ~> routes ~> check {
+      Get("/status") ~> routes ~> check {
         status shouldEqual StatusCodes.OK
         responseAs[Json] shouldEqual Json.obj(
           "cassandra" -> Json.fromString("up"),
@@ -76,10 +76,10 @@ class AppInfoRoutesSpec
       }
     }
 
-    "return the health status when everything is down" in {
+    "return the status when everything is down" in {
       statusGroup.cassandra.check shouldReturn Task.pure(false)
       statusGroup.cluster.check shouldReturn Task.pure(false)
-      Get("/health") ~> routes ~> check {
+      Get("/status") ~> routes ~> check {
         status shouldEqual StatusCodes.OK
         responseAs[Json] shouldEqual Json.obj(
           "cassandra" -> Json.fromString("inaccessible"),
