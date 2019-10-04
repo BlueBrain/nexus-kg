@@ -65,7 +65,7 @@ object AppInfoRoutes {
   private def identity(value: AdminServiceDescription)      = ServiceDescription(value.name, value.version)
   private def identity(value: IamServiceDescription)        = ServiceDescription(value.name, value.version)
   private def identity(value: StorageServiceDescription)    = ServiceDescription(value.name, value.version)
-  private def identity(value: EsServiceDescription)         = ServiceDescription(value.name, value.version)
+  private def identity(value: EsServiceDescription)         = ServiceDescription("elasticsearch", value.version)
   private def identity(value: BlazegraphServiceDescription) = ServiceDescription(value.name, value.version)
 
   private implicit class TaskErrorSyntax(private val task: Task[ServiceDescription]) extends AnyVal {
