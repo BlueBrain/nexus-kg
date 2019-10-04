@@ -6,7 +6,7 @@ import java.util.regex.Pattern.quote
 
 import cats.implicits._
 import ch.epfl.bluebrain.nexus.commons.test.{CirceEq, Resources}
-import ch.epfl.bluebrain.nexus.iam.client.types.Permission
+import ch.epfl.bluebrain.nexus.iam.client.types.{AuthToken, Permission}
 import ch.epfl.bluebrain.nexus.kg.TestHelper
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig._
 import ch.epfl.bluebrain.nexus.kg.config.Contexts._
@@ -39,7 +39,16 @@ class StorageSpec
   private implicit val storageConfig =
     StorageConfig(
       DiskStorageConfig(Paths.get("/tmp/"), "SHA-256", readDisk, writeDisk, false, 1000L),
-      RemoteDiskStorageConfig("http://example.com", "v1", None, "SHA-256", read, write, true, 2000L),
+      RemoteDiskStorageConfig(
+        "http://example.com",
+        "v1",
+        Some(AuthToken(genString())),
+        "SHA-256",
+        read,
+        write,
+        true,
+        2000L
+      ),
       S3StorageConfig("MD5", readS3, writeS3, true, 3000L),
       "password",
       "salt",
@@ -62,6 +71,9 @@ class StorageSpec
           quote("{cred}")   -> "credentials"
         )
       ).appendContextOf(storageCtx)
+
+    val remoteDiskStorageDefault =
+      remoteDiskStorage.removeKeys("credentials", "endpoint", "readPermissions", "writePermission", "readPermission")
 
     "constructing" should {
       val diskStoragePerms =
@@ -91,6 +103,25 @@ class StorageSpec
             expectedRead,
             expectedWrite,
             30000L
+          )
+      }
+
+      "return a default RemoteDiskStorage" in {
+        val resource = simpleV(id, remoteDiskStorageDefault, types = Set(nxv.Storage, nxv.RemoteDiskStorage))
+        Storage(resource).right.value shouldEqual
+          RemoteDiskStorage(
+            projectRef,
+            iri,
+            1L,
+            false,
+            false,
+            "SHA-256",
+            storageConfig.remoteDisk.endpoint,
+            storageConfig.remoteDisk.defaultCredentials.map(_.value),
+            "folder",
+            read,
+            write,
+            2000L
           )
       }
 
