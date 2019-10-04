@@ -228,7 +228,7 @@ object AppConfig {
       showLocation: Boolean,
       maxFileSize: Long
   ) {
-    val endppint: Uri =
+    val endpoint: Uri =
       if (defaultEndpointPrefix.trim.isEmpty) defaultEndpoint
       else s"$defaultEndpoint/$defaultEndpointPrefix"
   }
