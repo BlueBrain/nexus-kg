@@ -32,8 +32,8 @@ import ch.epfl.bluebrain.nexus.kg.directives.QueryDirectives._
 import ch.epfl.bluebrain.nexus.kg.marshallers.instances._
 import ch.epfl.bluebrain.nexus.kg.resources._
 import ch.epfl.bluebrain.nexus.kg.resources.syntax._
-import ch.epfl.bluebrain.nexus.kg.routes.AppInfoRoutes.HealthStatusGroup
-import ch.epfl.bluebrain.nexus.kg.routes.HealthStatus._
+import ch.epfl.bluebrain.nexus.kg.routes.AppInfoRoutes.StatusGroup
+import ch.epfl.bluebrain.nexus.kg.routes.Status._
 import ch.epfl.bluebrain.nexus.kg.search.QueryResultEncoder._
 import ch.epfl.bluebrain.nexus.storage.client.StorageClientError
 import ch.megard.akka.http.cors.scaladsl.CorsDirectives.{cors, corsRejectionHandler}
@@ -196,15 +196,8 @@ object Routes {
     implicit val projectCache: ProjectCache[Task] = cache.project
     implicit val viewCache: ViewCache[Task]       = cache.view
 
-    val healthStatusGroup = HealthStatusGroup(
-      new CassandraHealthStatus(),
-      new ClusterHealthStatus(Cluster(system)),
-      new IamHealthStatus(clients.iamClient),
-      new AdminHealthStatus(clients.adminClient),
-      new ElasticSearchHealthStatus(clients.elasticSearch),
-      new SparqlHealthStatus(clients.sparql)
-    )
-    val appInfoRoutes = AppInfoRoutes(config.description, healthStatusGroup).routes
+    val healthStatusGroup = StatusGroup(new CassandraStatus(), new ClusterStatus(Cluster(system)))
+    val appInfoRoutes     = AppInfoRoutes(config.description, healthStatusGroup).routes
 
     def list(implicit acls: AccessControlLists, caller: Caller, project: Project): Route =
       (get & paginated & searchParams & pathEndOrSingleSlash) { (pagination, params) =>

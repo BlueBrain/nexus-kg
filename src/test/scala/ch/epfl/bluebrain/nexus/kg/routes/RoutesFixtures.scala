@@ -84,12 +84,14 @@ trait RoutesFixtures extends TestHelper with Resources {
         "@id"            -> Json.fromString(s"nxv:$genUuid"),
         "_constrainedBy" -> schema.iri.asJson,
         "_createdAt"     -> Json.fromString(Instant.EPOCH.toString),
-        "_createdBy"     -> Json.fromString(s"${config.iam.publicIri.asUri}/realms/${user.realm}/users/${user.subject}"),
-        "_deprecated"    -> Json.fromBoolean(deprecated),
-        "_rev"           -> Json.fromLong(1L),
-        "_project"       -> Json.fromString(s"${config.admin.publicIri.asUri}/projects/$organization/$project"),
-        "_updatedAt"     -> Json.fromString(Instant.EPOCH.toString),
-        "_updatedBy"     -> Json.fromString(s"${config.iam.publicIri.asUri}/realms/${user.realm}/users/${user.subject}")
+        "_createdBy" -> Json
+          .fromString(s"${config.iam.basePublicIri.asUri}/realms/${user.realm}/users/${user.subject}"),
+        "_deprecated" -> Json.fromBoolean(deprecated),
+        "_rev"        -> Json.fromLong(1L),
+        "_project" -> Json
+          .fromString(s"${config.admin.publicIri.asUri}/${config.admin.prefix}/projects/$organization/$project"),
+        "_updatedAt" -> Json.fromString(Instant.EPOCH.toString),
+        "_updatedBy" -> Json.fromString(s"${config.iam.basePublicIri.asUri}/realms/${user.realm}/users/${user.subject}")
       )
       .addContext(resourceCtxUri)
 

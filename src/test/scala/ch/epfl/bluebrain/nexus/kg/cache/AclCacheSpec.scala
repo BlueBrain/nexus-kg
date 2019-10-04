@@ -30,7 +30,7 @@ class AclCacheSpec
 
   private val client: IamClient[Task] = mock[IamClient[Task]]
   private implicit val iamConfig: IamConfig =
-    IamConfig(url"http://base.com".value, url"http://base.com".value, None, 1 second)
+    IamConfig(url"http://base.com".value, url"http://base.com".value, "v1", None, 1 second)
   private implicit val appConfig = Settings(system).appConfig.copy(iam = iamConfig)
 
   override val write = Permission.unsafe("resources/write")

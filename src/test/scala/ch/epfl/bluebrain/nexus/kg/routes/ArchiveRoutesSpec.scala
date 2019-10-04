@@ -45,6 +45,7 @@ import org.mockito.{ArgumentMatchersSugar, IdiomaticMockito, Mockito}
 import org.scalatest._
 import org.scalatest.concurrent.{Eventually, ScalaFutures}
 import ch.epfl.bluebrain.nexus.kg.config.Contexts._
+import ch.epfl.bluebrain.nexus.storage.client.StorageClient
 
 import scala.concurrent.duration._
 
@@ -97,6 +98,7 @@ class ArchiveRoutesSpec
   private implicit val sparql        = mock[BlazegraphClient[Task]]
   private implicit val elasticSearch = mock[ElasticSearchClient[Task]]
   private implicit val initializer   = mock[ProjectInitializer[Task]]
+  private implicit val storageClient = mock[StorageClient[Task]]
   private implicit val clients       = Clients()
 
   before {

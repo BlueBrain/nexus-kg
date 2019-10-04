@@ -27,7 +27,10 @@ import ch.epfl.bluebrain.nexus.kg.indexing.Indexing
 import ch.epfl.bluebrain.nexus.kg.resolve.{Materializer, ProjectResolution}
 import ch.epfl.bluebrain.nexus.kg.resources._
 import ch.epfl.bluebrain.nexus.kg.routes.{Clients, Routes}
+import ch.epfl.bluebrain.nexus.rdf.syntax._
 import ch.epfl.bluebrain.nexus.sourcing.projections.Projections
+import ch.epfl.bluebrain.nexus.storage.client.StorageClient
+import ch.epfl.bluebrain.nexus.storage.client.config.StorageClientConfig
 import com.github.jsonldjava.core.DocumentLoader
 import com.typesafe.config.{Config, ConfigFactory}
 import io.circe.Json
@@ -86,9 +89,11 @@ object Main {
       val sparql                 = BlazegraphClient[Task](sparqlConfig.base, sparqlConfig.defaultIndex, sparqlConfig.akkaCredentials)
       implicit val elasticSearch = ElasticSearchClient[Task](elasticSearchConfig.base)
 
-      implicit val adminClient  = AdminClient[Task](appConfig.admin)
-      implicit val iamClient    = IamClient[Task]
-      implicit val sparqlClient = sparql
+      implicit val adminClient   = AdminClient[Task](appConfig.admin)
+      implicit val iamClient     = IamClient[Task]
+      implicit val sparqlClient  = sparql
+      implicit val storageConfig = StorageClientConfig(url"${appConfig.storage.remoteDisk.defaultEndpoint}".value)
+      implicit val storageClient = StorageClient[Task]
       Clients()
     }
 
@@ -113,7 +118,7 @@ object Main {
         StorageCache[Task],
         ArchiveCache[Task]()
       )
-    implicit val aclCache                         = AclsCache[Task](clients.iamClient)
+    implicit val aclCache                         = AclsCache[Task](clients.iam)
     implicit val projectResolution                = ProjectResolution.task(repo, cache.resolver, cache.project, aclCache)
     implicit val materializer: Materializer[Task] = new Materializer[Task](projectResolution, cache.project)
     import indexers.elasticSearch
@@ -151,7 +156,7 @@ object Main {
       implicit val projectInitializer =
         new ProjectInitializer[Task](storages, views, resolvers, projectViewCoordinator, projectDigestCoordinator)
 
-      implicit val adminClient = clients.adminClient
+      implicit val adminClient = clients.admin
       Indexing.start(storages, views, resolvers, projectViewCoordinator, projectDigestCoordinator)
 
       val routes: Route =

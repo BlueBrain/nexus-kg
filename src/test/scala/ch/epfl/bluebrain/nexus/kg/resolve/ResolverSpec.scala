@@ -42,7 +42,7 @@ class ResolverSpec
   private implicit val projectCache = mock[ProjectCache[CId]]
 
   private implicit val iamClientConfig =
-    IamClientConfig(url"http://example.com/iam/".value, url"http://example.com/iam/".value, 1 second)
+    IamClientConfig(url"http://example.com".value, url"http://example.com".value, "iam", 1 second)
 
   before {
     Mockito.reset(projectCache)

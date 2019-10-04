@@ -210,38 +210,47 @@ object AppConfig {
   /**
     * Remote Disk storage configuration
     *
-    * @param defaultEndpoint    the default endpoint of the current storage
-    * @param defaultCredentials the default credentials for the defaultEnpoint of the current storage
-    * @param readPermission     the default permission required in order to download a file from a disk storage
-    * @param writePermission    the default permission required in order to upload a file to a disk storage
-    * @param showLocation       flag to decide whether or not to show the absolute location of the files in the metadata response
-    * @param maxFileSize        the default maximum allowed file size (in bytes) for uploaded files
+    * @param defaultEndpoint       the default endpoint of the current storage
+    * @param defaultEndpointPrefix the default endpoint prefix
+    * @param defaultCredentials    the default credentials for the defaultEnpoint of the current storage
+    * @param readPermission        the default permission required in order to download a file from a disk storage
+    * @param writePermission       the default permission required in order to upload a file to a disk storage
+    * @param showLocation          flag to decide whether or not to show the absolute location of the files in the metadata response
+    * @param maxFileSize           the default maximum allowed file size (in bytes) for uploaded files
     */
   final case class RemoteDiskStorageConfig(
       defaultEndpoint: Uri,
+      defaultEndpointPrefix: String,
       defaultCredentials: Option[AuthToken],
       digestAlgorithm: String,
       readPermission: Permission,
       writePermission: Permission,
       showLocation: Boolean,
       maxFileSize: Long
-  )
+  ) {
+    val endppint: Uri =
+      if (defaultEndpointPrefix.trim.isEmpty) defaultEndpoint
+      else s"$defaultEndpoint/$defaultEndpointPrefix"
+  }
 
   /**
     * IAM config
     *
-    * @param publicIri           base URL for all the identity IDs, including prefix.
-    * @param internalIri         base URL for all the HTTP calls, including prefix.
+    * @param publicIri           base URL for all the identity IDs, excluding prefix
+    * @param internalIri         base URL for all the HTTP calls, excluding prefix
+    * @param prefix              the prefix
     * @param serviceAccountToken the service account token to execute calls to IAM
     * @param sseRetryDelay       delay for retrying after completion on SSE
     */
   final case class IamConfig(
       publicIri: AbsoluteIri,
       internalIri: AbsoluteIri,
+      prefix: String,
       serviceAccountToken: Option[AuthToken],
       sseRetryDelay: FiniteDuration
   ) {
-    val iamClient: IamClientConfig = IamClientConfig(publicIri, internalIri, sseRetryDelay)
+    val iamClient: IamClientConfig      = IamClientConfig(publicIri, internalIri, prefix, sseRetryDelay)
+    lazy val basePublicIri: AbsoluteIri = iamClient.basePublicIri
   }
 
   /**

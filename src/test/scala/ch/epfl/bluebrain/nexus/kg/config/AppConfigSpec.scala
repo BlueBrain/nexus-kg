@@ -31,15 +31,16 @@ class AppConfigSpec extends WordSpecLike with Matchers with OptionValues with Te
       )
       appConfig.storage shouldEqual StorageConfig(
         DiskStorageConfig(Paths.get("/tmp/"), "SHA-256", read, write, false, 10737418240L),
-        RemoteDiskStorageConfig("http://localhost:8084/v1", None, "SHA-256", read, write, true, 10737418240L),
+        RemoteDiskStorageConfig("http://localhost:8084", "v1", None, "SHA-256", read, write, true, 10737418240L),
         S3StorageConfig("SHA-256", read, write, true, 10737418240L),
         "changeme",
         "salt",
         RetryStrategyConfig("linear", 300 millis, 10 seconds, 10000, 0.2, 1 second)
       )
       appConfig.iam shouldEqual IamConfig(
-        url"http://localhost:8080/v1".value,
-        url"http://localhost:8080/v1".value,
+        url"http://localhost:8080".value,
+        url"http://localhost:8080".value,
+        "v1",
         None,
         1 second
       )

@@ -35,6 +35,7 @@ import ch.epfl.bluebrain.nexus.rdf.Iri.Path._
 import ch.epfl.bluebrain.nexus.rdf.Iri.{AbsoluteIri, Path}
 import ch.epfl.bluebrain.nexus.rdf.instances._
 import ch.epfl.bluebrain.nexus.rdf.syntax._
+import ch.epfl.bluebrain.nexus.storage.client.StorageClient
 import com.typesafe.config.{Config, ConfigFactory}
 import io.circe.Json
 import io.circe.generic.auto._
@@ -92,6 +93,7 @@ class SchemaRoutesSpec
   private implicit val jsonClient    = withUnmarshaller[Task, Json]
   private implicit val sparql        = mock[BlazegraphClient[Task]]
   private implicit val elasticSearch = mock[ElasticSearchClient[Task]]
+  private implicit val storageClient = mock[StorageClient[Task]]
   private implicit val clients       = Clients()
 
   before {

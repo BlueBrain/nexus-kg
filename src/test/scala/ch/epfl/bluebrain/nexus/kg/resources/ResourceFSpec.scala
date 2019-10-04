@@ -39,8 +39,8 @@ class ResourceFSpec
     implicit val clock: Clock = Clock.fixed(Instant.ofEpochSecond(3600), ZoneId.systemDefault())
 
     val identity: Identity = User("dmontero", "someRealm")
-    val userIri            = Iri.absolute(s"${appConfig.iam.publicIri.asUri}/realms/someRealm/users/dmontero").right.value
-    val anonIri            = Iri.absolute(s"${appConfig.iam.publicIri.asUri}/anonymous").right.value
+    val userIri            = Iri.absolute(s"${appConfig.iam.basePublicIri.asUri}/realms/someRealm/users/dmontero").right.value
+    val anonIri            = Iri.absolute(s"${appConfig.iam.basePublicIri.asUri}/anonymous").right.value
 
     val projectRef = ProjectRef(genUUID)
     val id         = Iri.absolute(s"http://example.com/${projectRef.id}").right.value
