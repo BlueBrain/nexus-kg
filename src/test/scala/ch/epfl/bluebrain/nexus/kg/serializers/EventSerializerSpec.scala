@@ -15,13 +15,15 @@ import ch.epfl.bluebrain.nexus.iam.client.types.Identity._
 import ch.epfl.bluebrain.nexus.kg.TestHelper
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig._
 import ch.epfl.bluebrain.nexus.kg.resources.Event._
-import ch.epfl.bluebrain.nexus.kg.resources.StorageReference.S3StorageReference
+import ch.epfl.bluebrain.nexus.kg.resources.StorageReference.{RemoteDiskStorageReference, S3StorageReference}
 import ch.epfl.bluebrain.nexus.kg.resources.file.File._
 import ch.epfl.bluebrain.nexus.kg.resources.{Id, OrganizationRef, ProjectRef, Ref, ResId}
 import ch.epfl.bluebrain.nexus.kg.serializers.Serializer.EventSerializer
 import ch.epfl.bluebrain.nexus.kg.storage.Storage.DiskStorage
 import ch.epfl.bluebrain.nexus.rdf.syntax.node.unsafe._
 import ch.epfl.bluebrain.nexus.sourcing.akka.SourcingConfig.RetryStrategyConfig
+import ch.epfl.bluebrain.nexus.storage.client.types.{FileAttributes => StorageFileAttributes}
+import ch.epfl.bluebrain.nexus.storage.client.types.FileAttributes.{Digest => StorageFileDigest}
 import io.circe.Json
 import io.circe.parser._
 import org.scalatest._
@@ -123,7 +125,24 @@ class EventSerializerSpec
           s3fileAttr,
           instant,
           subject
-        ) -> jsonContentOf("/serialization/updated-file-resp.json", rep)
+        ) -> jsonContentOf("/serialization/updated-file-resp.json", rep),
+        FileAttributesUpdated(
+          key,
+          orgRef,
+          RemoteDiskStorageReference(
+            url"https://bbp.epfl.ch/nexus/storages/org/proj/remote".value,
+            1L
+          ),
+          2L,
+          StorageFileAttributes(
+            "file:///some/remote/location/data/project/proj42/nexus/0d06da77-b13a-48f4-8a37-a411fd6f21c9/b/c/6/5/e/7/c/1/r160127_0101_04.json",
+            257813L,
+            StorageFileDigest("MD5", "1234"),
+            `application/json`
+          ),
+          instant,
+          subject
+        ) -> jsonContentOf("/serialization/file-attributes-updated-event.json", rep)
       )
 
       "encode known events to UTF-8" in {
