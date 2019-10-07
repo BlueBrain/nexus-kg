@@ -43,12 +43,16 @@ object Serializer {
   private implicit val uriPathEncoder: Encoder[Uri.Path] = Encoder.encodeString.contramap(_.toString)
   private implicit val uriPathDecoder: Decoder[Uri.Path] = Decoder.decodeString.emapTry(uri => Try(Uri.Path(uri)))
 
-  private implicit val digestDecoder: Decoder[Digest] = deriveConfiguredDecoder[Digest]
   private implicit val digestEncoder: Encoder[Digest] = deriveConfiguredEncoder[Digest]
+  private implicit val digestDecoder: Decoder[Digest] = deriveConfiguredDecoder[Digest]
 
   private implicit val storageDigestEncoder: Encoder[StorageDigest] = deriveConfiguredEncoder[StorageDigest]
+  private implicit val storageDigestDecoder: Decoder[StorageDigest] = deriveConfiguredDecoder[StorageDigest]
+
   private implicit val storageFileAttributesEncoder: Encoder[StorageFileAttributes] =
     deriveConfiguredEncoder[StorageFileAttributes]
+  private implicit val storageFileAttributesDecoder: Decoder[StorageFileAttributes] =
+    deriveConfiguredDecoder[StorageFileAttributes]
 
   private implicit val fileAttributesEncoder: Encoder[FileAttributes] = deriveConfiguredEncoder[FileAttributes]
   private implicit val fileAttributesDecoder: Decoder[FileAttributes] = deriveConfiguredDecoder[FileAttributes]
