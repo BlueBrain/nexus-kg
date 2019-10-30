@@ -29,7 +29,7 @@ class AppInfoRoutes(serviceDescription: ServiceDescription, status: StatusGroup)
     implicit clients: Clients[Task]
 ) {
   private implicit val orderedKeys =
-    OrderedKeys(List("global", "kg", "admin", "storage", "iam", "elasticsearch", "blazegraph", ""))
+    OrderedKeys(List("nexus", "kg", "admin", "storage", "iam", "elasticsearch", "blazegraph", ""))
 
   private val regex = "^([0-9]+)\\.([0-9]+)\\.([0-9]+)$".r
 
@@ -50,7 +50,7 @@ class AppInfoRoutes(serviceDescription: ServiceDescription, status: StatusGroup)
           val serviceDescriptions = Task.sequence(
             List(
               Task.pure(serviceDescription),
-              Task.pure(ServiceDescription("global", extractGlobalMinor(serviceDescription.version))),
+              Task.pure(ServiceDescription("nexus", extractGlobalMinor(serviceDescription.version))),
               clients.admin.serviceDescription.map(identity).logError("admin"),
               clients.defaultRemoteStorage.serviceDescription.map(identity).logError("remoteStorage"),
               clients.iam.serviceDescription.map(identity).logError("iam"),
