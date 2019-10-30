@@ -102,6 +102,7 @@ class AppInfoRoutesSpec
       Get("/version") ~> routes ~> check {
         status shouldEqual StatusCodes.OK
         responseAs[Json] shouldEqual Json.obj(
+          "global"                   -> appConfig.description.version.asJson,
           appConfig.description.name -> appConfig.description.version.asJson,
           adminServiceDesc.name      -> adminServiceDesc.version.asJson,
           storageServiceDesc.name    -> storageServiceDesc.version.asJson,
@@ -124,6 +125,7 @@ class AppInfoRoutesSpec
       Get("/version") ~> routes ~> check {
         status shouldEqual StatusCodes.OK
         responseAs[Json] shouldEqual Json.obj(
+          "global"                   -> appConfig.description.version.asJson,
           appConfig.description.name -> appConfig.description.version.asJson,
           adminServiceDesc.name      -> adminServiceDesc.version.asJson,
           "remoteStorage"            -> "unknown".asJson,
