@@ -6,6 +6,7 @@ import akka.http.scaladsl.server.Route
 import cats.implicits._
 import ch.epfl.bluebrain.nexus.admin.client.types.{ServiceDescription => AdminServiceDescription}
 import ch.epfl.bluebrain.nexus.commons.es.client.{ServiceDescription => EsServiceDescription}
+import ch.epfl.bluebrain.nexus.commons.http.JsonLdCirceSupport.OrderedKeys
 import ch.epfl.bluebrain.nexus.commons.sparql.client.{ServiceDescription => BlazegraphServiceDescription}
 import ch.epfl.bluebrain.nexus.iam.client.types.{ServiceDescription => IamServiceDescription}
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig.Description
@@ -27,6 +28,10 @@ import monix.execution.Scheduler.Implicits.global
 class AppInfoRoutes(serviceDescription: ServiceDescription, status: StatusGroup)(
     implicit clients: Clients[Task]
 ) {
+  private implicit val orderedKeys =
+    OrderedKeys(List("nexus", "kg", "admin", "storage", "iam", "elasticsearch", "blazegraph", ""))
+
+  private val regex = "^([0-9]+)\\.([0-9]+)\\.([0-9]+)$".r
 
   def routes: Route =
     concat(
@@ -45,6 +50,7 @@ class AppInfoRoutes(serviceDescription: ServiceDescription, status: StatusGroup)
           val serviceDescriptions = Task.sequence(
             List(
               Task.pure(serviceDescription),
+              Task.pure(ServiceDescription("nexus", extractGlobalMinor(serviceDescription.version))),
               clients.admin.serviceDescription.map(identity).logError("admin"),
               clients.defaultRemoteStorage.serviceDescription.map(identity).logError("remoteStorage"),
               clients.iam.serviceDescription.map(identity).logError("iam"),
@@ -56,6 +62,12 @@ class AppInfoRoutes(serviceDescription: ServiceDescription, status: StatusGroup)
         }
       }
     )
+
+  private def extractGlobalMinor(version: String): String =
+    version match {
+      case regex(major, minor, _) => s"$major.$minor"
+      case _                      => version
+    }
 }
 
 object AppInfoRoutes {

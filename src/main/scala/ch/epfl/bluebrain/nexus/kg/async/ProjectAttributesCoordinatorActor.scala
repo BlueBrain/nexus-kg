@@ -78,19 +78,24 @@ private class FileDigestEventMapping[F[_]: FetchAttributes](files: Files[F])(imp
     *
     * @param event event to be mapped to a Elastic Search insert query
     */
-  final def apply(event: Event): F[Option[Resource]] = {
-    implicit val subject = event.subject
-    files.updateFileAttrEmpty(event.id).value.flatMap[Option[Resource]] {
-      case Left(FileDigestNotComputed(_)) =>
-        F.raiseError(InternalError(s"Resource '${event.id.ref.show}' does not have a computed digest."): KgError)
-      case Left(UnexpectedState(_)) =>
-        F.raiseError(InternalError(s"Storage for resource '${event.id.ref.show}' is not still on the cache."): KgError)
-      case Left(_) =>
-        F.pure(None)
-      case Right(resource) =>
-        F.pure(Some(resource))
+  final def apply(event: Event): F[Option[Resource]] =
+    event match {
+      case _: Event.FileCreated | _: Event.FileUpdated =>
+        implicit val subject = event.subject
+        files.updateFileAttrEmpty(event.id).value.flatMap[Option[Resource]] {
+          case Left(FileDigestNotComputed(_)) =>
+            F.raiseError(InternalError(s"Resource '${event.id.ref.show}' does not have a computed digest."): KgError)
+          case Left(UnexpectedState(_)) =>
+            F.raiseError(
+              InternalError(s"Storage for resource '${event.id.ref.show}' is not still on the cache."): KgError
+            )
+          case Left(_) =>
+            F.pure(None)
+          case Right(resource) =>
+            F.pure(Some(resource))
+        }
+      case _ => F.pure(None)
     }
-  }
 }
 
 object ProjectAttributesCoordinatorActor {
