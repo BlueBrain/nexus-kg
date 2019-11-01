@@ -9,7 +9,7 @@ import ch.epfl.bluebrain.nexus.kg.config.AppConfig._
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary.nxv
 import ch.epfl.bluebrain.nexus.kg.config.{AppConfig, Settings}
 import ch.epfl.bluebrain.nexus.kg.indexing.View
-import ch.epfl.bluebrain.nexus.kg.indexing.View.{AggregateElasticSearchView, ElasticSearchView, SparqlView, ViewRef}
+import ch.epfl.bluebrain.nexus.kg.indexing.View._
 import ch.epfl.bluebrain.nexus.kg.resources.{ProjectLabel, ProjectRef}
 import io.circe.Json
 import monix.eval.Task
@@ -38,8 +38,7 @@ class ViewCacheSpec
   val ref1 = ProjectRef(genUUID)
   val ref2 = ProjectRef(genUUID)
 
-  val esView =
-    ElasticSearchView(Json.obj(), Set.empty, Set.empty, None, false, true, true, ref1, genIri, genUUID, 1L, false)
+  val esView = ElasticSearchView(Json.obj(), Filter(), false, true, ref1, genIri, genUUID, 1L, false)
   val aggRefsView = AggregateElasticSearchView(
     Set(ViewRef(ProjectRef(genUUID), genIri)),
     ProjectRef(genUUID),
@@ -57,8 +56,7 @@ class ViewCacheSpec
     false
   )
 
-  val sparqlView =
-    SparqlView(Set.empty, Set.empty, None, true, true, ref1, nxv.defaultSparqlIndex.value, genUUID, 1L, false)
+  val sparqlView = SparqlView(Filter(), true, ref1, nxv.defaultSparqlIndex.value, genUUID, 1L, false)
 
   val esViewsProj1: Set[ElasticSearchView] =
     List.fill(5)(esView.copy(mapping = genJson, id = genIri + "elasticSearch1", uuid = genUUID)).toSet
@@ -83,6 +81,7 @@ class ViewCacheSpec
     "get views" in {
       forAll(esViewsProj1) { view =>
         cache.put(view).runToFuture.futureValue
+        cache.getBy[View](view.ref, view.id).runToFuture.futureValue shouldEqual Some(view)
         cache.getBy[ElasticSearchView](view.ref, view.id).runToFuture.futureValue shouldEqual Some(view)
         cache.getBy[SparqlView](view.ref, view.id).runToFuture.futureValue shouldEqual None
       }

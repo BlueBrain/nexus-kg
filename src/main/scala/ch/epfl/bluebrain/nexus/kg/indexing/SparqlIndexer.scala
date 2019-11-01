@@ -1,33 +1,24 @@
 package ch.epfl.bluebrain.nexus.kg.indexing
 
-import java.util.Properties
-
 import akka.actor.{ActorRef, ActorSystem, Props}
-import akka.http.scaladsl.model.Uri
-import akka.stream.{ActorMaterializer, Materializer}
 import cats.Monad
 import cats.effect.{Effect, Timer}
 import cats.implicits._
 import ch.epfl.bluebrain.nexus.admin.client.types.Project
-import ch.epfl.bluebrain.nexus.commons.http.HttpClient
-import ch.epfl.bluebrain.nexus.commons.http.HttpClient.UntypedHttpClient
-import ch.epfl.bluebrain.nexus.commons.rdf.syntax._
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlFailure.SparqlServerOrUnexpectedFailure
-import ch.epfl.bluebrain.nexus.commons.sparql.client.{BlazegraphClient, SparqlResults, SparqlWriteQuery}
+import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlWriteQuery
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig._
 import ch.epfl.bluebrain.nexus.kg.indexing.View.SparqlView
 import ch.epfl.bluebrain.nexus.kg.resources._
 import ch.epfl.bluebrain.nexus.kg.resources.syntax._
+import ch.epfl.bluebrain.nexus.kg.routes.Clients
 import ch.epfl.bluebrain.nexus.sourcing.projections._
 import kamon.Kamon
 import monix.execution.atomic.AtomicLong
 
-import scala.collection.JavaConverters._
-
-private class SparqlIndexerMapping[F[_]](view: SparqlView, resources: Resources[F])(
-    implicit F: Monad[F],
-    project: Project
+private[indexing] class SparqlIndexerMapping[F[_]: Monad](view: SparqlView, resources: Resources[F])(
+    implicit project: Project
 ) {
   private val metadataOptions = MetadataOptions(linksAsIri = true, expandedLinks = true)
 
@@ -36,31 +27,29 @@ private class SparqlIndexerMapping[F[_]](view: SparqlView, resources: Resources[
     *
     * @param event event to be mapped to a Sparql insert query
     */
-  final def apply(event: Event): F[Option[Identified[ProjectRef, SparqlWriteQuery]]] =
-    view.resourceTag
+  final def apply(event: Event): F[Option[(ResourceV, SparqlWriteQuery)]] =
+    view.filter.resourceTag
       .filter(_.trim.nonEmpty)
       .map(resources.fetch(event.id, _, metadataOptions, None))
       .getOrElse(resources.fetch(event.id, metadataOptions, None))
       .value
       .map {
-        case Right(res) if validSchema(view, res) && validTypes(view, res) => Some(buildInsertOrDeleteQuery(res))
-        case Right(res) if validSchema(view, res)                          => Some(buildDeleteQuery(res))
+        case Right(res) if validSchema(view, res) && validTypes(view, res) => Some(res -> buildInsertOrDeleteQuery(res))
+        case Right(res) if validSchema(view, res)                          => Some(res -> buildDeleteQuery(res))
         case _                                                             => None
       }
 
-  private def buildInsertOrDeleteQuery(res: ResourceV): Identified[ProjectRef, SparqlWriteQuery] =
-    if (res.deprecated && !view.includeDeprecated) buildDeleteQuery(res)
+  private def buildInsertOrDeleteQuery(res: ResourceV): SparqlWriteQuery =
+    if (res.deprecated && !view.filter.includeDeprecated) buildDeleteQuery(res)
     else buildInsertQuery(res)
 
-  private def buildInsertQuery(res: ResourceV): Identified[ProjectRef, SparqlWriteQuery] = {
+  private def buildInsertQuery(res: ResourceV): SparqlWriteQuery = {
     val graph = if (view.includeMetadata) res.value.graph else res.value.graph.removeMetadata
-    res.id -> SparqlWriteQuery.replace(toGraphUri(res.id), graph)
+    SparqlWriteQuery.replace(res.id.toGraphUri, graph)
   }
 
-  private def buildDeleteQuery(res: ResourceV): Identified[ProjectRef, SparqlWriteQuery] =
-    res.id -> SparqlWriteQuery.drop(toGraphUri(res.id))
-
-  private def toGraphUri(id: ResId): Uri = (id.value + "graph").toAkkaUri
+  private def buildDeleteQuery(res: ResourceV): SparqlWriteQuery =
+    SparqlWriteQuery.drop(res.id.toGraphUri)
 }
 
 @SuppressWarnings(Array("MaxParameters"))
@@ -78,42 +67,28 @@ object SparqlIndexer {
   final def start[F[_]: Timer](view: SparqlView, resources: Resources[F], project: Project, restartOffset: Boolean)(
       implicit as: ActorSystem,
       actorInitializer: (Props, String) => ActorRef,
-      ul: UntypedHttpClient[F],
       P: Projections[F, Event],
       F: Effect[F],
-      uclRs: HttpClient[F, SparqlResults],
+      clients: Clients[F],
       config: AppConfig
   ): StreamSupervisor[F, ProjectionProgress] = {
 
-    val sparqlErrorMonadError               = ch.epfl.bluebrain.nexus.kg.instances.sparqlErrorMonadError
-    implicit val indexing: IndexingConfig   = config.sparql.indexing
-    implicit val materializer: Materializer = ActorMaterializer()
-    val properties: Map[String, String] = {
-      val props = new Properties()
-      props.load(getClass.getResourceAsStream("/blazegraph/index.properties"))
-      props.asScala.toMap
-    }
+    val sparqlErrorMonadError             = ch.epfl.bluebrain.nexus.kg.instances.sparqlErrorMonadError
+    implicit val indexing: IndexingConfig = config.sparql.indexing
+    val client                            = clients.sparql.copy(namespace = view.index)
 
-    import as.dispatcher
-    val client = BlazegraphClient[F](config.sparql.base, view.index, config.sparql.akkaCredentials)
     val mapper = new SparqlIndexerMapping(view, resources)(sparqlErrorMonadError, project)
-    val init =
-      for {
-        _ <- client.createNamespace(properties)
-        _ <- if (view.rev > 1) client.copy(namespace = view.copy(rev = view.rev - 1).index).deleteNamespace
-        else F.pure(true)
-      } yield ()
 
     val processedEventsGauge = Kamon
       .gauge("kg_indexer_gauge")
       .withTag("type", "sparql")
-      .withTag("project", project.projectLabel.show)
+      .withTag("project", project.show)
       .withTag("organization", project.organizationLabel)
       .withTag("viewId", view.id.show)
     val processedEventsCounter = Kamon
       .counter("kg_indexer_counter")
       .withTag("type", "sparql")
-      .withTag("project", project.projectLabel.show)
+      .withTag("project", project.show)
       .withTag("organization", project.organizationLabel)
       .withTag("viewId", view.id.show)
     val processedEventsCount = AtomicLong(0L)
@@ -128,7 +103,7 @@ object SparqlIndexer {
         .retry[SparqlServerOrUnexpectedFailure](indexing.retry.retryStrategy)(sparqlErrorMonadError)
         .batch(indexing.batch, indexing.batchTimeout)
         .restart(restartOffset)
-        .init(init)
+        .init(view.createIndex)
         .mapping(mapper.apply)
         .index(inserts => client.bulk(inserts.removeDupIds: _*))
         .mapInitialProgress { p =>

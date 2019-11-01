@@ -19,7 +19,6 @@ import ch.epfl.bluebrain.nexus.kg.config.AppConfig
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig._
 import ch.epfl.bluebrain.nexus.kg.indexing.Statistics
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection.{FileDigestNotComputed, UnexpectedState}
-import ch.epfl.bluebrain.nexus.kg.resources.syntax._
 import ch.epfl.bluebrain.nexus.kg.resources.{Event, Files, Resource}
 import ch.epfl.bluebrain.nexus.kg.storage.Storage.StorageOperations.FetchAttributes
 import ch.epfl.bluebrain.nexus.sourcing.projections.ProjectionProgress.NoProgress
@@ -41,7 +40,7 @@ private abstract class ProjectAttributesCoordinatorActor(implicit val config: Ap
 
   def receive: Receive = {
     case Start(_, project: Project) =>
-      log.debug("Started attributes coordinator for project '{}'", project.projectLabel.show)
+      log.debug("Started attributes coordinator for project '{}'", project.show)
       context.become(initialized(project))
       child = Some(startCoordinator(project, restartOffset = false))
     case FetchProgress(_) => val _ = progress.runToFuture pipeTo sender()
@@ -51,7 +50,7 @@ private abstract class ProjectAttributesCoordinatorActor(implicit val config: Ap
 
   def initialized(project: Project): Receive = {
     case Stop(_) =>
-      log.info("Attributes process for project '{}' received a stop message.", project.projectLabel.show)
+      log.info("Attributes process for project '{}' received a stop message.", project.show)
       child.foreach(_.stop())
       child = None
       context.become(receive)
@@ -155,12 +154,12 @@ object ProjectAttributesCoordinatorActor {
         val processedEventsGauge = Kamon
           .gauge("digest_computation_gauge")
           .withTag("type", "digest")
-          .withTag("project", project.projectLabel.show)
+          .withTag("project", project.show)
           .withTag("organization", project.organizationLabel)
         val processedEventsCounter = Kamon
           .counter("digest_computation_counter")
           .withTag("type", "digest")
-          .withTag("project", project.projectLabel.show)
+          .withTag("project", project.show)
           .withTag("organization", project.organizationLabel)
         val processedEventsCount = AtomicLong(0L)
 

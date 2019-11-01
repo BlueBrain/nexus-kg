@@ -36,3 +36,8 @@ final case class Clients[F[_]]()(
     val uclJson: HttpClient[Task, Json],
     val mt: ActorMaterializer
 )
+
+object Clients {
+  implicit def esClient[F[_]](implicit clients: Clients[F]): ElasticSearchClient[F]  = clients.elasticSearch
+  implicit def sparqlClient[F[_]](implicit clients: Clients[F]): BlazegraphClient[F] = clients.sparql
+}

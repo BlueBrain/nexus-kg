@@ -6,8 +6,8 @@ import ch.epfl.bluebrain.nexus.admin.client.types.Project
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig
 import ch.epfl.bluebrain.nexus.kg.config.Contexts.{resourceCtx, resourceCtxUri}
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary._
-import ch.epfl.bluebrain.nexus.kg.indexing.ViewEncoder
 import ch.epfl.bluebrain.nexus.kg.resources.{Resource, ResourceV}
+import ch.epfl.bluebrain.nexus.kg.resources.Views._
 import ch.epfl.bluebrain.nexus.kg.routes.OutputFormat.{Compacted, Expanded}
 import ch.epfl.bluebrain.nexus.rdf.RootedGraph
 import ch.epfl.bluebrain.nexus.rdf.decoder.GraphDecoder.DecoderResult
@@ -49,14 +49,10 @@ object ResourceEncoder {
       val contextJson =
         Json.obj("@context" -> res.value.source.contextValue.removeKeys(resourceKeys: _*)).addContext(resourceCtxUri)
       val json = fieldsJson deepMerge contextJson
-      if (res.types.contains(nxv.ElasticSearchView.value)) ViewEncoder.transformToJson(json, nxv.mapping.prefix)
+      if (res.types.contains(nxv.View.value)) transformFetch(json)
       else json
     }
   }
 
-  private def jsonExpanded(r: ResourceV): DecoderResult[Json] =
-    r.as[Json]().map { json =>
-      if (r.types.contains(nxv.ElasticSearchView.value)) ViewEncoder.transformToJson(json, nxv.mapping.value.asString)
-      else json
-    }
+  private def jsonExpanded(r: ResourceV): DecoderResult[Json] = r.as[Json]()
 }

@@ -44,7 +44,7 @@ class ProjectAttributesCoordinator[F[_]](projectCache: ProjectCache[F], ref: Act
     * @return [[Statistics]] wrapped in [[F]]
     */
   def statistics(project: Project): F[Statistics] = {
-    lazy val label = project.projectLabel.show
+    lazy val label = project.show
     IO.fromFuture(IO(ref ? FetchProgress(project.uuid)))
       .to[F]
       .flatMap[Statistics] {

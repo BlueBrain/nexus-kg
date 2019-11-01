@@ -4,8 +4,9 @@ import java.time.format.DateTimeFormatter
 import java.time.{Instant, ZoneOffset}
 import java.util.UUID
 
-import akka.http.scaladsl.model.ContentType
+import akka.http.scaladsl.model.{ContentType, Uri}
 import ch.epfl.bluebrain.nexus.admin.client.types.Project
+import ch.epfl.bluebrain.nexus.commons.rdf.syntax._
 import ch.epfl.bluebrain.nexus.iam.client.types._
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig.HttpConfig
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary.nxv
@@ -24,6 +25,10 @@ import javax.crypto.SecretKey
 import scala.util.{Success, Try}
 
 object syntax {
+
+  implicit class ResIdSyntax(private val resId: ResId) extends AnyVal {
+    def toGraphUri: Uri = (resId.value + "graph").toAkkaUri
+  }
 
   implicit class EncoderResultSyntax[A](private val result: NodeEncoder.EncoderResult[A]) extends AnyVal {
     def onError(ref: Ref, field: String): Either[Rejection, A] =

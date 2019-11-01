@@ -35,6 +35,7 @@ import ch.epfl.bluebrain.nexus.kg.config.Settings
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary.nxv
 import ch.epfl.bluebrain.nexus.kg.indexing.View
 import ch.epfl.bluebrain.nexus.kg.indexing.View._
+import ch.epfl.bluebrain.nexus.kg.indexing.View.Filter
 import ch.epfl.bluebrain.nexus.kg.marshallers.instances._
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection.NotFound
 import ch.epfl.bluebrain.nexus.kg.resources.ResourceF.Value
@@ -159,9 +160,9 @@ class ViewRoutesSpec
     }
 
     // format: off
-    val otherEsView = ElasticSearchView(Json.obj(), Set.empty, Set.empty, None, false, true, true, projectRef, nxv.withSuffix("otherEs").value, genUUID, 1L, false)
-    val defaultSQLView = SparqlView(Set.empty, Set.empty, None, true, true, projectRef, nxv.defaultSparqlIndex.value, genUuid, 1L, false)
-    val otherSQLView = SparqlView(Set.empty, Set.empty, None, true, true, projectRef, nxv.withSuffix("otherSparql").value, genUUID, 1L, false)
+    val otherEsView = ElasticSearchView(Json.obj(), Filter(), false, true, projectRef, nxv.withSuffix("otherEs").value, genUUID, 1L, false)
+    val defaultSQLView = SparqlView(Filter(), true, projectRef, nxv.defaultSparqlIndex.value, genUuid, 1L, false)
+    val otherSQLView = SparqlView(Filter(), true, projectRef, nxv.withSuffix("otherSparql").value, genUUID, 1L, false)
     val aggEsView = AggregateElasticSearchView(Set(ViewRef(projectRef, nxv.defaultElasticSearchIndex.value), ViewRef(projectRef, nxv.withSuffix("otherEs").value)), projectRef, genUUID, nxv.withSuffix("agg").value, 1L, false)
     val aggSparqlView = AggregateSparqlView(Set(ViewRef(projectRef, nxv.defaultSparqlIndex.value), ViewRef(projectRef, nxv.withSuffix("otherSparql").value)), projectRef, genUUID, nxv.withSuffix("aggSparql").value, 1L, false)
     // format: on

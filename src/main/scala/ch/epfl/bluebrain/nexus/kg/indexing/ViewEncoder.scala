@@ -3,6 +3,7 @@ package ch.epfl.bluebrain.nexus.kg.indexing
 import cats.Id
 import cats.syntax.show._
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary._
+import ch.epfl.bluebrain.nexus.kg.indexing.View.CompositeView.Projection
 import ch.epfl.bluebrain.nexus.kg.indexing.View._
 import ch.epfl.bluebrain.nexus.rdf.Graph.Triple
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
@@ -12,26 +13,11 @@ import ch.epfl.bluebrain.nexus.rdf.Vocabulary._
 import ch.epfl.bluebrain.nexus.rdf.encoder.GraphEncoder.EncoderResult
 import ch.epfl.bluebrain.nexus.rdf.encoder.{GraphEncoder, RootNode}
 import ch.epfl.bluebrain.nexus.rdf.instances._
-import io.circe.Json
-import io.circe.parser.parse
 
 /**
   * Encoders for [[View]]
   */
 object ViewEncoder {
-
-  /**
-    * Attempts to find the key ''field'' on the top Json level and transform the string value to Json. This will work
-    * E.g.: {"field": "{\"a\": \"b\"}"} will be converted to {"field": {"a": "b"}}
-    *
-    * @param json the json to be transformed
-    */
-  def transformToJson(json: Json, field: String): Json =
-    json.hcursor
-      .get[String](field)
-      .flatMap(parse)
-      .map(value => json deepMerge Json.obj(field -> value))
-      .getOrElse(json)
 
   implicit val viewRootNode: RootNode[View] = v => IriNode(v.id)
 
@@ -40,19 +26,22 @@ object ViewEncoder {
     case `Set[ViewRef[ProjectLabel]]`(viewLabes) => viewLabes.map(v => ViewRef(v.project.show, v.id))
   }
 
-  implicit val viewGraphEncoder: GraphEncoder[Id, View] = GraphEncoder {
-    case (
-        rootNode,
-        view @ ElasticSearchView(map, schemas, types, tags, includeMeta, includeDep, sourceAsText, _, _, _, _, _)
-        ) =>
-      val triples = view.mainTriples(nxv.ElasticSearchView) ++ view.triplesFor(schemas, types) ++
-        view.triplesFor(includeMeta, includeDep, tags) ++ view.triplesFor(sourceAsText, map)
-      RootedGraph(rootNode, triples)
+  private def triples(rootNode: IriOrBNode, view: SparqlView) =
+    filterTriples(rootNode, view.filter) + metadataTriple(rootNode, view.includeMetadata)
 
-    case (rootNode, view @ SparqlView(schemas, types, tags, includeMeta, includeDep, _, _, _, _, _)) =>
-      val triples = view.mainTriples(nxv.SparqlView) ++ view.triplesFor(schemas, types) ++ view
-        .triplesFor(includeMeta, includeDep, tags)
-      RootedGraph(rootNode, triples)
+  private def triples(rootNode: IriOrBNode, view: ElasticSearchView) =
+    Set[Triple](
+      metadataTriple(rootNode, view.includeMetadata),
+      (rootNode, nxv.mapping, view.mapping.noSpaces),
+      (rootNode, nxv.sourceAsText, view.sourceAsText)
+    ) ++ filterTriples(rootNode, view.filter)
+
+  implicit val viewGraphEncoder: GraphEncoder[Id, View] = GraphEncoder {
+    case (rootNode, view: ElasticSearchView) =>
+      RootedGraph(rootNode, triples(rootNode, view) ++ view.mainTriples(nxv.ElasticSearchView))
+
+    case (rootNode, view: SparqlView) =>
+      RootedGraph(rootNode, triples(rootNode, view) ++ view.mainTriples(nxv.SparqlView))
 
     case (rootNode, view: AggregateElasticSearchView[_]) =>
       val triples = view.mainTriples(nxv.AggregateElasticSearchView) ++ view.triplesForView(refsString(view))
@@ -62,9 +51,44 @@ object ViewEncoder {
       val triples = view.mainTriples(nxv.AggregateSparqlView) ++ view.triplesForView(refsString(view))
       RootedGraph(rootNode, triples)
 
+    case (rootNode, view @ CompositeView(source, projections, _, _, _, _, _)) =>
+      val sourceBNode = blank
+      val sourceTriples = Set[Triple](
+        (rootNode, nxv.sources, sourceBNode),
+        (sourceBNode, rdf.tpe, nxv.ProjectEventStream)
+      ) ++ filterTriples(sourceBNode, source.filter) + metadataTriple(sourceBNode, source.includeMetadata)
+      val projectionsTriples = projections.flatMap {
+        case Projection.ElasticSearchProjection(query, view, context) =>
+          val node: IriNode = view.id
+          Set[Triple](
+            (rootNode, nxv.projections, node),
+            (node, rdf.tpe, nxv.ElasticSearch),
+            (node, nxv.query, query),
+            (node, nxv.uuid, view.uuid.toString),
+            (node, nxv.context, context.noSpaces)
+          ) ++ triples(node, view)
+        case Projection.SparqlProjection(query, view) =>
+          val node: IriNode = view.id
+          Set[Triple](
+            (rootNode, nxv.projections, node),
+            (node, rdf.tpe, nxv.Sparql),
+            (node, nxv.query, query),
+            (node, nxv.uuid, view.uuid.toString)
+          ) ++ triples(node, view)
+      }
+      RootedGraph(rootNode, view.mainTriples(nxv.CompositeView) ++ sourceTriples ++ projectionsTriples)
   }
 
   implicit val viewGraphEncoderEither: GraphEncoder[EncoderResult, View] = viewGraphEncoder.toEither
+
+  private def filterTriples(s: IriOrBNode, filter: Filter): Set[Triple] =
+    filter.resourceSchemas.map(r => (s, nxv.resourceSchemas, r): Triple) ++
+      filter.resourceTypes.map(r => (s, nxv.resourceTypes, r): Triple) +
+      ((s, nxv.includeDeprecated, filter.includeDeprecated): Triple) ++
+      filter.resourceTag.map(resourceTag => (s, nxv.resourceTag, resourceTag): Triple)
+
+  private def metadataTriple(s: IriOrBNode, includeMetadata: Boolean): Triple =
+    (s, nxv.includeMetadata, includeMetadata)
 
   private implicit class ViewSyntax(view: View) {
     private val s = IriNode(view.id)
@@ -77,29 +101,11 @@ object ViewEncoder {
         (s, nxv.rev, view.rev)
       ) ++ tpe.map(t => (s, rdf.tpe, t): Triple).toSet
 
-    def triplesFor(resourceSchemas: Set[AbsoluteIri], resourceTypes: Set[AbsoluteIri]): Set[Triple] =
-      resourceSchemas.map(r => (s, nxv.resourceSchemas, r): Triple) ++
-        resourceTypes.map(r => (s, nxv.resourceTypes, r): Triple)
-
     def triplesForView(views: Set[ViewRef[String]]): Set[Triple] =
       views.flatMap { viewRef =>
         val ss = blank
         Set[Triple]((s, nxv.views, ss), (ss, nxv.viewId, viewRef.id), (ss, nxv.project, viewRef.project))
       }
-
-    def triplesFor(
-        includeMetadata: Boolean,
-        includeDeprecated: Boolean,
-        resourceTagOpt: Option[String]
-    ): Set[Triple] = {
-      val triple: Set[Triple] =
-        Set((s, nxv.includeMetadata, includeMetadata), (s, nxv.includeDeprecated, includeDeprecated))
-      resourceTagOpt.map(resourceTag => triple + ((s, nxv.resourceTag, resourceTag): Triple)).getOrElse(triple)
-    }
-
-    def triplesFor(sourceAsText: Boolean, mapping: Json): Set[Triple] = {
-      Set[Triple]((s, nxv.sourceAsText, sourceAsText), (s, nxv.mapping, mapping.noSpaces))
-    }
 
   }
 }

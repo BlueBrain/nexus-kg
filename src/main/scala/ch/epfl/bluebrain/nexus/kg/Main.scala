@@ -121,7 +121,6 @@ object Main {
     implicit val aclCache                         = AclsCache[Task](clients.iam)
     implicit val projectResolution                = ProjectResolution.task(repo, cache.resolver, cache.project, aclCache)
     implicit val materializer: Materializer[Task] = new Materializer[Task](projectResolution, cache.project)
-    import indexers.elasticSearch
 
     val resources: Resources[Task] = Resources[Task]
     val storages: Storages[Task]   = Storages[Task]
@@ -151,6 +150,7 @@ object Main {
         import ch.epfl.bluebrain.nexus.kg.serializers.Serializer._
         Projections[Task, Event].runSyncUnsafe(10 seconds)(Scheduler.global, CanBlock.permit)
       }
+
       val projectViewCoordinator   = ProjectViewCoordinator(resources, cache)
       val projectDigestCoordinator = ProjectAttributesCoordinator(files, cache.project)
       implicit val projectInitializer =
