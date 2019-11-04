@@ -25,6 +25,7 @@ import ch.epfl.bluebrain.nexus.kg.indexing.View.Filter
 import ch.epfl.bluebrain.nexus.kg.indexing.ViewEncoder._
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection.InvalidResourceFormat
 import ch.epfl.bluebrain.nexus.kg.resources.{Id, ProjectLabel, ProjectRef}
+import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import ch.epfl.bluebrain.nexus.rdf.syntax._
 import io.circe.Json
 import org.mockito.IdiomaticMockito
@@ -51,6 +52,16 @@ class ViewSpec
   private implicit val client: BlazegraphClient[IO] = mock[BlazegraphClient[IO]]
 
   "A View" when {
+
+    def compositeview(
+        id1: AbsoluteIri = url"http://example.com/es".value,
+        id2: AbsoluteIri = url"http://example.com/sparql".value
+    ) =
+      jsonContentOf(
+        "/view/composite-view.json",
+        Map(quote("{projection1_id}") -> id1.asString, quote("{projection2_id}") -> id2.asString)
+      ).appendContextOf(viewCtx)
+
     val mapping              = jsonContentOf("/elasticsearch/mapping.json")
     val iri                  = url"http://example.com/id".value
     val elasticSearchIri     = url"http://example.com/es".value
@@ -58,7 +69,6 @@ class ViewSpec
     val projectRef           = ProjectRef(genUUID)
     val id                   = Id(projectRef, iri)
     val sparqlview           = jsonContentOf("/view/sparqlview.json").appendContextOf(viewCtx)
-    val compositeview        = jsonContentOf("/view/composite-view.json").appendContextOf(viewCtx)
     val sparqlview2          = jsonContentOf("/view/sparqlview-tag-schema.json").appendContextOf(viewCtx)
     val elasticSearchview    = jsonContentOf("/view/elasticview.json").appendContextOf(viewCtx)
     val aggElasticSearchView = jsonContentOf("/view/aggelasticview.json").appendContextOf(viewCtx)
@@ -103,7 +113,7 @@ class ViewSpec
     "constructing" should {
 
       "return a CompositeView" in {
-        val resource = simpleV(id, compositeview, types = Set(nxv.View, nxv.CompositeView))
+        val resource = simpleV(id, compositeview(), types = Set(nxv.View, nxv.CompositeView))
         View(resource).right.value shouldEqual
           CompositeView(
             source,
@@ -295,7 +305,13 @@ class ViewSpec
       }
 
       "fail on CompositeView when types are wrong" in {
-        val resource = simpleV(id, compositeview, types = Set(nxv.View))
+        val resource = simpleV(id, compositeview(), types = Set(nxv.View))
+        View(resource).left.value shouldBe a[InvalidResourceFormat]
+      }
+
+      "fail on CompositeView when duplicated projection @id" in {
+        val resource =
+          simpleV(id, compositeview(genIri, nxv.defaultSparqlIndex), types = Set(nxv.View, nxv.CompositeView))
         View(resource).left.value shouldBe a[InvalidResourceFormat]
       }
 
@@ -315,7 +331,6 @@ class ViewSpec
         val json     = jsonContentOf("/view/composite-view-wrong.json").appendContextOf(viewCtx)
         val resource = simpleV(id, json, types = Set(nxv.View, nxv.CompositeView))
         View(resource).left.value shouldBe a[InvalidResourceFormat]
-
       }
 
       "fail on SparqlView when types are wrong" in {

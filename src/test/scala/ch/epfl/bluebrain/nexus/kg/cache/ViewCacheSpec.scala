@@ -9,6 +9,8 @@ import ch.epfl.bluebrain.nexus.kg.config.AppConfig._
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary.nxv
 import ch.epfl.bluebrain.nexus.kg.config.{AppConfig, Settings}
 import ch.epfl.bluebrain.nexus.kg.indexing.View
+import ch.epfl.bluebrain.nexus.kg.indexing.View.CompositeView.Projection.{ElasticSearchProjection, SparqlProjection}
+import ch.epfl.bluebrain.nexus.kg.indexing.View.CompositeView.Source
 import ch.epfl.bluebrain.nexus.kg.indexing.View._
 import ch.epfl.bluebrain.nexus.kg.resources.{ProjectLabel, ProjectRef}
 import io.circe.Json
@@ -65,13 +67,22 @@ class ViewCacheSpec
     List.fill(5)(esView.copy(mapping = genJson, id = genIri + "elasticSearch2", uuid = genUUID, ref = ref2)).toSet
   val sparqlViewsProj2: Set[SparqlView] =
     List.fill(5)(sparqlView.copy(id = genIri + "sparql2", uuid = genUUID, ref = ref2)).toSet
+  val compositeView = CompositeView(
+    Source(Filter(), false),
+    Set(ElasticSearchProjection("", esViewsProj1.head, Json.obj()), SparqlProjection("", sparqlViewsProj1.head)),
+    ref1,
+    genIri,
+    genUUID,
+    1L,
+    false
+  )
 
   private val cache = ViewCache[Task]
 
   "ViewCache" should {
 
     "index views" in {
-      val list = (esViewsProj1 ++ sparqlViewsProj1 ++ esViewsProj2 ++ sparqlViewsProj2).toList
+      val list = (esViewsProj1 ++ sparqlViewsProj1 ++ esViewsProj2 ++ sparqlViewsProj2 ++ Set(compositeView)).toList
       forAll(list) { view =>
         cache.put(view).runToFuture.futureValue
         cache.getBy[View](view.ref, view.id).runToFuture.futureValue shouldEqual Some(view)
@@ -87,8 +98,24 @@ class ViewCacheSpec
       }
     }
 
+    "get projections" in {
+      val esView      = esViewsProj1.head
+      val sparqlView  = sparqlViewsProj1.head
+      val defaultView = compositeView.defaultSparqlView
+      cache.getProjectionBy[ElasticSearchView](ref1, compositeView.id, esView.id).runToFuture.futureValue shouldEqual
+        Some(esView)
+      cache.getProjectionBy[View](ref1, compositeView.id, esView.id).runToFuture.futureValue shouldEqual
+        Some(esView)
+      cache.getProjectionBy[SparqlView](ref1, compositeView.id, esView.id).runToFuture.futureValue shouldEqual
+        None
+      cache.getProjectionBy[SparqlView](ref1, compositeView.id, sparqlView.id).runToFuture.futureValue shouldEqual
+        Some(sparqlView)
+      cache.getProjectionBy[SparqlView](ref1, compositeView.id, defaultView.id).runToFuture.futureValue shouldEqual
+        Some(defaultView)
+    }
+
     "list views" in {
-      cache.get(ref1).runToFuture.futureValue shouldEqual (esViewsProj1 ++ sparqlViewsProj1)
+      cache.get(ref1).runToFuture.futureValue shouldEqual (esViewsProj1 ++ sparqlViewsProj1 ++ Set(compositeView))
       cache.get(ref2).runToFuture.futureValue shouldEqual (esViewsProj2 ++ sparqlViewsProj2)
     }
 
@@ -101,7 +128,7 @@ class ViewCacheSpec
       val view = esViewsProj1.head
       cache.put(view.copy(deprecated = true, rev = 2L)).runToFuture.futureValue
       cache.getBy[View](view.ref, view.id).runToFuture.futureValue shouldEqual None
-      val expectedSet = esViewsProj1.filterNot(_ == view) ++ sparqlViewsProj1
+      val expectedSet = esViewsProj1.filterNot(_ == view) ++ sparqlViewsProj1 ++ Set(compositeView)
       cache.get(ref1).runToFuture.futureValue shouldEqual expectedSet
     }
 
@@ -112,6 +139,7 @@ class ViewCacheSpec
         val out   = serialization.deserialize(bytes, classOf[AggregateElasticSearchView[ProjectRef]]).success.value
         out shouldEqual aggRefsView
       }
+
       "parameterized with ProjectLabel" in {
         val bytes = serialization.serialize(aggLabelsView).success.value
         val out   = serialization.deserialize(bytes, classOf[AggregateElasticSearchView[ProjectLabel]]).success.value

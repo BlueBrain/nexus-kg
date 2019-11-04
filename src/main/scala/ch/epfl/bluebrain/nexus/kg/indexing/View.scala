@@ -277,9 +277,16 @@ object View {
         } yield ElasticSearchProjection(query, view.copy(id = id), context)
       }
 
+      def checkNotAllowedSparql(id: AbsoluteIri): Either[Rejection, Unit] =
+        if (id == nxv.defaultSparqlIndex.value)
+          Left(InvalidResourceFormat(res.id.ref, s"'$id' cannot be '${nxv.defaultSparqlIndex}'."): Rejection)
+        else
+          Right(())
+
       def sparqlProjection(c: GraphCursor): Either[Rejection, Projection] =
         for {
           id    <- c.focus.as[AbsoluteIri].onError(res.id.ref, "@id")
+          _     <- checkNotAllowedSparql(id)
           query <- c.downField(nxv.query).focus.as[String].onError(res.id.ref, nxv.query.prefix)
           view  <- sparql(c)
         } yield SparqlProjection(query, view.copy(id = id))
@@ -551,7 +558,7 @@ object View {
     override def filter: Filter = source.filter
 
     def defaultSparqlView: SparqlView =
-      SparqlView(filter, source.includeMetadata, ref, id, uuid, rev, deprecated)
+      SparqlView(filter, source.includeMetadata, ref, nxv.defaultSparqlIndex.value, uuid, rev, deprecated)
 
   }
 

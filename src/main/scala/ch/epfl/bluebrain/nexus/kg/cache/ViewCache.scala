@@ -79,9 +79,12 @@ class ViewCache[F[_]: Timer] private (projectToCache: ConcurrentHashMap[UUID, Vi
   ): F[Option[T]] = {
     val tpe = TypeCase[T]
     getBy[CompositeView](ref, viewId).map { viewOpt =>
-      viewOpt.flatMap(_.projections.map(_.view).collectFirst {
-        case tpe(v) if v.id == projectionId => v
-      })
+      viewOpt.flatMap { view =>
+        val projections = view.projections.map(_.view) + view.defaultSparqlView
+        projections.collectFirst {
+          case tpe(v) if v.id == projectionId => v
+        }
+      }
     }
   }
 

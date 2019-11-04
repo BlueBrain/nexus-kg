@@ -219,8 +219,8 @@ class ViewRoutes private[routes] (
           }
         }
       },
-      (post & pathPrefix(IdSegment / IdSegment / "sparql") & pathEndOrSingleSlash) { (id, projId) =>
-        operationName(s"/${config.http.prefix}/views/{}/{}/{}/{}/sparql") {
+      (post & pathPrefix(IdSegment / "projections" / IdSegment / "sparql") & pathEndOrSingleSlash) { (id, projId) =>
+        operationName(s"/${config.http.prefix}/views/{}/{}/{}/projections/{}/sparql") {
           hasPermission(query).apply {
             entity(as[String]) { query =>
               val result = viewCache.getProjectionBy[View](project.ref, id, projId).flatMap(runSearch(id, query))
@@ -274,8 +274,8 @@ class ViewRoutes private[routes] (
           }
         }
       },
-      (post & pathPrefix(IdSegment / IdSegment / "_search") & pathEndOrSingleSlash) { (id, projId) =>
-        operationName(s"/${config.http.prefix}/views/{}/{}/{}/{}/_search") {
+      (post & pathPrefix(IdSegment / "projections" / IdSegment / "_search") & pathEndOrSingleSlash) { (id, projId) =>
+        operationName(s"/${config.http.prefix}/views/{}/{}/{}/projections/{}/_search") {
           (hasPermission(query) & extract(_.request.uri.query())) { params =>
             entity(as[Json]) { query =>
               val result =
