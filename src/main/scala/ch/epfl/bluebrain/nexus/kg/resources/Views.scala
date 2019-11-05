@@ -1,17 +1,17 @@
 package ch.epfl.bluebrain.nexus.kg.resources
 
+import java.util.UUID
+
 import cats.data.EitherT
 import cats.effect.{Effect, Timer}
 import cats.implicits._
 import cats.{Id => CId}
 import ch.epfl.bluebrain.nexus.admin.client.types.Project
-import ch.epfl.bluebrain.nexus.commons.es.client.ElasticSearchClient
 import ch.epfl.bluebrain.nexus.commons.es.client.ElasticSearchFailure.ElasticSearchClientError
 import ch.epfl.bluebrain.nexus.commons.http.HttpClient
 import ch.epfl.bluebrain.nexus.commons.rdf.syntax._
 import ch.epfl.bluebrain.nexus.commons.search.{FromPagination, Pagination}
 import ch.epfl.bluebrain.nexus.commons.shacl.ShaclEngine
-import ch.epfl.bluebrain.nexus.commons.sparql.client.BlazegraphClient
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity.Subject
 import ch.epfl.bluebrain.nexus.iam.client.types.{AccessControlLists, Caller}
 import ch.epfl.bluebrain.nexus.kg.KgError.InternalError
@@ -27,8 +27,10 @@ import ch.epfl.bluebrain.nexus.kg.resolve.Materializer
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection.NotFound._
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection._
 import ch.epfl.bluebrain.nexus.kg.resources.ResourceF.Value
+import ch.epfl.bluebrain.nexus.kg.resources.Views._
 import ch.epfl.bluebrain.nexus.kg.resources.syntax._
-import ch.epfl.bluebrain.nexus.kg.routes.SearchParams
+import ch.epfl.bluebrain.nexus.kg.routes.Clients._
+import ch.epfl.bluebrain.nexus.kg.routes.{Clients, SearchParams}
 import ch.epfl.bluebrain.nexus.kg.uuid
 import ch.epfl.bluebrain.nexus.rdf.Graph.Triple
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
@@ -36,9 +38,11 @@ import ch.epfl.bluebrain.nexus.rdf.RootedGraph
 import ch.epfl.bluebrain.nexus.rdf.Vocabulary.rdf
 import ch.epfl.bluebrain.nexus.rdf.instances._
 import ch.epfl.bluebrain.nexus.rdf.syntax._
-import io.circe.Json
+import io.circe.{Encoder, Json}
 import io.circe.parser.parse
+import io.circe.syntax._
 import org.apache.jena.rdf.model.Model
+import ch.epfl.bluebrain.nexus.kg.resources.Resources.generateId
 
 class Views[F[_]: Timer](repo: Repo[F])(
     implicit F: Effect[F],
@@ -46,7 +50,7 @@ class Views[F[_]: Timer](repo: Repo[F])(
     config: AppConfig,
     projectCache: ProjectCache[F],
     viewCache: ViewCache[F],
-    esClient: ElasticSearchClient[F]
+    clients: Clients[F]
 ) {
 
   /**
@@ -61,7 +65,7 @@ class Views[F[_]: Timer](repo: Repo[F])(
     * @return either a rejection or the newly created resource in the F context
     */
   def create(source: Json)(implicit acls: AccessControlLists, caller: Caller, project: Project): RejOrResource[F] =
-    materializer(transform(source)).flatMap {
+    materializer(transformSave(source)).flatMap {
       case (id, Value(_, _, graph)) => create(Id(project.ref, id), graph)
     }
 
@@ -79,7 +83,7 @@ class Views[F[_]: Timer](repo: Repo[F])(
       extractUuid: Boolean = false
   )(implicit acls: AccessControlLists, caller: Caller, project: Project): RejOrResource[F] = {
     val sourceUuid = if (extractUuid) extractUuidFrom(source) else uuid()
-    materializer(transform(source, sourceUuid), id.value).flatMap {
+    materializer(transformSave(source, sourceUuid), id.value).flatMap {
       case Value(_, _, graph) => create(id, graph)
     }
   }
@@ -99,7 +103,7 @@ class Views[F[_]: Timer](repo: Repo[F])(
   )(implicit acls: AccessControlLists, caller: Caller, project: Project): RejOrResource[F] =
     for {
       curr     <- repo.get(id, Some(viewRef)).toRight(notFound(id.ref, schema = Some(viewRef)))
-      matValue <- materializer(transform(source, extractUuidFrom(curr.value)), id.value)
+      matValue <- materializer(transformSave(source, extractUuidFrom(curr.value)), id.value)
       typedGraph = addViewType(id.value, matValue.graph)
       types      = typedGraph.rootTypes.map(_.value)
       _       <- validateShacl(typedGraph)
@@ -120,9 +124,23 @@ class Views[F[_]: Timer](repo: Repo[F])(
     repo.deprecate(id, viewRef, rev)
 
   /**
+    * Fetches the provided revision of the view.
+    *
+    * @param id  the id of the view
+    * @param rev the revision of the view
+    * @return Some(view) in the F context when found and None in the F context when not found
+    */
+  def fetchView(id: ResId, rev: Long)(implicit project: Project): EitherT[F, Rejection, View] =
+    for {
+      resource  <- repo.get(id, rev, Some(viewRef)).toRight(notFound(id.ref, rev = Some(rev), schema = Some(viewRef)))
+      resourceV <- materializer.withMeta(resource)
+      view      <- EitherT.fromEither[F](View(resourceV))
+    } yield view
+
+  /**
     * Fetches the latest revision of a view.
     *
-    * @param id the id of the resolver
+    * @param id the id of the view
     * @return Some(view) in the F context when found and None in the F context when not found
     */
   def fetchView(id: ResId)(implicit project: Project): EitherT[F, Rejection, View] =
@@ -139,7 +157,7 @@ class Views[F[_]: Timer](repo: Repo[F])(
     * @return Right(source) in the F context when found and Left(NotFound) in the F context when not found
     */
   def fetchSource(id: ResId): RejOrSource[F] =
-    repo.get(id, Some(viewRef)).map(_.value).map(transformMapping).toRight(notFound(id.ref, schema = Some(viewRef)))
+    repo.get(id, Some(viewRef)).map(_.value).map(transformFetch).toRight(notFound(id.ref, schema = Some(viewRef)))
 
   /**
     * Fetches the provided revision of the view source
@@ -152,7 +170,7 @@ class Views[F[_]: Timer](repo: Repo[F])(
     repo
       .get(id, rev, Some(viewRef))
       .map(_.value)
-      .map(transformMapping)
+      .map(transformFetch)
       .toRight(notFound(id.ref, rev = Some(rev), schema = Some(viewRef)))
 
   /**
@@ -166,14 +184,8 @@ class Views[F[_]: Timer](repo: Repo[F])(
     repo
       .get(id, tag, Some(viewRef))
       .map(_.value)
-      .map(transformMapping)
+      .map(transformFetch)
       .toRight(notFound(id.ref, tag = Some(tag), schema = Some(viewRef)))
-
-  private def transformMapping(json: Json): Json =
-    json.hcursor.downField(nxv.mapping.prefix).focus.flatMap(_.asString).flatMap(parse(_).toOption) match {
-      case Some(parsed) => json deepMerge Json.obj(nxv.mapping.prefix -> parsed)
-      case None         => json
-    }
 
   /**
     * Fetches the latest revision of a view.
@@ -225,9 +237,7 @@ class Views[F[_]: Timer](repo: Repo[F])(
     * @param pagination pagination options
     * @return search results in the F context
     */
-  def listIncoming(id: AbsoluteIri, view: Option[SparqlView], pagination: FromPagination)(
-      implicit sparql: BlazegraphClient[F]
-  ): F[LinkResults] =
+  def listIncoming(id: AbsoluteIri, view: Option[SparqlView], pagination: FromPagination): F[LinkResults] =
     incoming(id, view, pagination)
 
   /**
@@ -244,7 +254,7 @@ class Views[F[_]: Timer](repo: Repo[F])(
       view: Option[SparqlView],
       pagination: FromPagination,
       includeExternalLinks: Boolean
-  )(implicit sparql: BlazegraphClient[F]): F[LinkResults] =
+  ): F[LinkResults] =
     outgoing(id, view, pagination, includeExternalLinks)
 
   private def fetch(resource: Resource)(implicit project: Project): RejOrResourceV[F] =
@@ -303,13 +313,32 @@ class Views[F[_]: Timer](repo: Repo[F])(
     EitherT.fromEither[F](jsonOrMarshallingErr).leftSemiflatMap(fromMarshallingErr(view.id, _)(F))
   }
 
-  private def transform(source: Json, uuidField: String = uuid()): Json = {
+  private def transformSave(source: Json, uuidField: String = uuid())(implicit project: Project): Json = {
     val transformed = source.addContext(viewCtxUri) deepMerge Json.obj(nxv.uuid.prefix -> Json.fromString(uuidField))
-    transformed.hcursor.get[Json]("mapping") match {
-      case Right(m) if m.isObject => transformed deepMerge Json.obj("mapping" -> Json.fromString(m.noSpaces))
-      case _                      => transformed
-    }
+    val withMapping = toText(transformed, nxv.mapping.prefix)
+    withMapping.hcursor
+      .get[Vector[Json]](nxv.projections.prefix)
+      .map { projections =>
+        val pTransformed = projections.map { projection =>
+          val flattened = toText(projection, nxv.mapping.prefix, nxv.context.prefix)
+          addIfMissing(flattened, "@id", generateId(project.base)) deepMerge Json
+            .obj(nxv.uuid.prefix -> UUID.randomUUID().toString.asJson)
+        }
+        withMapping deepMerge Json.obj(nxv.projections.prefix -> pTransformed.asJson)
+      }
+      .getOrElse(withMapping)
   }
+
+  private def addIfMissing[A: Encoder](json: Json, field: String, value: A): Json =
+    if (json.hcursor.downField(field).succeeded) json else json deepMerge Json.obj(field -> value.asJson)
+
+  private def toText(json: Json, fields: String*) =
+    fields.foldLeft(json) { (acc, field) =>
+      acc.hcursor.get[Json](field) match {
+        case Right(value) if value.isObject => acc deepMerge Json.obj(field -> value.noSpaces.asJson)
+        case _                              => acc
+      }
+    }
 
   private def extractUuidFrom(source: Json): String =
     source.hcursor.get[String](nxv.uuid.prefix).getOrElse(uuid())
@@ -338,9 +367,33 @@ object Views {
     * @tparam F the monadic effect type
     * @return a new [[Views]] for the provided F type
     */
-  final def apply[F[_]: Timer: Effect: ProjectCache: ViewCache: ElasticSearchClient: Materializer](
+  final def apply[F[_]: Timer: Effect: ProjectCache: ViewCache: Clients: Materializer](
       implicit config: AppConfig,
       repo: Repo[F]
   ): Views[F] =
     new Views[F](repo)
+
+  /**
+    * Converts the inline json values
+    */
+  def transformFetch(json: Json): Json = {
+    val withMapping = fromText(json, nxv.mapping.prefix)
+    withMapping.hcursor
+      .get[Vector[Json]](nxv.projections.prefix)
+      .map { projections =>
+        val transformed = projections.map { projection =>
+          fromText(projection, nxv.mapping.prefix, nxv.context.prefix)
+        }
+        withMapping deepMerge Json.obj(nxv.projections.prefix -> transformed.asJson)
+      }
+      .getOrElse(withMapping)
+  }
+
+  private def fromText(json: Json, fields: String*) =
+    fields.foldLeft(json) { (acc, field) =>
+      acc.hcursor.get[String](field).flatMap(parse(_)) match {
+        case Right(parsed) => acc deepMerge Json.obj(field -> parsed)
+        case _             => acc
+      }
+    }
 }

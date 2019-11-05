@@ -7,12 +7,11 @@ import ch.epfl.bluebrain.nexus.admin.client.types.Project
 import ch.epfl.bluebrain.nexus.iam.client.types.AuthToken
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity.Subject
 import ch.epfl.bluebrain.nexus.kg.cache.ProjectCache
-import ch.epfl.bluebrain.nexus.kg.indexing.View.SingleView
-import ch.epfl.bluebrain.nexus.kg.resources.{Id, OrganizationRef, ProjectInitializer, ProjectRef, ResourceV}
+import ch.epfl.bluebrain.nexus.kg.indexing.View.FilteredView
+import ch.epfl.bluebrain.nexus.kg.resources.{OrganizationRef, ProjectInitializer, ProjectRef, ResourceV}
 
 package object indexing {
-  type Identified[I, A] = (Id[I], A)
-  implicit class ListResourcesSyntax[I, A](private val events: List[Identified[I, A]]) extends AnyVal {
+  implicit class ListResourcesSyntax[A](private val events: List[(ResourceV, A)]) extends AnyVal {
 
     /**
       * Remove events with duplicated ''id''. In case of duplication found, the last element is kept and the previous removed.
@@ -20,7 +19,8 @@ package object indexing {
       * @return a new list without duplicated ids
       */
     def removeDupIds: List[A] =
-      events.groupBy { case (id, _) => id }.values.flatMap(_.lastOption.map { case (_, elem) => elem }).toList
+      events.groupBy { case (res, _) => res.id }.values.flatMap(_.lastOption.map { case (_, elem) => elem }).toList
+
   }
 
   /**
@@ -58,9 +58,9 @@ package object indexing {
       }
   }
 
-  private[indexing] def validTypes(view: SingleView, resource: ResourceV): Boolean =
-    view.resourceTypes.isEmpty || view.resourceTypes.intersect(resource.types).nonEmpty
+  private[indexing] def validTypes(view: FilteredView, resource: ResourceV): Boolean =
+    view.filter.resourceTypes.isEmpty || view.filter.resourceTypes.intersect(resource.types).nonEmpty
 
-  private[indexing] def validSchema(view: SingleView, resource: ResourceV): Boolean =
-    view.resourceSchemas.isEmpty || view.resourceSchemas.contains(resource.schema.iri)
+  private[indexing] def validSchema(view: FilteredView, resource: ResourceV): Boolean =
+    view.filter.resourceSchemas.isEmpty || view.filter.resourceSchemas.contains(resource.schema.iri)
 }

@@ -12,7 +12,9 @@ import ch.epfl.bluebrain.nexus.kg.config.AppConfig
 import ch.epfl.bluebrain.nexus.kg.config.Contexts.resourceCtxUri
 import ch.epfl.bluebrain.nexus.kg.config.Schemas._
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary.nxv
-import ch.epfl.bluebrain.nexus.kg.indexing.View.{ElasticSearchView, SparqlView}
+import ch.epfl.bluebrain.nexus.kg.indexing.View.CompositeView.Projection.{ElasticSearchProjection, SparqlProjection}
+import ch.epfl.bluebrain.nexus.kg.indexing.View.CompositeView.Source
+import ch.epfl.bluebrain.nexus.kg.indexing.View.{CompositeView, ElasticSearchView, Filter, SparqlView}
 import ch.epfl.bluebrain.nexus.kg.resources.{Id, OrganizationRef, ProjectLabel, ProjectRef, Ref}
 import ch.epfl.bluebrain.nexus.kg.{urlEncode, TestHelper}
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
@@ -70,8 +72,9 @@ trait RoutesFixtures extends TestHelper with Resources {
   // format: off
   val projectMeta = Project(id.value, project, organization, None, url"http://example.com/", nxv.base, mappings, projectRef.id, organizationRef.id, 1L, false, Instant.EPOCH, genIri, Instant.EPOCH, genIri)
 
-  val defaultEsView = ElasticSearchView(Json.obj(), Set.empty, Set.empty, None, false, true, true, projectRef, nxv.defaultElasticSearchIndex.value, genUUID, 1L, false)
+  val defaultEsView = ElasticSearchView(Json.obj(), Filter(), false, true, projectRef, nxv.defaultElasticSearchIndex.value, genUUID, 1L, false)
   val defaultSparqlView = SparqlView.default(projectRef)
+  val compositeView = CompositeView(Source(Filter(), includeMetadata = false), Set(SparqlProjection("", defaultSparqlView), ElasticSearchProjection("", defaultEsView, Json.obj())), projectRef, genIri, genUUID, 1L, deprecated = false)
   // format: on
 
   implicit val finalProject = projectMeta.copy(apiMappings = projectMeta.apiMappings ++ defaultPrefixMapping)

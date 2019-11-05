@@ -75,6 +75,15 @@ object Vocabulary {
     // ElasticSearch sourceAsText predicate
     val original_source = PrefixMapping.metadata("original_source")
 
+    // CompositeView
+    val sources            = PrefixMapping.prefix("sources")
+    val projections        = PrefixMapping.prefix("projections")
+    val context            = PrefixMapping.prefix("context")
+    val query              = PrefixMapping.prefix("query")
+    val ElasticSearch      = PrefixMapping.prefix("ElasticSearch")
+    val Sparql             = PrefixMapping.prefix("Sparql")
+    val ProjectEventStream = PrefixMapping.prefix("ProjectEventStream")
+
     // Tagging resource payload vocabulary
     val tag  = PrefixMapping.prefix("tag")
     val tags = PrefixMapping.prefix("tags")
@@ -156,6 +165,7 @@ object Vocabulary {
     val View                       = PrefixMapping.prefix("View")
     val ElasticSearchView          = PrefixMapping.prefix("ElasticSearchView")
     val SparqlView                 = PrefixMapping.prefix("SparqlView")
+    val CompositeView              = PrefixMapping.prefix("CompositeView")
     val AggregateElasticSearchView = PrefixMapping.prefix("AggregateElasticSearchView")
     val AggregateSparqlView        = PrefixMapping.prefix("AggregateSparqlView")
     val User                       = PrefixMapping.prefix("User")

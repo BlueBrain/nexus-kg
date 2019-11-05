@@ -25,7 +25,7 @@ import ch.epfl.bluebrain.nexus.iam.client.IamClient
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity._
 import ch.epfl.bluebrain.nexus.iam.client.types._
 import ch.epfl.bluebrain.nexus.kg.Error.classNameOf
-import ch.epfl.bluebrain.nexus.kg.{Error, KgError, TestHelper}
+import ch.epfl.bluebrain.nexus.kg.{urlEncode, Error, KgError, TestHelper}
 import ch.epfl.bluebrain.nexus.kg.async._
 import ch.epfl.bluebrain.nexus.kg.archives.ArchiveCache
 import ch.epfl.bluebrain.nexus.kg.cache._
@@ -35,6 +35,7 @@ import ch.epfl.bluebrain.nexus.kg.config.Settings
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary.nxv
 import ch.epfl.bluebrain.nexus.kg.indexing.View
 import ch.epfl.bluebrain.nexus.kg.indexing.View._
+import ch.epfl.bluebrain.nexus.kg.indexing.View.Filter
 import ch.epfl.bluebrain.nexus.kg.marshallers.instances._
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection.NotFound
 import ch.epfl.bluebrain.nexus.kg.resources.ResourceF.Value
@@ -159,9 +160,9 @@ class ViewRoutesSpec
     }
 
     // format: off
-    val otherEsView = ElasticSearchView(Json.obj(), Set.empty, Set.empty, None, false, true, true, projectRef, nxv.withSuffix("otherEs").value, genUUID, 1L, false)
-    val defaultSQLView = SparqlView(Set.empty, Set.empty, None, true, true, projectRef, nxv.defaultSparqlIndex.value, genUuid, 1L, false)
-    val otherSQLView = SparqlView(Set.empty, Set.empty, None, true, true, projectRef, nxv.withSuffix("otherSparql").value, genUUID, 1L, false)
+    val otherEsView = ElasticSearchView(Json.obj(), Filter(), false, true, projectRef, nxv.withSuffix("otherEs").value, genUUID, 1L, false)
+    val defaultSQLView = SparqlView(Filter(), true, projectRef, nxv.defaultSparqlIndex.value, genUuid, 1L, false)
+    val otherSQLView = SparqlView(Filter(), true, projectRef, nxv.withSuffix("otherSparql").value, genUUID, 1L, false)
     val aggEsView = AggregateElasticSearchView(Set(ViewRef(projectRef, nxv.defaultElasticSearchIndex.value), ViewRef(projectRef, nxv.withSuffix("otherEs").value)), projectRef, genUUID, nxv.withSuffix("agg").value, 1L, false)
     val aggSparqlView = AggregateSparqlView(Set(ViewRef(projectRef, nxv.defaultSparqlIndex.value), ViewRef(projectRef, nxv.withSuffix("otherSparql").value)), projectRef, genUUID, nxv.withSuffix("aggSparql").value, 1L, false)
     // format: on
@@ -404,16 +405,80 @@ class ViewRoutesSpec
         )(any[HttpClient[Task, Json]])
       ).thenReturn(Task.pure(esResponse))
 
-      Post(s"/v1/views/$organization/$project/documents/_search?other=value", query) ~> addCredentials(oauthToken) ~> routes ~> check {
-        status shouldEqual StatusCodes.OK
-        responseAs[Json] shouldEqual esResponse
+      val endpoints = List(
+        s"/v1/views/$organization/$project/documents/_search?other=value",
+        s"/v1/resources/$organization/$project/view/documents/_search?other=value"
+      )
+
+      forAll(endpoints) { endpoint =>
+        Post(endpoint, query) ~> addCredentials(oauthToken) ~> routes ~> check {
+          status shouldEqual StatusCodes.OK
+          responseAs[Json] shouldEqual esResponse
+        }
+      }
+    }
+
+    "search for ElasticSearch projection on a CompositeView" in new Context {
+      val query      = Json.obj("query" -> Json.obj("match_all" -> Json.obj()))
+      val esResponse = jsonContentOf("/view/search-response.json")
+
+      when(
+        viewCache.getProjectionBy[View](Eq(projectRef), Eq(compositeView.id), Eq(nxv.defaultElasticSearchIndex.value))(
+          any[Typeable[View]]
+        )
+      ).thenReturn(Task.pure(Some(defaultEsView)))
+
+      when(
+        elasticSearch.searchRaw(
+          Eq(query),
+          Eq(Set(s"kg_${defaultEsView.name}")),
+          Eq(Uri.Query(Map("other" -> "value")))
+        )(any[HttpClient[Task, Json]])
+      ).thenReturn(Task.pure(esResponse))
+
+      val viewId = urlEncode(compositeView.id)
+
+      val endpoints = List(
+        s"/v1/views/$organization/$project/$viewId/projections/documents/_search?other=value",
+        s"/v1/resources/$organization/$project/view/$viewId/projections/documents/_search?other=value"
+      )
+
+      forAll(endpoints) { endpoint =>
+        Post(endpoint, query) ~> addCredentials(oauthToken) ~> routes ~> check {
+          status shouldEqual StatusCodes.OK
+          responseAs[Json] shouldEqual esResponse
+        }
       }
 
-      Post(s"/v1/resources/$organization/$project/view/documents/_search?other=value", query) ~> addCredentials(
-        oauthToken
-      ) ~> routes ~> check {
-        status shouldEqual StatusCodes.OK
-        responseAs[Json] shouldEqual esResponse
+    }
+
+    "search for Sparql projection on a CompositeView" in new Context {
+      val query  = "SELECT ?s where {?s ?p ?o} LIMIT 10"
+      val result = jsonContentOf("/search/sparql-query-result.json")
+      val viewId = urlEncode(compositeView.id)
+
+      when(
+        viewCache.getProjectionBy[View](Eq(projectRef), Eq(compositeView.id), Eq(nxv.defaultSparqlIndex.value))(
+          any[Typeable[View]]
+        )
+      ).thenReturn(Task.pure(Some(defaultSparqlView)))
+
+      when(sparql.copy(namespace = s"kg_${defaultSparqlView.name}")).thenReturn(sparql)
+
+      when(sparql.queryRaw(query)).thenReturn(Task.pure(result.as[SparqlResults].right.value))
+
+      val httpEntity = HttpEntity(RdfMediaTypes.`application/sparql-query`, query)
+
+      val endpoints = List(
+        s"/v1/views/$organization/$project/$viewId/projections/graph/sparql",
+        s"/v1/resources/$organization/$project/view/$viewId/projections/graph/sparql"
+      )
+
+      forAll(endpoints) { endpoint =>
+        Post(endpoint, httpEntity) ~> addCredentials(oauthToken) ~> routes ~> check {
+          status shouldEqual StatusCodes.OK
+          responseAs[Json] shouldEqual result
+        }
       }
     }
 
@@ -444,15 +509,18 @@ class ViewRoutesSpec
         )(any[HttpClient[Task, Json]])
       ).thenReturn(Task.pure(esResponse))
 
-      Post(s"/v1/views/$organization/$project/nxv:agg/_search", query) ~> addCredentials(oauthToken) ~> routes ~> check {
-        status shouldEqual StatusCodes.OK
-        responseAs[Json] shouldEqual esResponse
+      val endpoints = List(
+        s"/v1/views/$organization/$project/nxv:agg/_search",
+        s"/v1/resources/$organization/$project/view/nxv:agg/_search"
+      )
+
+      forAll(endpoints) { endpoint =>
+        Post(endpoint, query) ~> addCredentials(oauthToken) ~> routes ~> check {
+          status shouldEqual StatusCodes.OK
+          responseAs[Json] shouldEqual esResponse
+        }
       }
 
-      Post(s"/v1/resources/$organization/$project/view/nxv:agg/_search", query) ~> addCredentials(oauthToken) ~> routes ~> check {
-        status shouldEqual StatusCodes.OK
-        responseAs[Json] shouldEqual esResponse
-      }
     }
 
     "return 400 Bad Request from ElasticSearch search" in new Context {
@@ -467,16 +535,16 @@ class ViewRoutesSpec
         elasticSearch.searchRaw(Eq(query), Eq(Set(s"kg_${defaultEsView.name}")), Eq(qp))(any[HttpClient[Task, Json]])
       ).thenReturn(Task.raiseError(ElasticSearchClientError(StatusCodes.BadRequest, esResponse.noSpaces)))
 
-      Post(s"/v1/views/$organization/$project/documents/_search?other=value", query) ~> addCredentials(oauthToken) ~> routes ~> check {
-        status shouldEqual StatusCodes.BadRequest
-        responseAs[Json] shouldEqual esResponse
-      }
+      val endpoints = List(
+        s"/v1/views/$organization/$project/documents/_search?other=value",
+        s"/v1/resources/$organization/$project/view/documents/_search?other=value"
+      )
 
-      Post(s"/v1/resources/$organization/$project/view/documents/_search?other=value", query) ~> addCredentials(
-        oauthToken
-      ) ~> routes ~> check {
-        status shouldEqual StatusCodes.BadRequest
-        responseAs[Json] shouldEqual esResponse
+      forAll(endpoints) { endpoint =>
+        Post(endpoint, query) ~> addCredentials(oauthToken) ~> routes ~> check {
+          status shouldEqual StatusCodes.BadRequest
+          responseAs[Json] shouldEqual esResponse
+        }
       }
     }
 
@@ -492,16 +560,15 @@ class ViewRoutesSpec
         elasticSearch.searchRaw(Eq(query), Eq(Set(s"kg_${defaultEsView.name}")), Eq(qp))(any[HttpClient[Task, Json]])
       ).thenReturn(Task.raiseError(ElasticSearchClientError(StatusCodes.BadRequest, esResponse)))
 
-      Post(s"/v1/views/$organization/$project/documents/_search?other=value", query) ~> addCredentials(oauthToken) ~> routes ~> check {
-        status shouldEqual StatusCodes.BadRequest
-        responseAs[String] shouldEqual esResponse
-      }
-
-      Post(s"/v1/resources/$organization/$project/view/documents/_search?other=value", query) ~> addCredentials(
-        oauthToken
-      ) ~> routes ~> check {
-        status shouldEqual StatusCodes.BadRequest
-        responseAs[String] shouldEqual esResponse
+      val endpoints = List(
+        s"/v1/views/$organization/$project/documents/_search?other=value",
+        s"/v1/resources/$organization/$project/view/documents/_search?other=value"
+      )
+      forAll(endpoints) { endpoint =>
+        Post(endpoint, query) ~> addCredentials(oauthToken) ~> routes ~> check {
+          status shouldEqual StatusCodes.BadRequest
+          responseAs[String] shouldEqual esResponse
+        }
       }
     }
 
@@ -536,14 +603,15 @@ class ViewRoutesSpec
 
       val httpEntity = HttpEntity(RdfMediaTypes.`application/sparql-query`, query)
 
-      Post(s"/v1/views/$organization/$project/graph/sparql", httpEntity) ~> addCredentials(oauthToken) ~> routes ~> check {
-        status shouldEqual StatusCodes.OK
-        responseAs[Json] shouldEqual result
-      }
-
-      Post(s"/v1/resources/$organization/$project/view/graph/sparql", httpEntity) ~> addCredentials(oauthToken) ~> routes ~> check {
-        status shouldEqual StatusCodes.OK
-        responseAs[Json] shouldEqual result
+      val endpoints = List(
+        s"/v1/views/$organization/$project/graph/sparql",
+        s"/v1/resources/$organization/$project/view/graph/sparql"
+      )
+      forAll(endpoints) { endpoint =>
+        Post(endpoint, httpEntity) ~> addCredentials(oauthToken) ~> routes ~> check {
+          status shouldEqual StatusCodes.OK
+          responseAs[Json] shouldEqual result
+        }
       }
     }
 
@@ -558,15 +626,15 @@ class ViewRoutesSpec
       when(sparql.queryRaw(query)).thenReturn(Task.raiseError(SparqlClientError(StatusCodes.BadRequest, "some error")))
 
       val httpEntity = HttpEntity(RdfMediaTypes.`application/sparql-query`, query)
-
-      Post(s"/v1/views/$organization/$project/graph/sparql", httpEntity) ~> addCredentials(oauthToken) ~> routes ~> check {
-        status shouldEqual StatusCodes.BadRequest
-        responseAs[String] shouldEqual "some error"
-      }
-
-      Post(s"/v1/resources/$organization/$project/view/graph/sparql", httpEntity) ~> addCredentials(oauthToken) ~> routes ~> check {
-        status shouldEqual StatusCodes.BadRequest
-        responseAs[String] shouldEqual "some error"
+      val endpoints = List(
+        s"/v1/views/$organization/$project/graph/sparql",
+        s"/v1/resources/$organization/$project/view/graph/sparql"
+      )
+      forAll(endpoints) { endpoint =>
+        Post(endpoint, httpEntity) ~> addCredentials(oauthToken) ~> routes ~> check {
+          status shouldEqual StatusCodes.BadRequest
+          responseAs[String] shouldEqual "some error"
+        }
       }
     }
 
@@ -598,18 +666,16 @@ class ViewRoutesSpec
 
       val httpEntity = HttpEntity(RdfMediaTypes.`application/sparql-query`, query)
       val expected   = jsonContentOf("/search/sparql-query-result-combined.json")
-
-      Post(s"/v1/views/$organization/$project/nxv:aggSparql/sparql", httpEntity) ~> addCredentials(oauthToken) ~> routes ~> check {
-        status shouldEqual StatusCodes.OK
-        eventually {
-          responseAs[Json] should equalIgnoreArrayOrder(expected)
-        }
-      }
-
-      Post(s"/v1/resources/$organization/$project/view/nxv:aggSparql/sparql", httpEntity) ~> addCredentials(oauthToken) ~> routes ~> check {
-        status shouldEqual StatusCodes.OK
-        eventually {
-          responseAs[Json] should equalIgnoreArrayOrder(expected)
+      val endpoints = List(
+        s"/v1/views/$organization/$project/nxv:aggSparql/sparql",
+        s"/v1/resources/$organization/$project/view/nxv:aggSparql/sparql"
+      )
+      forAll(endpoints) { endpoint =>
+        Post(endpoint, httpEntity) ~> addCredentials(oauthToken) ~> routes ~> check {
+          status shouldEqual StatusCodes.OK
+          eventually {
+            responseAs[Json] should equalIgnoreArrayOrder(expected)
+          }
         }
       }
     }
@@ -619,18 +685,16 @@ class ViewRoutesSpec
       when(viewCache.getBy[View](Eq(projectRef), Eq(nxv.withSuffix("some").value))(any[Typeable[View]]))
         .thenReturn(Task.pure(None))
 
-      Post(s"/v1/views/$organization/$project/nxv:some/_search?size=23&other=value", Json.obj()) ~> addCredentials(
-        oauthToken
-      ) ~> routes ~> check {
-        status shouldEqual StatusCodes.NotFound
-        responseAs[Error].tpe shouldEqual classNameOf[NotFound]
-      }
+      val endpoints = List(
+        s"/v1/views/$organization/$project/nxv:some/_search?size=23&other=value",
+        s"/v1/resources/$organization/$project/view/nxv:some/_search?size=23&other=value"
+      )
 
-      Post(s"/v1/resources/$organization/$project/view/nxv:some/_search?size=23&other=value", Json.obj()) ~> addCredentials(
-        oauthToken
-      ) ~> routes ~> check {
-        status shouldEqual StatusCodes.NotFound
-        responseAs[Error].tpe shouldEqual classNameOf[NotFound]
+      forAll(endpoints) { endpoint =>
+        Post(endpoint, Json.obj()) ~> addCredentials(oauthToken) ~> routes ~> check {
+          status shouldEqual StatusCodes.NotFound
+          responseAs[Error].tpe shouldEqual classNameOf[NotFound]
+        }
       }
     }
   }

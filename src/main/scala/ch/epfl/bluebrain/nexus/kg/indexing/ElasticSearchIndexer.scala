@@ -5,7 +5,6 @@ import cats.Functor
 import cats.effect.{Effect, Timer}
 import cats.implicits._
 import ch.epfl.bluebrain.nexus.admin.client.types.Project
-import ch.epfl.bluebrain.nexus.commons.es.client.ElasticSearchClient
 import ch.epfl.bluebrain.nexus.commons.es.client.ElasticSearchClient.BulkOp
 import ch.epfl.bluebrain.nexus.commons.es.client.ElasticSearchFailure.ElasticSearchServerOrUnexpectedFailure
 import ch.epfl.bluebrain.nexus.commons.test.Resources._
@@ -14,8 +13,9 @@ import ch.epfl.bluebrain.nexus.kg.config.AppConfig._
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary._
 import ch.epfl.bluebrain.nexus.kg.indexing.ElasticSearchIndexer._
 import ch.epfl.bluebrain.nexus.kg.indexing.View.ElasticSearchView
+import ch.epfl.bluebrain.nexus.kg.resources.ResourceF._
 import ch.epfl.bluebrain.nexus.kg.resources._
-import ch.epfl.bluebrain.nexus.kg.resources.syntax._
+import ch.epfl.bluebrain.nexus.kg.routes.Clients
 import ch.epfl.bluebrain.nexus.rdf.Node.IriNode
 import ch.epfl.bluebrain.nexus.rdf.decoder.GraphDecoder.DecoderResult
 import ch.epfl.bluebrain.nexus.rdf.instances._
@@ -26,7 +26,6 @@ import io.circe.Json
 import journal.Logger
 import kamon.Kamon
 import monix.execution.atomic.AtomicLong
-import ch.epfl.bluebrain.nexus.kg.resources.ResourceF._
 
 private class ElasticSearchIndexerMapping[F[_]: Functor](view: ElasticSearchView, resources: Resources[F])(
     implicit config: AppConfig,
@@ -42,26 +41,28 @@ private class ElasticSearchIndexerMapping[F[_]: Functor](view: ElasticSearchView
     *
     * @param event event to be mapped to a Elastic Search insert query
     */
-  final def apply(event: Event): F[Option[Identified[ProjectRef, BulkOp]]] =
-    view.resourceTag
+  final def apply(event: Event): F[Option[(ResourceV, BulkOp)]] =
+    view.filter.resourceTag
       .filter(_.trim.nonEmpty)
       .map(resources.fetch(event.id, _, metadataOptions, None))
       .getOrElse(resources.fetch(event.id, metadataOptions, None))
       .value
       .map {
-        case Right(res) if validSchema(view, res) && validTypes(view, res) => deleteOrIndexTransformed(res)
-        case Right(res) if validSchema(view, res)                          => Some(delete(res))
+        case Right(res) if validSchema(view, res) && validTypes(view, res) => deleteOrIndex(res).map(res -> _)
+        case Right(res) if validSchema(view, res)                          => Some(res -> delete(res))
         case _                                                             => None
       }
 
-  private def deleteOrIndexTransformed(res: ResourceV): Option[Identified[ProjectRef, BulkOp]] =
-    if (res.deprecated && !view.includeDeprecated) Some(delete(res))
-    else indexTransformed(res).map(res.id -> _)
+  private def deleteOrIndex(res: ResourceV): Option[BulkOp] =
+    if (res.deprecated && !view.filter.includeDeprecated)
+      Some(delete(res))
+    else
+      toEsDocument(res).map(doc => BulkOp.Index(view.index, res.id.value.asString, doc))
 
-  private def delete(res: ResourceV): Identified[ProjectRef, BulkOp] =
-    res.id -> BulkOp.Delete(view.index, res.id.value.asString)
+  private def delete(res: ResourceV): BulkOp =
+    BulkOp.Delete(view.index, res.id.value.asString)
 
-  private def indexTransformed(res: ResourceV): Option[BulkOp] = {
+  private def toEsDocument(res: ResourceV): Option[Json] = {
     val rootNode = IriNode(res.id.value)
 
     def asJson(g: Graph): DecoderResult[Json] = RootedGraph(rootNode, g).as[Json](ctx)
@@ -80,8 +81,7 @@ private class ElasticSearchIndexerMapping[F[_]: Functor](view: ElasticSearchView
           s"Could not convert resource with id '${res.id}' and value '${res.value}' from Graph back to json. Reason: '${err.message}'"
         )
         None
-      case Right(value) =>
-        Some(BulkOp.Index(view.index, res.id.value.asString, value.removeKeys("@context")))
+      case Right(value) => Some(value.removeKeys("@context"))
     }
   }
 }
@@ -103,7 +103,7 @@ object ElasticSearchIndexer {
       project: Project,
       restartOffset: Boolean
   )(
-      implicit client: ElasticSearchClient[F],
+      implicit clients: Clients[F],
       as: ActorSystem,
       actorInitializer: (Props, String) => ActorRef,
       config: AppConfig,
@@ -116,22 +116,17 @@ object ElasticSearchIndexer {
     implicit val indexing: IndexingConfig = config.elasticSearch.indexing
 
     val mapper = new ElasticSearchIndexerMapping(view, resources)
-    val init =
-      for {
-        _ <- view.createIndex[F]
-        _ <- if (view.rev > 1) client.deleteIndex(view.copy(rev = view.rev - 1).index) else F.pure(true)
-      } yield ()
 
     val processedEventsGauge = Kamon
       .gauge("kg_indexer_gauge")
       .withTag("type", "elasticsearch")
-      .withTag("project", project.projectLabel.show)
+      .withTag("project", project.show)
       .withTag("organization", project.organizationLabel)
       .withTag("viewId", view.id.show)
     val processedEventsCounter = Kamon
       .counter("kg_indexer_counter")
       .withTag("type", "elasticsearch")
-      .withTag("project", project.projectLabel.show)
+      .withTag("project", project.show)
       .withTag("organization", project.organizationLabel)
       .withTag("viewId", view.id.show)
     val processedEventsCount = AtomicLong(0L)
@@ -146,9 +141,9 @@ object ElasticSearchIndexer {
         .retry[ElasticSearchServerOrUnexpectedFailure](indexing.retry.retryStrategy)(elasticErrorMonadError)
         .batch(indexing.batch, indexing.batchTimeout)
         .restart(restartOffset)
-        .init(init)
+        .init(view.createIndex)
         .mapping(mapper.apply)
-        .index(inserts => client.bulk(inserts.removeDupIds))
+        .index(inserts => clients.elasticSearch.bulk(inserts.removeDupIds))
         .mapInitialProgress { p =>
           processedEventsCount.set(p.processedCount)
           processedEventsGauge.update(p.processedCount.toDouble)

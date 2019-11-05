@@ -11,7 +11,7 @@ import ch.epfl.bluebrain.nexus.commons.cache.{KeyValueStore, KeyValueStoreConfig
 import ch.epfl.bluebrain.nexus.kg.cache.Cache._
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary.nxv
 import ch.epfl.bluebrain.nexus.kg.indexing.View
-import ch.epfl.bluebrain.nexus.kg.indexing.View.{ElasticSearchView, SparqlView}
+import ch.epfl.bluebrain.nexus.kg.indexing.View.{CompositeView, ElasticSearchView, SparqlView}
 import ch.epfl.bluebrain.nexus.kg.resources.ProjectRef
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import shapeless.{TypeCase, Typeable}
@@ -63,6 +63,30 @@ class ViewCache[F[_]: Timer] private (projectToCache: ConcurrentHashMap[UUID, Vi
     */
   def getBy[T <: View: Typeable](ref: ProjectRef, id: AbsoluteIri): F[Option[T]] =
     getOrCreate(ref).getBy[T](id)
+
+  /**
+    * Fetches a projection from a view of a specific type from the provided project and with the provided id
+    *
+    * @param ref          the project unique reference
+    * @param viewId       the view unique id in the provided project
+    * @param projectionId the id of the projection
+    * @tparam T the type of view to be returned
+    */
+  def getProjectionBy[T <: View: Typeable](
+      ref: ProjectRef,
+      viewId: AbsoluteIri,
+      projectionId: AbsoluteIri
+  ): F[Option[T]] = {
+    val tpe = TypeCase[T]
+    getBy[CompositeView](ref, viewId).map { viewOpt =>
+      viewOpt.flatMap { view =>
+        val projections = view.projections.map(_.view) + view.defaultSparqlView
+        projections.collectFirst {
+          case tpe(v) if v.id == projectionId => v
+        }
+      }
+    }
+  }
 
   /**
     * Adds/updates or deprecates a view on the provided project.

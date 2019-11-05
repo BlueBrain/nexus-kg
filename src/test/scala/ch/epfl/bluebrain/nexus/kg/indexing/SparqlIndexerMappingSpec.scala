@@ -14,7 +14,7 @@ import ch.epfl.bluebrain.nexus.commons.test.io.{IOEitherValues, IOOptionValues}
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity.Anonymous
 import ch.epfl.bluebrain.nexus.kg.TestHelper
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary._
-import ch.epfl.bluebrain.nexus.kg.indexing.View.SparqlView
+import ch.epfl.bluebrain.nexus.kg.indexing.View.{Filter, SparqlView}
 import ch.epfl.bluebrain.nexus.kg.resources.Event.Created
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection.NotFound
 import ch.epfl.bluebrain.nexus.kg.resources._
@@ -86,7 +86,7 @@ class SparqlIndexerMappingSpec
 
     "using default view" should {
 
-      val view   = SparqlView(Set.empty, Set.empty, None, true, true, id.parent, genIri, genUUID, 1L, deprecated = false)
+      val view   = SparqlView(Filter(), true, id.parent, genIri, genUUID, 1L, deprecated = false)
       val mapper = new SparqlIndexerMapping(view, resources)
 
       "return none when the event resource is not found on the resources" in {
@@ -105,13 +105,13 @@ class SparqlIndexerMappingSpec
         when(resources.fetch(id, MetadataOptions(true, true), None))
           .thenReturn(EitherT.rightT[IO, Rejection](resV))
 
-        mapper(ev).some shouldEqual resV.id -> SparqlWriteQuery.replace(id.value.asString + "/graph", Graph())
+        mapper(ev).some shouldEqual resV -> SparqlWriteQuery.replace(id.value.asString + "/graph", Graph())
       }
     }
 
     "using a view with includeDeprecated = false" should {
 
-      val view   = SparqlView(Set.empty, Set.empty, None, true, false, id.parent, genIri, genUUID, 1L, deprecated = false)
+      val view   = SparqlView(Filter(includeDeprecated = false), true, id.parent, genIri, genUUID, 1L, deprecated = false)
       val mapper = new SparqlIndexerMapping(view, resources)
 
       "return none when the event resource is not found on the resources" in {
@@ -129,7 +129,7 @@ class SparqlIndexerMappingSpec
         )
         when(resources.fetch(id, MetadataOptions(true, true), None)).thenReturn(EitherT.rightT[IO, Rejection](resV))
 
-        mapper(ev).some shouldEqual resV.id -> SparqlWriteQuery.replace(id.value.asString + "/graph", Graph())
+        mapper(ev).some shouldEqual resV -> SparqlWriteQuery.replace(id.value.asString + "/graph", Graph())
       }
 
       "return a SparqlWriteQuery deleting data" in {
@@ -142,17 +142,14 @@ class SparqlIndexerMappingSpec
         )
         when(resources.fetch(id, MetadataOptions(true, true), None)).thenReturn(EitherT.rightT[IO, Rejection](resV))
 
-        mapper(ev).some shouldEqual resV.id -> SparqlWriteQuery.drop(id.value.asString + "/graph")
+        mapper(ev).some shouldEqual resV -> SparqlWriteQuery.drop(id.value.asString + "/graph")
       }
     }
 
     "using a view for a specific schema, types and tag" should {
       val view = SparqlView(
-        Set(nxv.Resolver.value, nxv.Resource.value),
-        Set(tpe1, tpe2),
-        Some("one"),
+        Filter(Set(nxv.Resolver.value, nxv.Resource.value), Set(tpe1, tpe2), Some("one")),
         includeMetadata = true,
-        includeDeprecated = true,
         id.parent,
         nxv.defaultElasticSearchIndex.value,
         genUUID,
@@ -193,9 +190,8 @@ class SparqlIndexerMappingSpec
         when(resources.fetch(id, "one", MetadataOptions(true, true), None))
           .thenReturn(EitherT.rightT[IO, Rejection](resV))
 
-        mapper(ev.copy(schema = Ref(nxv.Resource.value))).some shouldEqual resV.id -> SparqlWriteQuery.drop(
-          id.value.asString + "/graph"
-        )
+        mapper(ev.copy(schema = Ref(nxv.Resource.value))).some shouldEqual
+          resV -> SparqlWriteQuery.drop(id.value.asString + "/graph")
       }
 
       "return a SparqlWriteQuery inserting data" in {
@@ -210,26 +206,19 @@ class SparqlIndexerMappingSpec
             types = Set(tpe1, other)
           )
           .copy(tags = Map("one" -> 2L))
-        val res = ResourceF
-          .simpleF(id, json, rev = 2L, schema = Ref(nxv.Resource.value), types = Set(tpe1, other))
-          .copy(tags = Map("one" -> 2L))
+
         when(resources.fetch(id, "one", MetadataOptions(true, true), None))
           .thenReturn(EitherT.rightT[IO, Rejection](resV))
 
-        mapper(ev.copy(schema = Ref(nxv.Resource.value))).some shouldEqual res.id -> SparqlWriteQuery.replace(
-          id.value.asString + "/graph",
-          Graph()
-        )
+        mapper(ev.copy(schema = Ref(nxv.Resource.value))).some shouldEqual
+          resV -> SparqlWriteQuery.replace(id.value.asString + "/graph", Graph())
       }
     }
 
     "using a view with includeMetadata = false" should {
       val view = SparqlView(
-        Set.empty,
-        Set.empty,
-        None,
+        Filter(),
         includeMetadata = false,
-        includeDeprecated = true,
         id.parent,
         nxv.defaultElasticSearchIndex.value,
         genUUID,
@@ -249,14 +238,10 @@ class SparqlIndexerMappingSpec
           types = Set(tpe1)
         )
 
-        val res = ResourceF.simpleF(id, json, schema = Ref(nxv.Resource.value), types = Set(tpe1))
-
         when(resources.fetch(id, MetadataOptions(true, true), None)).thenReturn(EitherT.rightT[IO, Rejection](resV))
 
-        mapper(ev.copy(schema = Ref(nxv.Resource.value))).some shouldEqual res.id -> SparqlWriteQuery.replace(
-          id.value.asString + "/graph",
-          Graph()
-        )
+        mapper(ev.copy(schema = Ref(nxv.Resource.value))).some shouldEqual
+          resV -> SparqlWriteQuery.replace(id.value.asString + "/graph", Graph())
       }
     }
   }

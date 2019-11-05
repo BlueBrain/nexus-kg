@@ -15,7 +15,7 @@ import ch.epfl.bluebrain.nexus.kg.cache._
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig._
 import ch.epfl.bluebrain.nexus.kg.config.Settings
 import ch.epfl.bluebrain.nexus.kg.indexing.View
-import ch.epfl.bluebrain.nexus.kg.indexing.View.{ElasticSearchView, SparqlView}
+import ch.epfl.bluebrain.nexus.kg.indexing.View.{ElasticSearchView, Filter, SparqlView}
 import ch.epfl.bluebrain.nexus.kg.resources.syntax._
 import ch.epfl.bluebrain.nexus.kg.resources.{Event, OrganizationRef}
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
@@ -55,14 +55,11 @@ class ProjectViewCoordinatorSpec
     val project2 = Project(genIri, "some-project2", "some-org", None, genIri, genIri, Map.empty, genUUID, genUUID, 1L, deprecated = false, Instant.EPOCH, creator, Instant.EPOCH, creator)
     val project2Updated = project2.copy(label = genString(), rev = 2L)
     // format: on
-    val view = SparqlView(Set.empty, Set.empty, None, true, true, project.ref, genIri, genUUID, 1L, deprecated = false)
+    val view = SparqlView(Filter(), true, project.ref, genIri, genUUID, 1L, deprecated = false)
     val view2 =
       ElasticSearchView(
         Json.obj(),
-        Set(genIri),
-        Set.empty,
-        None,
-        true,
+        Filter(Set(genIri)),
         true,
         true,
         project.ref,
@@ -71,9 +68,9 @@ class ProjectViewCoordinatorSpec
         1L,
         deprecated = false
       )
-    val view2Updated = view2.copy(resourceSchemas = Set(genIri), rev = 2L)
+    val view2Updated = view2.copy(filter = view2.filter.copy(resourceSchemas = Set(genIri)), rev = 2L)
     val view3 =
-      SparqlView(Set.empty, Set.empty, None, true, true, project2.ref, genIri, genUUID, 1L, deprecated = false)
+      SparqlView(Filter(), true, project2.ref, genIri, genUUID, 1L, deprecated = false)
 
     val counterStart = new AtomicInteger(0)
     val counterStop  = new AtomicInteger(0)
@@ -85,10 +82,16 @@ class ProjectViewCoordinatorSpec
     val coordinator3Updated  = mock[StreamSupervisor[Task, ProjectionProgress]]
     implicit val projections = mock[Projections[Task, Event]]
 
+    coordinator1.stop() shouldReturn Task.unit
+    coordinator2.stop() shouldReturn Task.unit
+    coordinator2Updated.stop() shouldReturn Task.unit
+    coordinator3.stop() shouldReturn Task.unit
+    coordinator3Updated.stop() shouldReturn Task.unit
+
     val coordinatorProps = Props(
       new ProjectViewCoordinatorActor(viewCache) {
         override def startCoordinator(
-            v: View.SingleView,
+            v: View.IndexedView,
             proj: Project,
             restartOffset: Boolean
         ): StreamSupervisor[Task, ProjectionProgress] = {
@@ -102,7 +105,7 @@ class ProjectViewCoordinatorSpec
           else throw new RuntimeException()
         }
 
-        override def deleteViewIndices(view: View.SingleView, project: Project): Task[Unit] = {
+        override def deleteViewIndices(view: View.IndexedView, project: Project): Task[Unit] = {
           counterStop.incrementAndGet()
           Task.unit
         }

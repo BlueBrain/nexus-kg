@@ -2,23 +2,19 @@ package ch.epfl.bluebrain.nexus.kg.async
 
 import akka.actor.{ActorRef, ActorSystem}
 import akka.pattern.{ask, AskTimeoutException}
-import akka.stream.ActorMaterializer
 import akka.util.Timeout
 import cats.effect.{Async, IO}
 import cats.implicits._
 import ch.epfl.bluebrain.nexus.admin.client.types.Project
-import ch.epfl.bluebrain.nexus.commons.es.client.ElasticSearchClient
-import ch.epfl.bluebrain.nexus.commons.http.HttpClient
-import ch.epfl.bluebrain.nexus.commons.http.HttpClient.{untyped, UntypedHttpClient}
-import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlResults
 import ch.epfl.bluebrain.nexus.kg.KgError
 import ch.epfl.bluebrain.nexus.kg.async.ProjectViewCoordinatorActor.Msg._
 import ch.epfl.bluebrain.nexus.kg.cache.Caches
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig
 import ch.epfl.bluebrain.nexus.kg.indexing.Statistics
-import ch.epfl.bluebrain.nexus.kg.indexing.View.SingleView
+import ch.epfl.bluebrain.nexus.kg.indexing.View.IndexedView
 import ch.epfl.bluebrain.nexus.kg.resources.syntax._
 import ch.epfl.bluebrain.nexus.kg.resources.{Event, OrganizationRef, ProjectRef, Resources}
+import ch.epfl.bluebrain.nexus.kg.routes.Clients
 import ch.epfl.bluebrain.nexus.sourcing.projections.Projections
 import journal.Logger
 import monix.eval.Task
@@ -51,8 +47,8 @@ class ProjectViewCoordinator[F[_]](cache: Caches[F], ref: ActorRef)(
     * @param view     the view to fetch the statistics for.
     * @return [[Statistics]] wrapped in [[F]]
     */
-  def statistics(project: Project, view: SingleView): F[Statistics] = {
-    lazy val label = project.projectLabel.show
+  def statistics(project: Project, view: IndexedView): F[Statistics] = {
+    lazy val label = project.show
     IO.fromFuture(IO(ref ? FetchProgress(project.uuid, view)))
       .to[F]
       .flatMap[Statistics] {
@@ -84,7 +80,7 @@ class ProjectViewCoordinator[F[_]](cache: Caches[F], ref: ActorRef)(
     * @param project the project for which the view coordinator is triggered
     */
   def start(project: Project): F[Unit] =
-    cache.view.getBy[SingleView](project.ref).map { views =>
+    cache.view.getBy[IndexedView](project.ref).map { views =>
       ref ! Start(project.uuid, project, views)
     }
 
@@ -125,13 +121,10 @@ object ProjectViewCoordinator {
   def apply(resources: Resources[Task], cache: Caches[Task])(
       implicit config: AppConfig,
       as: ActorSystem,
-      ucl: HttpClient[Task, SparqlResults],
+      clients: Clients[Task],
       P: Projections[Task, Event]
   ): ProjectViewCoordinator[Task] = {
-    implicit val mt: ActorMaterializer                          = ActorMaterializer()
-    implicit val ul: UntypedHttpClient[Task]                    = untyped[Task]
-    implicit val elasticSearchClient: ElasticSearchClient[Task] = ElasticSearchClient[Task](config.elasticSearch.base)
-    val coordinatorRef                                          = ProjectViewCoordinatorActor.start(resources, cache.view, None, config.cluster.shards)
+    val coordinatorRef = ProjectViewCoordinatorActor.start(resources, cache.view, None, config.cluster.shards)
     new ProjectViewCoordinator[Task](cache, coordinatorRef)
   }
 }

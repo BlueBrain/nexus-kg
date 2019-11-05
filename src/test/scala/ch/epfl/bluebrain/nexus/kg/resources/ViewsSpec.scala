@@ -23,6 +23,7 @@ import ch.epfl.bluebrain.nexus.kg.config.Settings
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary._
 import ch.epfl.bluebrain.nexus.kg.indexing.View
 import ch.epfl.bluebrain.nexus.kg.indexing.View.ElasticSearchView
+import ch.epfl.bluebrain.nexus.kg.indexing.View.Filter
 import ch.epfl.bluebrain.nexus.kg.indexing.ViewEncoder._
 import ch.epfl.bluebrain.nexus.kg.resolve.{Materializer, ProjectResolution, Resolver, StaticResolution}
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection._
@@ -40,6 +41,15 @@ import org.mockito.matchers.MacroBasedMatchers
 import org.mockito.{ArgumentMatchersSugar, IdiomaticMockito, Mockito}
 import org.scalatest._
 import java.util.regex.Pattern.quote
+
+import ch.epfl.bluebrain.nexus.admin.client.AdminClient
+import ch.epfl.bluebrain.nexus.commons.http.HttpClient
+import ch.epfl.bluebrain.nexus.commons.search.QueryResults
+import ch.epfl.bluebrain.nexus.commons.sparql.client.BlazegraphClient
+import ch.epfl.bluebrain.nexus.iam.client.IamClient
+import ch.epfl.bluebrain.nexus.kg.routes.Clients
+import ch.epfl.bluebrain.nexus.storage.client.StorageClient
+import monix.eval.Task
 
 import scala.concurrent.ExecutionContext
 import scala.concurrent.duration._
@@ -73,9 +83,17 @@ class ViewsSpec
   private implicit val repo          = Repo[IO].ioValue
   private implicit val projectCache  = mock[ProjectCache[IO]]
   private implicit val viewCache     = mock[ViewCache[IO]]
+  private implicit val sparqlClient  = mock[BlazegraphClient[IO]]
+  private implicit val adminClient   = mock[AdminClient[IO]]
+  private implicit val iamClient     = mock[IamClient[IO]]
+  private implicit val storageClient = mock[StorageClient[IO]]
+  private implicit val rsearchClient = mock[HttpClient[IO, QueryResults[Json]]]
+  private implicit val taskJson      = mock[HttpClient[Task, Json]]
+  private implicit val untyped       = HttpClient.untyped[Task]
   private implicit val esClient      = mock[ElasticSearchClient[IO]]
   private val aclsCache              = mock[AclsCache[IO]]
   private implicit val resolverCache = mock[ResolverCache[IO]]
+  private implicit val clients       = Clients()
 
   private val resolution =
     new ProjectResolution(repo, resolverCache, projectCache, StaticResolution[IO](iriResolution), mock[AclsCache[IO]])
@@ -131,6 +149,7 @@ class ViewsSpec
       case view: View.AggregateSparqlView[_]        => view.copy(uuid = that.uuid) == that
       case view: ElasticSearchView                  => view.copy(uuid = that.uuid) == that
       case view: View.SparqlView                    => view.copy(uuid = that.uuid) == that
+      case view: View.CompositeView                 => view.copy(uuid = that.uuid) == that
     }
 
   }
@@ -167,7 +186,7 @@ class ViewsSpec
   trait EsViewMocked extends EsView {
     val mapping = esView.hcursor.get[String]("mapping").flatMap(parse).right.value
     // format: off
-    val esViewModel = ElasticSearchView(mapping, Set(nxv.Schema.value, nxv.Resource.value), Set(nxv.withSuffix("MyType").value, nxv.withSuffix("MyType2").value), Some("one"), includeMetadata = false, includeDeprecated = true, sourceAsText = true, project.ref, id, UUID.randomUUID(), 1L, deprecated = false)
+    val esViewModel = ElasticSearchView(mapping, Filter(Set(nxv.Schema.value, nxv.Resource.value), Set(nxv.withSuffix("MyType").value, nxv.withSuffix("MyType2").value), Some("one")), includeMetadata = false, sourceAsText = true, project.ref, id, UUID.randomUUID(), 1L, deprecated = false)
     // format: on
     esClient.updateMapping(any[String], eqTo(mapping)) shouldReturn IO(true)
     aclsCache.list shouldReturn IO.pure(acls)
@@ -341,9 +360,15 @@ class ViewsSpec
         viewCache.put(argThat(matchesIgnoreId(esViewModel), "")) shouldReturn IO(())
         views.create(resId, esView).value.accepted shouldBe a[Resource]
         Mockito.reset(viewCache)
-        viewCache.put(argThat(matchesIgnoreId(esViewModel.copy(includeDeprecated = true, includeMetadata = true)), "")) shouldReturn IO(
-          ()
-        )
+        viewCache.put(
+          argThat(
+            matchesIgnoreId(
+              esViewModel.copy(filter = esViewModel.filter.copy(includeDeprecated = true), includeMetadata = true)
+            ),
+            ""
+          )
+        ) shouldReturn
+          IO(())
         views.update(resId, 1L, viewUpdated).value.accepted shouldBe a[Resource]
         val resultLatest = views.fetch(resId, 2L).value.accepted
         val expectedLatest =

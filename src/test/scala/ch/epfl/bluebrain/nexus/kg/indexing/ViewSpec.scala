@@ -15,14 +15,17 @@ import ch.epfl.bluebrain.nexus.commons.sparql.client.{BlazegraphClient, SparqlRe
 import ch.epfl.bluebrain.nexus.commons.test.io.IOValues
 import ch.epfl.bluebrain.nexus.commons.test.{CirceEq, Resources}
 import ch.epfl.bluebrain.nexus.kg.TestHelper
-import ch.epfl.bluebrain.nexus.kg.config.AppConfig._
 import ch.epfl.bluebrain.nexus.kg.config.Contexts._
 import ch.epfl.bluebrain.nexus.kg.config.Settings
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary._
+import ch.epfl.bluebrain.nexus.kg.indexing.View.CompositeView.Projection.{ElasticSearchProjection, SparqlProjection}
+import ch.epfl.bluebrain.nexus.kg.indexing.View.CompositeView.{Projection, Source}
 import ch.epfl.bluebrain.nexus.kg.indexing.View._
+import ch.epfl.bluebrain.nexus.kg.indexing.View.Filter
 import ch.epfl.bluebrain.nexus.kg.indexing.ViewEncoder._
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection.InvalidResourceFormat
 import ch.epfl.bluebrain.nexus.kg.resources.{Id, ProjectLabel, ProjectRef}
+import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import ch.epfl.bluebrain.nexus.rdf.syntax._
 import io.circe.Json
 import org.mockito.IdiomaticMockito
@@ -49,8 +52,20 @@ class ViewSpec
   private implicit val client: BlazegraphClient[IO] = mock[BlazegraphClient[IO]]
 
   "A View" when {
+
+    def compositeview(
+        id1: AbsoluteIri = url"http://example.com/es".value,
+        id2: AbsoluteIri = url"http://example.com/sparql".value
+    ) =
+      jsonContentOf(
+        "/view/composite-view.json",
+        Map(quote("{projection1_id}") -> id1.asString, quote("{projection2_id}") -> id2.asString)
+      ).appendContextOf(viewCtx)
+
     val mapping              = jsonContentOf("/elasticsearch/mapping.json")
     val iri                  = url"http://example.com/id".value
+    val elasticSearchIri     = url"http://example.com/es".value
+    val sparqlIri            = url"http://example.com/sparql".value
     val projectRef           = ProjectRef(genUUID)
     val id                   = Id(projectRef, iri)
     val sparqlview           = jsonContentOf("/view/sparqlview.json").appendContextOf(viewCtx)
@@ -60,18 +75,63 @@ class ViewSpec
     val aggSparqlView        = jsonContentOf("/view/aggsparql.json").appendContextOf(viewCtx)
     val tpe1                 = nxv.withSuffix("MyType").value
     val tpe2                 = nxv.withSuffix("MyType2").value
+    val context = Json.obj(
+      "@base"  -> Json.fromString("http://example.com/base/"),
+      "@vocab" -> Json.fromString("http://example.com/vocab/")
+    )
+
+    val source = Source(Filter(Set(nxv.Resource, nxv.Schema), Set(tpe1, tpe2), Some("one")), includeMetadata = true)
+    val esProjection = ElasticSearchProjection(
+      "CONSTRUCT {something} WHERE {...}",
+      ElasticSearchView(
+        mapping,
+        Filter(Set(nxv.Schema), Set(tpe1), Some("two"), includeDeprecated = false),
+        includeMetadata = false,
+        sourceAsText = true,
+        projectRef,
+        elasticSearchIri,
+        UUID.fromString("247d223b-1d38-4c6e-8fed-f9a8c2ccb4a2"),
+        1L,
+        deprecated = false
+      ),
+      context
+    )
+
+    val sparqlProjection = SparqlProjection(
+      "CONSTRUCT {other} WHERE {...}",
+      SparqlView(
+        Filter(includeDeprecated = true),
+        includeMetadata = true,
+        projectRef,
+        sparqlIri,
+        UUID.fromString("247d223b-1d38-4c6e-8fed-f9a8c2ccb4a3"),
+        1L,
+        deprecated = false
+      )
+    )
 
     "constructing" should {
+
+      "return a CompositeView" in {
+        val resource = simpleV(id, compositeview(), types = Set(nxv.View, nxv.CompositeView))
+        View(resource).right.value shouldEqual
+          CompositeView(
+            source,
+            Set[Projection](esProjection, sparqlProjection),
+            projectRef,
+            iri,
+            UUID.fromString("247d223b-1d38-4c6e-8fed-f9a8c2ccb4a1"),
+            resource.rev,
+            resource.deprecated
+          )
+      }
 
       "return an ElasticSearchView" in {
         val resource = simpleV(id, elasticSearchview, types = Set(nxv.View, nxv.ElasticSearchView))
         View(resource).right.value shouldEqual ElasticSearchView(
           mapping,
-          Set(nxv.Schema, nxv.Resource),
-          Set(tpe1, tpe2),
-          Some("one"),
+          Filter(Set(nxv.Schema, nxv.Resource), Set(tpe1, tpe2), Some("one")),
           false,
-          true,
           true,
           projectRef,
           iri,
@@ -84,11 +144,8 @@ class ViewSpec
       "return an SparqlView" in {
         val resource = simpleV(id, sparqlview, types = Set(nxv.View, nxv.SparqlView))
         View(resource).right.value shouldEqual SparqlView(
-          Set.empty,
-          Set.empty,
-          None,
+          Filter(),
           false,
-          true,
           projectRef,
           iri,
           UUID.fromString("247d223b-1d38-4c6e-8fed-f9a8c2ccb4a1"),
@@ -101,11 +158,8 @@ class ViewSpec
       "return an SparqlView with tag, schema and types" in {
         val resource = simpleV(id, sparqlview2, types = Set(nxv.View, nxv.SparqlView))
         View(resource).right.value shouldEqual SparqlView(
-          Set(nxv.Schema, nxv.Resource),
-          Set(tpe1, tpe2),
-          Some("one"),
+          Filter(Set(nxv.Schema, nxv.Resource), Set(tpe1, tpe2), Some("one"), includeDeprecated = false),
           true,
-          false,
           projectRef,
           iri,
           UUID.fromString("247d223b-1d38-4c6e-8fed-f9a8c2ccb4a1"),
@@ -175,7 +229,7 @@ class ViewSpec
       }
 
       "run incoming method on a SparqlView" in {
-        val view = SparqlView(Set.empty, Set.empty, None, true, false, projectRef, iri, UUID.randomUUID(), 1L, false)
+        val view = SparqlView(Filter(includeDeprecated = false), true, projectRef, iri, UUID.randomUUID(), 1L, false)
         when(client.copy(namespace = view.index)).thenReturn(client)
         val query =
           contentOf(
@@ -188,7 +242,7 @@ class ViewSpec
       }
 
       "run outgoing method (including external links) on a SparqlView" in {
-        val view = SparqlView(Set.empty, Set.empty, None, true, false, projectRef, iri, UUID.randomUUID(), 1L, false)
+        val view = SparqlView(Filter(includeDeprecated = false), true, projectRef, iri, UUID.randomUUID(), 1L, false)
         when(client.copy(namespace = view.index)).thenReturn(client)
         val query =
           contentOf(
@@ -208,7 +262,7 @@ class ViewSpec
       }
 
       "run outgoing method (excluding external links) on a SparqlView" in {
-        val view = SparqlView(Set.empty, Set.empty, None, true, false, projectRef, iri, UUID.randomUUID(), 1L, false)
+        val view = SparqlView(Filter(includeDeprecated = false), true, projectRef, iri, UUID.randomUUID(), 1L, false)
         when(client.copy(namespace = view.index)).thenReturn(client)
         val query =
           contentOf(
@@ -250,6 +304,17 @@ class ViewSpec
         View(resource).left.value shouldBe a[InvalidResourceFormat]
       }
 
+      "fail on CompositeView when types are wrong" in {
+        val resource = simpleV(id, compositeview(), types = Set(nxv.View))
+        View(resource).left.value shouldBe a[InvalidResourceFormat]
+      }
+
+      "fail on CompositeView when duplicated projection @id" in {
+        val resource =
+          simpleV(id, compositeview(genIri, nxv.defaultSparqlIndex), types = Set(nxv.View, nxv.CompositeView))
+        View(resource).left.value shouldBe a[InvalidResourceFormat]
+      }
+
       "fail on ElasticSearchView when invalid payload" in {
         val wrong = List(
           jsonContentOf("/view/elasticview-wrong-1.json").appendContextOf(viewCtx),
@@ -260,6 +325,12 @@ class ViewSpec
           val resource = simpleV(id, json, types = Set(nxv.View, nxv.ElasticSearchView))
           View(resource).left.value shouldBe a[InvalidResourceFormat]
         }
+      }
+
+      "fail on CompositeView when invalid payload" in {
+        val json     = jsonContentOf("/view/composite-view-wrong.json").appendContextOf(viewCtx)
+        val resource = simpleV(id, json, types = Set(nxv.View, nxv.CompositeView))
+        View(resource).left.value shouldBe a[InvalidResourceFormat]
       }
 
       "fail on SparqlView when types are wrong" in {
@@ -288,15 +359,19 @@ class ViewSpec
         // format: off
         val esAgg: View = AggregateElasticSearchView(views, projectRef, UUID.fromString("3aa14a1a-81e7-4147-8306-136d8270bb01"), iri, 1L, deprecated = false)
         val sparqlAgg: View = AggregateSparqlView(views, projectRef, UUID.fromString("3aa14a1a-81e7-4147-8306-136d8270bb01"), iri, 1L, deprecated = false)
-        val es: View = ElasticSearchView(mapping, Set(nxv.Schema, nxv.Resource), Set.empty, Some("one"), false, true, true, projectRef, iri, UUID.fromString("3aa14a1a-81e7-4147-8306-136d8270bb01"), 1L, false)
-        val sparql: View = SparqlView(Set.empty, Set.empty, None, true, true, projectRef, iri, UUID.fromString("247d223b-1d38-4c6e-8fed-f9a8c2ccb4a1"), 1L, false)
+        val composite1: View = CompositeView(source, Set(esProjection), projectRef, iri, UUID.fromString("247d223b-1d38-4c6e-8fed-f9a8c2ccb4a1"), 1L, deprecated = false)
+        val composite2: View = CompositeView(source, Set(sparqlProjection), projectRef, iri, UUID.fromString("247d223b-1d38-4c6e-8fed-f9a8c2ccb4a1"), 1L, deprecated = false)
+        val es: View = ElasticSearchView(mapping, Filter(Set(nxv.Schema, nxv.Resource), Set.empty, Some("one")), false, true, projectRef, iri, UUID.fromString("3aa14a1a-81e7-4147-8306-136d8270bb01"), 1L, false)
+        val sparql: View = SparqlView(Filter(), true, projectRef, iri, UUID.fromString("247d223b-1d38-4c6e-8fed-f9a8c2ccb4a1"), 1L, false)
         // format: on
         val results =
           List(
-            esAgg     -> jsonContentOf("/view/aggelasticview-meta.json"),
-            sparqlAgg -> jsonContentOf("/view/aggsparqlview-meta.json"),
-            es        -> jsonContentOf("/view/elasticsearchview-meta.json"),
-            sparql    -> jsonContentOf("/view/sparqlview-meta.json")
+            esAgg      -> jsonContentOf("/view/aggelasticview-meta.json"),
+            sparqlAgg  -> jsonContentOf("/view/aggsparqlview-meta.json"),
+            composite1 -> jsonContentOf("/view/composite-view-meta-1.json"),
+            composite2 -> jsonContentOf("/view/composite-view-meta-2.json"),
+            es         -> jsonContentOf("/view/elasticsearchview-meta.json"),
+            sparql     -> jsonContentOf("/view/sparqlview-meta.json")
           )
 
         forAll(results) {

@@ -21,10 +21,247 @@
           "node": "this:SparqlViewShape"
         },
         {
+          "node": "this:CompositeViewShape"
+        },
+        {
           "node": "this:AggregateElasticSearchViewShape"
         },
         {
           "node": "this:AggregateSparqlViewShape"
+        }
+      ]
+    },
+    {
+      "@id": "this:CompositeViewShape",
+      "nodeKind": "sh:BlankNodeOrIRI",
+      "sh:closed": true,
+      "property": [
+        {
+          "path": "rdf:type",
+          "name": "RDF type CompositeView",
+          "description": "The CompositeView RDF type.",
+          "nodeKind": "sh:IRI",
+          "sh:hasValue": {
+            "@id": "nxv:CompositeView"
+          }
+        },
+        {
+          "path": "nxv:uuid",
+          "name": "UUID",
+          "description": "The underlying uuid generated for this view.",
+          "datatype": "xsd:string",
+          "pattern": "^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89aAbB][a-f0-9]{3}-[a-f0-9]{12}$",
+          "minCount": 1,
+          "maxCount": 1
+        },
+        {
+          "path": "nxv:sources",
+          "name": "Sources",
+          "description": "The set of sources.",
+          "node": "this:SourceShape"
+        },
+        {
+          "path": "nxv:projections",
+          "name": "Projections",
+          "description": "The set of projections.",
+          "or": [
+            {
+              "node": "this:ElasticSearchProjectionShape"
+            },
+            {
+              "node": "this:SparqlProjectionShape"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "@id": "this:SourceShape",
+      "nodeKind": "sh:BlankNode",
+      "sh:closed": true,
+      "property": [
+        {
+          "path": "rdf:type",
+          "name": "RDF type ProjectEventStream",
+          "description": "The ProjectEventStream source RDF type.",
+          "nodeKind": "sh:IRI",
+          "sh:hasValue": {
+            "@id": "nxv:ProjectEventStream"
+          }
+        },
+        {
+          "path": "nxv:resourceTypes",
+          "name": "Resource types",
+          "description": "The set of types absolute iris used in the view.",
+          "nodeKind": "sh:IRI"
+        },
+        {
+          "path": "nxv:resourceSchemas",
+          "name": "Resource schemas",
+          "description": "The set of schemas absolute iris used in the view.",
+          "nodeKind": "sh:IRI"
+        },
+        {
+          "path": "nxv:resourceTag",
+          "name": "Resource tag",
+          "description": "The tag for which indexing will be triggered",
+          "datatype": "xsd:string"
+        },
+        {
+          "path": "nxv:includeMetadata",
+          "name": "Include metadata",
+          "description": "flag to include or exclude metadata on the indexed Document",
+          "datatype": "xsd:boolean"
+        },
+        {
+          "path": "nxv:includeDeprecated",
+          "name": "Include deprecated",
+          "description": "flag to include or exclude deprecated resources on the indexed Document",
+          "datatype": "xsd:boolean"
+        }
+      ]
+    },
+    {
+      "@id": "this:SparqlProjectionShape",
+      "@type": "sh:NodeShape",
+      "nodeKind": "BlankNodeOrIRI",
+      "sh:closed": true,
+      "property": [
+        {
+          "path": "rdf:type",
+          "name": "RDF type Sparql",
+          "description": "The Sparql projection RDF type.",
+          "nodeKind": "sh:IRI",
+          "sh:hasValue": {
+            "@id": "nxv:Sparql"
+          }
+        },
+        {
+          "path": "nxv:uuid",
+          "name": "UUID",
+          "description": "The underlying uuid generated for this view.",
+          "datatype": "xsd:string",
+          "pattern": "^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89aAbB][a-f0-9]{3}-[a-f0-9]{12}$",
+          "minCount": 1
+        },
+        {
+          "path": "nxv:resourceTypes",
+          "name": "Resource types",
+          "description": "The set of types absolute iris used in the view.",
+          "nodeKind": "sh:IRI"
+        },
+        {
+          "path": "nxv:resourceSchemas",
+          "name": "Resource schemas",
+          "description": "The set of schemas absolute iris used in the view.",
+          "nodeKind": "sh:IRI"
+        },
+        {
+          "path": "nxv:resourceTag",
+          "name": "Resource tag",
+          "description": "The tag for which indexing will be triggered",
+          "datatype": "xsd:string"
+        },
+        {
+          "path": "nxv:includeMetadata",
+          "name": "Include metadata",
+          "description": "flag to include or exclude metadata on the indexed Document",
+          "datatype": "xsd:boolean"
+        },
+        {
+          "path": "nxv:includeDeprecated",
+          "name": "Include deprecated",
+          "description": "flag to include or exclude deprecated resources on the indexed Document",
+          "datatype": "xsd:boolean"
+        },
+        {
+          "path": "nxv:query",
+          "name": "query",
+          "description": "The sparql construct query.",
+          "datatype": "xsd:string",
+          "minCount": 1
+        }
+      ]
+    },
+    {
+      "@id": "this:ElasticSearchProjectionShape",
+      "@type": "sh:NodeShape",
+      "nodeKind": "BlankNodeOrIRI",
+      "sh:closed": true,
+      "property": [
+        {
+          "path": "rdf:type",
+          "name": "RDF type ElasticSearch",
+          "description": "The ElasticSearch projection RDF type.",
+          "nodeKind": "sh:IRI",
+          "sh:hasValue": {
+            "@id": "nxv:ElasticSearch"
+          }
+        },
+        {
+          "path": "nxv:uuid",
+          "name": "UUID",
+          "description": "The underlying uuid generated for this view.",
+          "datatype": "xsd:string",
+          "pattern": "^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89aAbB][a-f0-9]{3}-[a-f0-9]{12}$",
+          "minCount": 1
+        },
+        {
+          "path": "nxv:resourceTypes",
+          "name": "Resource types",
+          "description": "The set of types absolute iris used in the view.",
+          "nodeKind": "sh:IRI"
+        },
+        {
+          "path": "nxv:resourceSchemas",
+          "name": "Resource schemas",
+          "description": "The set of schemas absolute iris used in the view.",
+          "nodeKind": "sh:IRI"
+        },
+        {
+          "path": "nxv:mapping",
+          "name": "Mapping",
+          "description": "The ElasticSearch mapping definition",
+          "datatype": "xsd:string",
+          "minCount": 1
+        },
+        {
+          "path": "nxv:resourceTag",
+          "name": "Resource tag",
+          "description": "The tag for which indexing will be triggered",
+          "datatype": "xsd:string"
+        },
+        {
+          "path": "nxv:includeMetadata",
+          "name": "Include metadata",
+          "description": "flag to include or exclude metadata on the indexed Document",
+          "datatype": "xsd:boolean"
+        },
+        {
+          "path": "nxv:includeDeprecated",
+          "name": "Include deprecated",
+          "description": "flag to include or exclude deprecated resources on the indexed Document",
+          "datatype": "xsd:boolean"
+        },
+        {
+          "path": "nxv:sourceAsText",
+          "name": "Source as blob",
+          "description": "flag to include or exclude the source Json as a blob",
+          "datatype": "xsd:boolean"
+        },
+        {
+          "path": "nxv:query",
+          "name": "query",
+          "description": "The sparql construct query.",
+          "datatype": "xsd:string",
+          "minCount": 1
+        },
+        {
+          "path": "nxv:context",
+          "name": "context",
+          "description": "The context applied to convert a Graph back into Json-LD.",
+          "datatype": "xsd:string",
+          "minCount": 1
         }
       ]
     },
@@ -68,7 +305,7 @@
           "name": "Mapping",
           "description": "The ElasticSearch mapping definition",
           "datatype": "xsd:string",
-          "minCount": "1"
+          "minCount": 1
         },
         {
           "path": "nxv:resourceTag",

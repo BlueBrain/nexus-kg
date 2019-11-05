@@ -8,32 +8,25 @@ import akka.cluster.sharding.ShardRegion.{ExtractEntityId, ExtractShardId}
 import akka.cluster.sharding.{ClusterSharding, ClusterShardingSettings, ShardRegion}
 import akka.pattern.pipe
 import akka.persistence.query.{NoOffset, Offset, Sequence, TimeBasedUUID}
-import akka.stream.{ActorMaterializer, Materializer}
 import cats.implicits._
 import ch.epfl.bluebrain.nexus.admin.client.types.Project
 import ch.epfl.bluebrain.nexus.commons.cache.KeyValueStoreSubscriber.KeyValueStoreChange._
 import ch.epfl.bluebrain.nexus.commons.cache.KeyValueStoreSubscriber.KeyValueStoreChanges
 import ch.epfl.bluebrain.nexus.commons.cache.OnKeyValueStoreChange
-import ch.epfl.bluebrain.nexus.commons.es.client.ElasticSearchClient
 import ch.epfl.bluebrain.nexus.commons.es.client.ElasticSearchFailure.ElasticSearchServerOrUnexpectedFailure
-import ch.epfl.bluebrain.nexus.commons.http.HttpClient
-import ch.epfl.bluebrain.nexus.commons.http.HttpClient.UntypedHttpClient
-import ch.epfl.bluebrain.nexus.commons.sparql.client.{BlazegraphClient, SparqlResults}
-import ch.epfl.bluebrain.nexus.kg.KgError
 import ch.epfl.bluebrain.nexus.kg.async.ProjectViewCoordinatorActor.Msg._
 import ch.epfl.bluebrain.nexus.kg.async.ProjectViewCoordinatorActor.OffsetSyntax
 import ch.epfl.bluebrain.nexus.kg.cache.ViewCache
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig
-import ch.epfl.bluebrain.nexus.kg.indexing.View.{ElasticSearchView, SingleView, SparqlView}
-import ch.epfl.bluebrain.nexus.kg.indexing.{ElasticSearchIndexer, SparqlIndexer, Statistics, View}
+import ch.epfl.bluebrain.nexus.kg.indexing.View._
+import ch.epfl.bluebrain.nexus.kg.indexing.{CompositeIndexer, ElasticSearchIndexer, SparqlIndexer, Statistics, View}
 import ch.epfl.bluebrain.nexus.kg.resources.syntax._
 import ch.epfl.bluebrain.nexus.kg.resources.{Event, Resources}
+import ch.epfl.bluebrain.nexus.kg.routes.Clients
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import ch.epfl.bluebrain.nexus.sourcing.akka.SourcingConfig
 import ch.epfl.bluebrain.nexus.sourcing.projections.ProjectionProgress.NoProgress
 import ch.epfl.bluebrain.nexus.sourcing.projections._
-import ch.epfl.bluebrain.nexus.sourcing.retry.Retry
-import ch.epfl.bluebrain.nexus.sourcing.retry.syntax._
 import kamon.Kamon
 import monix.eval.Task
 import monix.execution.Scheduler.Implicits.global
@@ -42,7 +35,6 @@ import shapeless.TypeCase
 
 import scala.collection.immutable.Set
 import scala.collection.mutable
-import scala.concurrent.Future
 
 /**
   * Coordinator backed by akka actor which runs the views' streams inside the provided project
@@ -56,25 +48,25 @@ private abstract class ProjectViewCoordinatorActor(viewCache: ViewCache[Task])(
     with Stash
     with ActorLogging {
 
-  private val children = mutable.Map.empty[SingleView, StreamSupervisor[Task, ProjectionProgress]]
+  private val children = mutable.Map.empty[IndexedView, StreamSupervisor[Task, ProjectionProgress]]
 
   private var projectStream: Option[StreamSupervisor[Task, ProjectionProgress]] = None
 
   def receive: Receive = {
     case Start(_, project: Project, views) =>
-      log.debug("Started coordinator for project '{}' with initial views '{}'", project.projectLabel.show, views)
+      log.debug("Started coordinator for project '{}' with initial views '{}'", project.show, views)
       context.become(initialized(project))
       viewCache.subscribe(project.ref, onChange)
       children ++= views.map(view => view -> startCoordinator(view, project, restartOffset = false))
       projectStream = Some(startProjectStream(project))
       unstashAll()
-    case FetchProgress(_, view: SingleView) => val _ = viewProgress(view).runToFuture pipeTo sender()
+    case FetchProgress(_, view: IndexedView) => val _ = viewProgress(view).runToFuture pipeTo sender()
     case other =>
       log.debug("Received non Start message '{}', stashing until the actor is initialized", other)
       stash()
   }
 
-  private def viewProgress(view: SingleView): Task[Statistics] = {
+  private def viewProgress(view: IndexedView): Task[Statistics] = {
     val viewProgress    = children.get(view).map(projectionProgress).getOrElse(Task.pure(NoProgress))
     val projectProgress = projectStream.map(projectionProgress).getOrElse(Task.pure(NoProgress))
     for {
@@ -99,12 +91,12 @@ private abstract class ProjectViewCoordinatorActor(viewCache: ViewCache[Task])(
     val g = Kamon
       .gauge("kg_indexer_gauge")
       .withTag("type", "eventCount")
-      .withTag("project", project.projectLabel.show)
+      .withTag("project", project.show)
       .withTag("organization", project.organizationLabel)
     val c = Kamon
       .counter("kg_indexer_counter")
       .withTag("type", "eventCount")
-      .withTag("project", project.projectLabel.show)
+      .withTag("project", project.show)
       .withTag("organization", project.organizationLabel)
     val count = AtomicLong(0L)
     TagProjection.start(
@@ -145,7 +137,7 @@ private abstract class ProjectViewCoordinatorActor(viewCache: ViewCache[Task])(
     * @return the actor reference
     */
   def startCoordinator(
-      view: SingleView,
+      view: IndexedView,
       project: Project,
       restartOffset: Boolean
   ): StreamSupervisor[Task, ProjectionProgress]
@@ -156,7 +148,7 @@ private abstract class ProjectViewCoordinatorActor(viewCache: ViewCache[Task])(
     * @param view    the view linked to the indexer actor
     * @param project the project of the current coordinator
     */
-  def deleteViewIndices(view: SingleView, project: Project): Task[Unit]
+  def deleteViewIndices(view: IndexedView, project: Project): Task[Unit]
 
   /**
     * Triggered when a change to key value store occurs.
@@ -165,21 +157,20 @@ private abstract class ProjectViewCoordinatorActor(viewCache: ViewCache[Task])(
 
   def initialized(project: Project): Receive = {
     def stopView(
-        v: SingleView,
+        v: IndexedView,
         coordinator: StreamSupervisor[Task, ProjectionProgress],
         deleteIndices: Boolean = true
     ) = {
-      coordinator.stop()
       children -= v
-      if (deleteIndices) deleteViewIndices(v, project).runToFuture else Future.unit
+      (coordinator.stop() >> (if (deleteIndices) deleteViewIndices(v, project) else Task.unit)).runToFuture
     }
 
-    def startView(view: SingleView, restartOffset: Boolean) = {
+    def startView(view: IndexedView, restartOffset: Boolean) = {
       log.info(
         "View '{}' is going to be started at revision '{}' for project '{}'. restartOffset: {}",
         view.id,
         view.rev,
-        project.projectLabel.show,
+        project.show,
         restartOffset
       )
       val ref = startCoordinator(view, project, restartOffset)
@@ -190,10 +181,10 @@ private abstract class ProjectViewCoordinatorActor(viewCache: ViewCache[Task])(
       case ViewsAddedOrModified(_, restartOffset, views) =>
         views.foreach {
           case view if !children.keySet.exists(_.id == view.id) => startView(view, restartOffset)
-          case view: SingleView =>
+          case view: IndexedView =>
             children
               .collectFirst {
-                case (v: SingleView, ref) if v.id == view.id && v.ref == view.ref && v.rev != view.rev =>
+                case (v: IndexedView, ref) if v.id == view.id && v.ref == view.ref && v.rev != view.rev =>
                   v -> ref
               }
               .foreach {
@@ -203,7 +194,7 @@ private abstract class ProjectViewCoordinatorActor(viewCache: ViewCache[Task])(
                     "View '{}' is going to be stopped at revision '{}' for project '{}' because another view is going to be started. restartOffset: {}",
                     oldView.id,
                     oldView.rev,
-                    project.projectLabel.show,
+                    project.show,
                     restartOffset
                   )
                   stopView(oldView, ref)
@@ -218,7 +209,7 @@ private abstract class ProjectViewCoordinatorActor(viewCache: ViewCache[Task])(
               "View '{}' is going to be stopped at revision '{}' for project '{}' because it was removed from the cache.",
               v.id,
               v.rev,
-              project.projectLabel.show
+              project.show
             )
             stopView(v, ref)
         }
@@ -231,7 +222,7 @@ private abstract class ProjectViewCoordinatorActor(viewCache: ViewCache[Task])(
               "View '{}' is going to be stopped at revision '{}' for project '{}' because the project has changes that require restart of the view.",
               view.id,
               view.rev,
-              project.projectLabel.show
+              project.show
             )
             stopView(view, ref).map(_ => self ! ViewsAddedOrModified(project.uuid, restartOffset = true, Set(view)))
         }
@@ -243,12 +234,12 @@ private abstract class ProjectViewCoordinatorActor(viewCache: ViewCache[Task])(
               "View '{}' is going to be stopped at revision '{}' for project '{}' because the project or organization has been deprecated.",
               view.id,
               view.rev,
-              project.projectLabel.show
+              project.show
             )
             stopView(view, ref, deleteIndices = false)
         }
 
-      case FetchProgress(_, view: SingleView) => val _ = viewProgress(view).runToFuture pipeTo sender()
+      case FetchProgress(_, view: IndexedView) => val _ = viewProgress(view).runToFuture pipeTo sender()
 
       case _: Start => //ignore, it has already been started
 
@@ -270,12 +261,12 @@ object ProjectViewCoordinatorActor {
   }
   object Msg {
 
-    final case class Start(uuid: UUID, project: Project, views: Set[SingleView])                      extends Msg
-    final case class Stop(uuid: UUID)                                                                 extends Msg
-    final case class ViewsAddedOrModified(uuid: UUID, restartOffset: Boolean, views: Set[SingleView]) extends Msg
-    final case class ViewsRemoved(uuid: UUID, views: Set[SingleView])                                 extends Msg
-    final case class ProjectChanges(uuid: UUID, project: Project)                                     extends Msg
-    final case class FetchProgress(uuid: UUID, view: View)                                            extends Msg
+    final case class Start(uuid: UUID, project: Project, views: Set[IndexedView])                      extends Msg
+    final case class Stop(uuid: UUID)                                                                  extends Msg
+    final case class ViewsAddedOrModified(uuid: UUID, restartOffset: Boolean, views: Set[IndexedView]) extends Msg
+    final case class ViewsRemoved(uuid: UUID, views: Set[IndexedView])                                 extends Msg
+    final case class ProjectChanges(uuid: UUID, project: Project)                                      extends Msg
+    final case class FetchProgress(uuid: UUID, view: View)                                             extends Msg
   }
 
   private[async] def shardExtractor(shards: Int): ExtractShardId = {
@@ -301,52 +292,44 @@ object ProjectViewCoordinatorActor {
       shardingSettings: Option[ClusterShardingSettings],
       shards: Int
   )(
-      implicit esClient: ElasticSearchClient[Task],
+      implicit clients: Clients[Task],
       config: AppConfig,
-      ul: UntypedHttpClient[Task],
-      ucl: HttpClient[Task, SparqlResults],
       as: ActorSystem,
       projections: Projections[Task, Event]
   ): ActorRef = {
 
-    implicit val mt: Materializer = ActorMaterializer()
-
     val props = Props(
       new ProjectViewCoordinatorActor(viewCache) {
-        private implicit val retry: Retry[Task, Throwable] = Retry(config.keyValueStore.indexing.retry.retryStrategy)
 
-        private val sparql                                                 = config.sparql
         private implicit val actorInitializer: (Props, String) => ActorRef = context.actorOf
         override def startCoordinator(
-            view: SingleView,
+            view: IndexedView,
             project: Project,
             restartOffset: Boolean
         ): StreamSupervisor[Task, ProjectionProgress] =
           view match {
             case v: ElasticSearchView => ElasticSearchIndexer.start(v, resources, project, restartOffset)
             case v: SparqlView        => SparqlIndexer.start(v, resources, project, restartOffset)
+            case v: CompositeView     => CompositeIndexer.start(v, resources, project, restartOffset)
           }
 
-        override def deleteViewIndices(view: SingleView, project: Project): Task[Unit] = view match {
-          case v: ElasticSearchView =>
-            log.info("ElasticSearchView index '{}' is removed from project '{}'", v.index, project.projectLabel.show)
-            esClient
-              .deleteIndex(v.index)
-              .mapRetry(
-                { case true => () },
-                KgError.InternalError(s"Could not delete ElasticSearch index '${v.index}'"): Throwable
-              )
-          case v: SparqlView =>
-            log.info("Blazegraph keyspace '{}' is removed from project '{}'", v.index, project.projectLabel.show)
-            val client = BlazegraphClient[Task](sparql.base, v.index, sparql.akkaCredentials)
-            client.deleteNamespace.mapRetry(
-              { case true => () },
-              KgError.InternalError(s"Could not delete Sparql keyspace '${v.name}'"): Throwable
-            )
+        override def deleteViewIndices(view: IndexedView, project: Project): Task[Unit] = {
+          def deleteIndex(v: SingleView): Task[Unit] = {
+            log.info("index '{}' is removed from project '{}'", v.index, project.show)
+            v.deleteIndex >> Task.unit
+          }
+
+          view match {
+            case v: SingleView =>
+              deleteIndex(v)
+            case v: CompositeView =>
+              deleteIndex(v.defaultSparqlView) >>
+                v.projections.map(p => deleteIndex(p.view)).toList.sequence >>
+                Task.unit
+          }
         }
 
-        override def onChange: OnKeyValueStoreChange[AbsoluteIri, View] =
-          onViewChange(self)
+        override def onChange: OnKeyValueStoreChange[AbsoluteIri, View] = onViewChange(self)
 
       }
     )
@@ -364,11 +347,11 @@ object ProjectViewCoordinatorActor {
 
   private[async] def onViewChange(actorRef: ActorRef): OnKeyValueStoreChange[AbsoluteIri, View] =
     new OnKeyValueStoreChange[AbsoluteIri, View] {
-      private val `SingleView` = TypeCase[SingleView]
+      private val `SingleView` = TypeCase[IndexedView]
 
       override def apply(onChange: KeyValueStoreChanges[AbsoluteIri, View]): Unit = {
         val (toWrite, toRemove) =
-          onChange.values.foldLeft((Set.empty[SingleView], Set.empty[SingleView])) {
+          onChange.values.foldLeft((Set.empty[IndexedView], Set.empty[IndexedView])) {
             case ((write, removed), ValueAdded(_, `SingleView`(view)))    => (write + view, removed)
             case ((write, removed), ValueModified(_, `SingleView`(view))) => (write + view, removed)
             case ((write, removed), ValueRemoved(_, `SingleView`(view)))  => (write, removed + view)
