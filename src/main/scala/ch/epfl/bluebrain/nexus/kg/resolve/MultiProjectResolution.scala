@@ -24,7 +24,7 @@ import ch.epfl.bluebrain.nexus.rdf.Iri
   */
 class MultiProjectResolution[F[_]](
     repo: Repo[F],
-    projects: F[Set[ProjectRef]],
+    projects: F[List[ProjectRef]],
     types: Set[Iri.AbsoluteIri],
     identities: List[Identity],
     projectCache: ProjectCache[F],
@@ -35,7 +35,7 @@ class MultiProjectResolution[F[_]](
   private val read = Permission.unsafe("resources/read")
 
   override def resolve(ref: Ref): F[Option[Resource]] = {
-    val sequence = projects.flatMap(_.map(p => checkPermsAndResolve(ref, p)).toList.sequence)
+    val sequence = projects.flatMap(_.map(p => checkPermsAndResolve(ref, p)).sequence)
     sequence.map(_.collectFirst { case Some(r) => r })
   }
 
@@ -66,7 +66,7 @@ object MultiProjectResolution {
     */
   def apply[F[_]: Monad](
       repo: Repo[F],
-      projects: F[Set[ProjectRef]],
+      projects: F[List[ProjectRef]],
       types: Set[Iri.AbsoluteIri],
       identities: List[Identity],
       projectCache: ProjectCache[F],

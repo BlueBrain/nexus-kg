@@ -75,7 +75,7 @@ class ResolverSpec
 
       "return a CrossProjectResolver" in {
         val resource = simpleV(id, crossProject, types = Set(nxv.Resolver, nxv.CrossProject))
-        val projects = Set(label1, label2)
+        val projects = List(label1, label2)
         val resolver = Resolver(resource).right.value.asInstanceOf[CrossProjectResolver[ProjectLabel]]
         resolver.priority shouldEqual 50
         resolver.identities should contain theSameElementsAs identities
@@ -91,7 +91,7 @@ class ResolverSpec
         Resolver(resource).right.value.asInstanceOf[CrossProjectResolver[ProjectLabel]] shouldEqual
           CrossProjectResolver(
             Set(nxv.Schema.value),
-            Set(ProjectLabel("account1", "project1"), ProjectLabel("account1", "project2")),
+            List(ProjectLabel("account1", "project1"), ProjectLabel("account1", "project2")),
             List(Anonymous),
             projectRef,
             iri,
@@ -108,7 +108,7 @@ class ResolverSpec
         resolver.priority shouldEqual 50
         resolver.identities should contain theSameElementsAs identities
         resolver.resourceTypes shouldEqual Set.empty
-        resolver.projects shouldEqual Set(ProjectRef(UUID.fromString("ee9bb6e8-2bee-45f8-8a57-82e05fff0169")))
+        resolver.projects shouldEqual List(ProjectRef(UUID.fromString("ee9bb6e8-2bee-45f8-8a57-82e05fff0169")))
         resolver.ref shouldEqual projectRef
         resolver.id shouldEqual iri
         resolver.rev shouldEqual resource.rev
@@ -136,7 +136,7 @@ class ResolverSpec
 
         val resolver: Resolver = CrossProjectResolver(
           Set(nxv.Schema.value),
-          Set(ProjectLabel("account1", "project1"), ProjectLabel("account1", "project2")),
+          List(ProjectLabel("account1", "project1"), ProjectLabel("account1", "project2")),
           List(Anonymous),
           projectRef,
           iri,
@@ -166,7 +166,7 @@ class ResolverSpec
       val uuid2 = genUUID
 
       "generate a CrossProjectResolver" in {
-        projectCache.getProjectRefs(Set(label1, label2)) shouldReturn Map(
+        projectCache.getProjectRefs(List(label1, label2)) shouldReturn Map(
           label1 -> Option(ProjectRef(uuid1)),
           label2 -> Option(ProjectRef(uuid2))
         )
@@ -176,7 +176,7 @@ class ResolverSpec
         stored.priority shouldEqual 50
         stored.identities should contain theSameElementsAs identities
         stored.resourceTypes shouldEqual Set(nxv.Schema.value)
-        stored.projects shouldEqual Set(ProjectRef(uuid1), ProjectRef(uuid2))
+        stored.projects shouldEqual List(ProjectRef(uuid1), ProjectRef(uuid2))
         stored.ref shouldEqual projectRef
         stored.id shouldEqual iri
         stored.rev shouldEqual resource.rev
@@ -184,9 +184,9 @@ class ResolverSpec
       }
 
       "generate a CrossProjectLabelResolver" in {
-        projectCache.getProjectLabels(Set(ProjectRef(uuid1), ProjectRef(uuid2))) shouldReturn
+        projectCache.getProjectLabels(List(ProjectRef(uuid1), ProjectRef(uuid2))) shouldReturn
           Map(ProjectRef(uuid1) -> Option(label1), ProjectRef(uuid2) -> Option(label2))
-        projectCache.getProjectRefs(Set(label2, label1)) shouldReturn
+        projectCache.getProjectRefs(List(label1, label2)) shouldReturn
           Map(label1 -> Option(ProjectRef(uuid1)), label2 -> Option(ProjectRef(uuid2)))
 
         val resource = simpleV(id, crossProject, types = Set(nxv.Resolver, nxv.CrossProject))

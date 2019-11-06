@@ -313,7 +313,7 @@ object View {
         _             <- if(sourceTpe == nxv.ProjectEventStream.value) Right(()) else Left(InvalidResourceFormat(res.id.ref, s"Invalid '@type' field '$sourceTpe'. Recognized types are '${nxv.ProjectEventStream.value}'."): Rejection)
         filterSource  <- filter(sourceC)
         includeMeta   <- sourceC.downField(nxv.includeMetadata).focus.as[Boolean].orElse(false).onError(res.id.ref, nxv.includeMetadata.prefix)
-        projs         <- projections(c.downField(nxv.projections).downArray)
+        projs         <- projections(c.downField(nxv.projections).downSet)
       } yield CompositeView (Source(filterSource, includeMeta), projs, res.id.parent, res.id.value, uuid, res.rev, res.deprecated)
       // format: on
     }
@@ -338,7 +338,7 @@ object View {
 
     def aggregatedEsView(): Either[Rejection, View] =
       c.downField(nxv.uuid).focus.as[UUID].onError(res.id.ref, nxv.uuid.prefix).flatMap { uuid =>
-        val cursorList = c.downField(nxv.views).downArray.toList
+        val cursorList = c.downField(nxv.views).downSet.toList
         viewRefs[ProjectLabel](cursorList) match {
           case Right(labels) =>
             Right(AggregateElasticSearchView(labels, res.id.parent, uuid, res.id.value, res.rev, res.deprecated))
@@ -350,7 +350,7 @@ object View {
 
     def aggregatedSparqlView(): Either[Rejection, View] =
       c.downField(nxv.uuid).focus.as[UUID].onError(res.id.ref, nxv.uuid.prefix).flatMap { uuid =>
-        val cursorList = c.downField(nxv.views).downArray.toList
+        val cursorList = c.downField(nxv.views).downSet.toList
         viewRefs[ProjectLabel](cursorList) match {
           case Right(labels) =>
             Right(AggregateSparqlView(labels, res.id.parent, uuid, res.id.value, res.rev, res.deprecated))

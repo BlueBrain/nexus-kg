@@ -59,8 +59,7 @@
           "path": "nxv:projects",
           "name": "Project label",
           "description": "The project label",
-          "datatype": "xsd:string",
-          "minCount": 1
+          "node": "shsh:ListNodeShape"
         },
         {
           "path": "nxv:identities",

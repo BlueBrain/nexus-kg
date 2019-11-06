@@ -15,6 +15,7 @@ import ch.epfl.bluebrain.nexus.iam.client.types._
 import ch.epfl.bluebrain.nexus.kg.TestHelper
 import ch.epfl.bluebrain.nexus.kg.cache.{AclsCache, ProjectCache, ResolverCache}
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig._
+import ch.epfl.bluebrain.nexus.kg.resources.ResourceF._
 import ch.epfl.bluebrain.nexus.kg.config.Contexts._
 import ch.epfl.bluebrain.nexus.kg.config.Schemas._
 import ch.epfl.bluebrain.nexus.kg.config.Settings
@@ -22,7 +23,6 @@ import ch.epfl.bluebrain.nexus.kg.config.Vocabulary._
 import ch.epfl.bluebrain.nexus.kg.resolve.Resolver.{CrossProjectResolver, InProjectResolver}
 import ch.epfl.bluebrain.nexus.kg.resolve.{Materializer, ProjectResolution, StaticResolution}
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection._
-import ch.epfl.bluebrain.nexus.kg.resources.ResourceF.Value
 import ch.epfl.bluebrain.nexus.kg.resources.syntax._
 import ch.epfl.bluebrain.nexus.rdf.Graph.Triple
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
@@ -35,6 +35,7 @@ import org.mockito.{IdiomaticMockito, Mockito}
 import org.scalactic.Equality
 import org.scalatest._
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig._
+
 import scala.concurrent.ExecutionContext
 import scala.concurrent.duration._
 import scala.util.Try
@@ -62,6 +63,7 @@ class ResolversSpec
   private implicit val mat: ActorMaterializer = ActorMaterializer()
   private implicit val ctx: ContextShift[IO]  = IO.contextShift(ExecutionContext.global)
   private implicit val timer: Timer[IO]       = IO.timer(ExecutionContext.global)
+  private val fullCtx                         = resolverCtx appendContextOf resourceCtx
 
   private implicit val repo          = Repo[IO].ioValue
   private implicit val projectCache  = mock[ProjectCache[IO]]
@@ -87,7 +89,7 @@ class ResolversSpec
   projectCache.getBy(ProjectLabel("account1", "project2")) shouldReturn IO.pure(Some(project2))
   projectCache.getLabel(project1.ref) shouldReturn IO.pure(Some(label1))
   projectCache.getLabel(project2.ref) shouldReturn IO.pure(Some(label2))
-  projectCache.getProjectRefs(Set(label1, label2)) shouldReturn
+  projectCache.getProjectRefs(List(label1, label2)) shouldReturn
     IO.pure(Map(label1 -> Option(project1.ref), label2 -> Option(project2.ref)))
 
   aclsCache.list shouldReturn IO(AccessControlLists(/ -> resourceAcls(AccessControlList(user -> Set(read)))))
@@ -106,7 +108,7 @@ class ResolversSpec
     val voc        = Iri.absolute(s"http://example.com/voc/").right.value
     // format: off
     implicit val project = Project(resId.value, "proj", "org", None, base, voc, Map.empty, projectRef.id, genUUID, 1L, deprecated = false, Instant.EPOCH, caller.subject.id, Instant.EPOCH, caller.subject.id)
-    val crossResolver = CrossProjectResolver(Set(nxv.Schema), Set(project1.ref, project2.ref), identities, projectRef, url"http://example.com/id".value, 1L, false, 20)
+    val crossResolver = CrossProjectResolver(Set(nxv.Schema), List(project1.ref, project2.ref), identities, projectRef, url"http://example.com/id".value, 1L, false, 20)
     // format: on
     resolverCache.get(projectRef) shouldReturn IO(List(InProjectResolver.default(projectRef), crossResolver))
 
@@ -185,7 +187,7 @@ class ResolversSpec
       "prevent creating an CrossProject when project not found in the cache" in new Base {
         val label1 = ProjectLabel("account2", "project1")
         val label2 = ProjectLabel("account2", "project2")
-        projectCache.getProjectRefs(Set(label1, label2)) shouldReturn IO(Map(label1 -> None, label2 -> None))
+        projectCache.getProjectRefs(List(label1, label2)) shouldReturn IO(Map(label1 -> None, label2 -> None))
         val json = resolver.removeKeys("projects") deepMerge Json.obj(
           "projects" -> Json.arr(Json.fromString("account2/project1"), Json.fromString("account2/project2"))
         )
@@ -244,7 +246,7 @@ class ResolversSpec
       def resolverForGraph(id: AbsoluteIri) =
         jsonContentOf("/resolve/cross-project-to-graph.json", Map(quote("{id}") -> id.asString))
 
-      projectCache.getProjectLabels(Set(project1.ref, project2.ref)) shouldReturn IO(
+      projectCache.getProjectLabels(List(project1.ref, project2.ref)) shouldReturn IO(
         Map(project1.ref -> Some(label1), project2.ref -> Some(label2))
       )
 
@@ -254,8 +256,9 @@ class ResolversSpec
         val result = resolvers.fetch(resId).value.accepted
         resolvers.fetchSource(resId).value.accepted should equalIgnoreArrayOrder(resolverSource())
         val expected = resourceV(resolverForGraph(resId.value))
+        val json     = removeMetadata(result.value.graph).as[Json](fullCtx).right.value.removeKeys("@context")
+        json should equalIgnoreArrayOrder(resolverForGraph(resId.value))
         result.value.ctx shouldEqual expected.value.ctx
-        result.value.graph shouldEqual expected.value.graph
         result shouldEqual expected.copy(value = result.value)
       }
 
@@ -270,16 +273,17 @@ class ResolversSpec
         val resultLatest   = resolvers.fetch(resId, 2L).value.accepted
         val expectedLatest = resourceV(resolverUpdatedForGraph, 2L)
         resultLatest.value.ctx shouldEqual expectedLatest.value.ctx
-        resultLatest.value.graph shouldEqual expectedLatest.value.graph
+        val json1 = removeMetadata(resultLatest.value.graph).as[Json](fullCtx).right.value.removeKeys("@context")
+        json1 should equalIgnoreArrayOrder(resolverUpdatedForGraph)
         resultLatest shouldEqual expectedLatest.copy(value = resultLatest.value)
 
-        resolvers.fetch(resId, 2L).value.accepted shouldEqual resolvers.fetch(resId).value.accepted
         resolvers.fetchSource(resId, 2L).value.accepted should equalIgnoreArrayOrder(resolverSource(34))
 
         val result   = resolvers.fetch(resId, 1L).value.accepted
         val expected = resourceV(resolverForGraph(resId.value))
         result.value.ctx shouldEqual expected.value.ctx
-        result.value.graph shouldEqual expected.value.graph
+        val json2 = removeMetadata(result.value.graph).as[Json](fullCtx).right.value.removeKeys("@context")
+        json2 should equalIgnoreArrayOrder(resolverForGraph(resId.value))
         result shouldEqual expected.copy(value = result.value)
       }
 

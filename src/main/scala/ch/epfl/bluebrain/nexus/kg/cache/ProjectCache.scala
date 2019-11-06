@@ -61,7 +61,7 @@ class ProjectCache[F[_]] private (store: KeyValueStore[F, UUID, Project])(implic
     *
     * @param refs the set of ''ProjectRef''
     */
-  def getProjectLabels(refs: Set[ProjectRef]): F[Map[ProjectRef, Option[ProjectLabel]]] =
+  def getProjectLabels(refs: Iterable[ProjectRef]): F[Map[ProjectRef, Option[ProjectLabel]]] =
     refs.toList.traverse(ref => getLabel(ref).map(ref -> _)).map(_.toMap)
 
   /**
@@ -69,7 +69,7 @@ class ProjectCache[F[_]] private (store: KeyValueStore[F, UUID, Project])(implic
     *
     * @param labels the set of ''ProjectLabel''
     */
-  def getProjectRefs(labels: Set[ProjectLabel]): F[Map[ProjectLabel, Option[ProjectRef]]] =
+  def getProjectRefs(labels: Iterable[ProjectLabel]): F[Map[ProjectLabel, Option[ProjectRef]]] =
     labels.toList.traverse(label => getBy(label).map(label -> _.map(_.ref))).map(_.toMap)
 
   /**

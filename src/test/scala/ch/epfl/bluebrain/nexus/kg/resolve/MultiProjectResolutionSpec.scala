@@ -26,7 +26,6 @@ import org.mockito.Mockito._
 import org.mockito.{IdiomaticMockito, Mockito}
 import org.scalatest._
 
-import scala.collection.immutable.ListSet
 import scala.concurrent.duration._
 
 class MultiProjectResolutionSpec
@@ -57,7 +56,7 @@ class MultiProjectResolutionSpec
   private val (proj1Id, proj2Id, proj3Id) =
     (genUUID, genUUID, genUUID)
   private val (proj1, proj2, proj3) = (genProjectLabel, genProjectLabel, genProjectLabel)
-  private val projects              = IO.pure(ListSet(proj1Id, proj2Id, proj3Id).map(ProjectRef(_))) // we want to ensure traversal order
+  private val projects              = IO.pure(List(proj1Id, proj2Id, proj3Id).map(ProjectRef(_))) // we want to ensure traversal order
   private val types                 = Set(nxv.Schema.value, nxv.Resource.value)
   private val group                 = Group("bbp-ou-neuroinformatics", "ldap2")
   private val identities            = List[Identity](group, User("dmontero", "ldap"))
