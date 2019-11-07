@@ -3,8 +3,8 @@ package ch.epfl.bluebrain.nexus.kg.resolve
 import cats.Monad
 import cats.data.EitherT
 import cats.implicits._
-import ch.epfl.bluebrain.nexus.iam.client.types.{Identity, Permission}
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity._
+import ch.epfl.bluebrain.nexus.iam.client.types.{Identity, Permission}
 import ch.epfl.bluebrain.nexus.kg._
 import ch.epfl.bluebrain.nexus.kg.cache.ProjectCache
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary._
@@ -56,9 +56,9 @@ sealed trait Resolver extends Product with Serializable {
     */
   def labeled[F[_]](implicit projectCache: ProjectCache[F], F: Monad[F]): EitherT[F, Rejection, Resolver] =
     this match {
-      case r @ CrossProjectResolver(_, `Set[ProjectRef]`(projectRefs), _, _, _, _, _, _) =>
+      case r @ CrossProjectResolver(_, `List[ProjectRef]`(projectRefs), _, _, _, _, _, _) =>
         EitherT(projectCache.getProjectLabels(projectRefs).map(resultOrFailures).map {
-          case Right(result)  => Right(r.copy(projects = result.map { case (_, label) => label }.toSet))
+          case Right(result)  => Right(r.copy(projects = result.map { case (_, label) => label }.toList))
           case Left(projects) => Left(LabelsNotFound(projects))
         })
       case o =>
@@ -72,9 +72,9 @@ sealed trait Resolver extends Product with Serializable {
     */
   def referenced[F[_]](implicit projectCache: ProjectCache[F], F: Monad[F]): EitherT[F, Rejection, Resolver] =
     this match {
-      case r @ CrossProjectResolver(_, `Set[ProjectLabel]`(projectLabels), _, _, _, _, _, _) =>
+      case r @ CrossProjectResolver(_, `List[ProjectLabel]`(projectLabels), _, _, _, _, _, _) =>
         EitherT(projectCache.getProjectRefs(projectLabels).map(resultOrFailures).map {
-          case Right(result)  => Right(r.copy(projects = result.map { case (_, ref) => ref }.toSet))
+          case Right(result)  => Right(r.copy(projects = result.map { case (_, ref) => ref }.toList))
           case Left(projects) => Left(ProjectsNotFound(projects))
         })
       case o =>
@@ -104,21 +104,21 @@ object Resolver {
     def crossProject: Either[Rejection, CrossProjectResolver[_]] = {
       // format: off
       val result = for {
-        ids   <- identities(c.downField(nxv.identities).downArray)
+        ids   <- identities(c.downField(nxv.identities).downSet)
         prio  <- c.downField(nxv.priority).focus.as[Int].onError(res.id.ref, nxv.priority.prefix)
         types <- c.downField(nxv.resourceTypes).values.asListOf[AbsoluteIri].orElse(List.empty).map(_.toSet).onError(res.id.ref, nxv.resourceTypes.prefix)
-      } yield CrossProjectResolver(types, Set.empty[String], ids, id.parent, id.value, res.rev, res.deprecated, prio)
+      } yield CrossProjectResolver(types, List.empty[String], ids, id.parent, id.value, res.rev, res.deprecated, prio)
       // format: on
       result.flatMap { r =>
         val nodes = c.downField(nxv.projects).values
         nodes.asListOf[ProjectLabel].onError(res.id.ref, nxv.projects.prefix) match {
           case Right(projectLabels) =>
-            Right(r.copy(projects = projectLabels.toSet))
+            Right(r.copy(projects = projectLabels.toList))
           case Left(_) =>
             nodes
               .asListOf[ProjectRef]
               .onError(res.id.ref, nxv.projects.prefix)
-              .map(refs => r.copy(projects = refs.toSet))
+              .map(refs => r.copy(projects = refs.toList))
         }
       }
     }
@@ -175,7 +175,7 @@ object Resolver {
     */
   final case class CrossProjectResolver[P](
       resourceTypes: Set[AbsoluteIri],
-      projects: Set[P],
+      projects: List[P],
       identities: List[Identity],
       ref: ProjectRef,
       id: AbsoluteIri,
@@ -184,6 +184,6 @@ object Resolver {
       priority: Int
   ) extends Resolver
 
-  private[resolve] val `Set[ProjectRef]`   = TypeCase[Set[ProjectRef]]
-  private[resolve] val `Set[ProjectLabel]` = TypeCase[Set[ProjectLabel]]
+  private[resolve] val `List[ProjectRef]`   = TypeCase[List[ProjectRef]]
+  private[resolve] val `List[ProjectLabel]` = TypeCase[List[ProjectLabel]]
 }

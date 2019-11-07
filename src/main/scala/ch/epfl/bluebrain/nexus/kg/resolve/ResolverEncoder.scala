@@ -10,7 +10,8 @@ import ch.epfl.bluebrain.nexus.kg.resolve.Resolver._
 import ch.epfl.bluebrain.nexus.rdf.Graph.Triple
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import ch.epfl.bluebrain.nexus.rdf.Node._
-import ch.epfl.bluebrain.nexus.rdf.RootedGraph
+import ch.epfl.bluebrain.nexus.rdf.{Graph, Node, RootedGraph}
+import ch.epfl.bluebrain.nexus.rdf.Node.literal
 import ch.epfl.bluebrain.nexus.rdf.Vocabulary._
 import ch.epfl.bluebrain.nexus.rdf.encoder.GraphEncoder.EncoderResult
 import ch.epfl.bluebrain.nexus.rdf.encoder.{GraphEncoder, RootNode}
@@ -27,15 +28,15 @@ object ResolverEncoder {
     GraphEncoder {
       case (rootNode, r: InProjectResolver) => RootedGraph(rootNode, r.mainTriples(nxv.InProject))
       case (rootNode, r @ CrossProjectResolver(resTypes, _, identities, _, _, _, _, _)) =>
-        val projectsString = r match {
-          case CrossProjectResolver(_, `Set[ProjectRef]`(projects), _, _, _, _, _, _)   => projects.map(_.show)
-          case CrossProjectResolver(_, `Set[ProjectLabel]`(projects), _, _, _, _, _, _) => projects.map(_.show)
+        val projectsLiteral: List[Node] = r match {
+          case CrossProjectResolver(_, `List[ProjectRef]`(projects), _, _, _, _, _, _) =>
+            projects.map(p => literal(p.show))
+          case CrossProjectResolver(_, `List[ProjectLabel]`(projects), _, _, _, _, _, _) =>
+            projects.map(p => literal(p.show))
         }
-        val projTriples: Set[Triple] = projectsString.map(p => (rootNode, nxv.projects, p): Triple)
-        RootedGraph(
-          rootNode,
-          r.mainTriples(nxv.CrossProject) ++ r.triplesFor(identities) ++ r.triplesFor(resTypes) ++ projTriples
-        )
+        val triples = r.mainTriples(nxv.CrossProject) ++ r.triplesFor(identities) ++ r.triplesFor(resTypes)
+        val graph   = Graph(triples).add(rootNode, nxv.projects, projectsLiteral)
+        RootedGraph(rootNode, graph)
     }
 
   implicit def resolverGraphEncoderEither(implicit config: IamClientConfig): GraphEncoder[EncoderResult, Resolver] =

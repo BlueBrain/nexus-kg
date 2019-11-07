@@ -60,7 +60,7 @@ class ProjectResolution[F[_]](
   private def resolverResolution(resolver: Resolver): Option[F[Resolution[F]]] =
     resolver match {
       case r: InProjectResolver => Some(F.pure(InProjectResolution[F](r.ref, repo)))
-      case r @ CrossProjectResolver(_, `Set[ProjectRef]`(projects), _, _, _, _, _, _) =>
+      case r @ CrossProjectResolver(_, `List[ProjectRef]`(projects), _, _, _, _, _, _) =>
         Some(
           aclCache.list
             .map(MultiProjectResolution(repo, F.pure(projects), r.resourceTypes, r.identities, projectCache, _))

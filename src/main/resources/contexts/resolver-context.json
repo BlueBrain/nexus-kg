@@ -15,7 +15,7 @@
       "@container": "@set"
     },
     "projects": {
-      "@container": "@set",
+      "@container": "@list",
       "@id": "nxv:projects"
     },
     "identities": {

@@ -196,7 +196,7 @@ object Archive {
 
     val cursor = graph.cursor()
     for {
-      resources <- resourceDescriptions[F](id, cursor.downField(nxv.resources).downArray)
+      resources <- resourceDescriptions[F](id, cursor.downField(nxv.resources).downSet)
       _         <- maxResourcesCheck(resources)
       _         <- duplicatedPathCheck(resources)
     } yield Archive(Id(project.ref, id), clock.instant, subject, resources)

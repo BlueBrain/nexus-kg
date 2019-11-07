@@ -58,7 +58,7 @@ object FetchResource {
       private def generatePath(optPath: Option[Path], defaultPath: => String): F[Path] =
         optPath match {
           case None =>
-            Path.rootless(defaultPath) match {
+            Path.rootless(defaultPath.replaceAll(" ", "_")) match {
               case Right(path) => F.pure(path)
               case Left(_)     => F.raiseError(KgError.InternalError(s"Invalid path generation from path '$defaultPath'"))
             }
