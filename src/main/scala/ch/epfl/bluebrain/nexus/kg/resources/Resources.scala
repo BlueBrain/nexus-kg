@@ -383,10 +383,9 @@ object Resources {
 
   def getOrAssignId(json: Json)(implicit project: Project): Either[Rejection, AbsoluteIri] =
     json.id match {
-      case Right(id)                         => Right(id)
-      case Left(IdRetrievalError.IdNotFound) => Right(generateId(project.base))
-      case Left(IdRetrievalError.InvalidId(id)) =>
-        Left(InvalidJsonLD(s"The provided @id value '$id' is not a valid Iri"))
+      case Right(id)                              => Right(id)
+      case Left(IdRetrievalError.IdNotFound)      => Right(generateId(project.base))
+      case Left(IdRetrievalError.InvalidId(id))   => Left(InvalidJsonLD(s"The @id value '$id' is not a valid Iri"))
       case Left(IdRetrievalError.Unexpected(msg)) => Left(InvalidJsonLD(msg))
     }
 

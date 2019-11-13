@@ -32,8 +32,10 @@ object AccessId {
       url"${http.publicUri}".value + http.prefix + resource + project.organizationLabel + project.label
 
     def removeBase(iri: AbsoluteIri): Option[String] =
-      if (iri.asString.startsWith(project.base.asString)) Some(iri.asString.stripPrefix(project.base.asString))
-      else None
+      if (iri.asString.startsWith(project.base.asString) && iri != project.base)
+        Some(iri.asString.stripPrefix(project.base.asString))
+      else
+        None
 
     def inner(iri: AbsoluteIri): String = {
       lazy val aliases = project.apiMappings.collectFirst {
