@@ -142,6 +142,14 @@ class ResourcesSpec
           ResourceF.simpleF(genRes, json, schema = schemaRef)
       }
 
+      "create a new resource validated against empty schema (resource schema) with a payload containing an empty @id" in new Base {
+        val genRes   = Id(projectRef, project.base)
+        val json     = Json.obj("@id" -> Json.fromString(""))
+        val expected = json deepMerge defaultCtx
+        resources.create(schemaRef, json).value.accepted shouldEqual
+          ResourceF.simpleF(genRes, expected, schema = schemaRef)
+      }
+
       "create a new resource validated against empty schema (resource schema) with a payload only containing @id" in new Base {
         val genId  = genString()
         val genRes = Id(projectRef, url"$base$genId".value)
@@ -186,9 +194,8 @@ class ResourcesSpec
         val genId = genString()
         val json =
           Json.obj("@id" -> Json.fromString(genId), "@context" -> Json.obj("key" -> Json.fromString(genIri.asString)))
-        resources.create(schemaRef, json).value.rejected[InvalidJsonLD] shouldEqual InvalidJsonLD(
-          s"The provided @id value '$genId' is not a valid Iri"
-        )
+        resources.create(schemaRef, json).value.rejected[InvalidJsonLD] shouldEqual
+          InvalidJsonLD(s"The @id value '$genId' is not a valid Iri")
       }
 
       "prevent to create a resource with non existing schema" in new Base {

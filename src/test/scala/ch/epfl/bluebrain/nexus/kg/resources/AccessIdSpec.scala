@@ -55,6 +55,11 @@ class AccessIdSpec extends WordSpecLike with Matchers with Inspectors with TestH
           s"http://resources.nexus.com/v1/schemas/bbp/core/${urlEncode("http://example.com/a")}"
         ),
         (
+          url"http://unused.com/".value,
+          unconstrainedSchemaUri,
+          s"http://resources.nexus.com/v1/resources/bbp/core/_/${urlEncode("http://unused.com/")}"
+        ),
+        (
           url"http://example.com/a".value,
           fileSchemaUri,
           s"http://resources.nexus.com/v1/files/bbp/core/${urlEncode("http://example.com/a")}"
