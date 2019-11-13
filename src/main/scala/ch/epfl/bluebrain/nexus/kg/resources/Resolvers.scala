@@ -3,7 +3,6 @@ package ch.epfl.bluebrain.nexus.kg.resources
 import cats.data.EitherT
 import cats.effect.{Effect, Timer}
 import cats.{Id => CId}
-import ch.epfl.bluebrain.nexus.kg.resolve.ResolverEncoder._
 import ch.epfl.bluebrain.nexus.admin.client.types.Project
 import ch.epfl.bluebrain.nexus.commons.es.client.ElasticSearchClient
 import ch.epfl.bluebrain.nexus.commons.http.HttpClient
@@ -13,7 +12,6 @@ import ch.epfl.bluebrain.nexus.commons.shacl.ShaclEngine
 import ch.epfl.bluebrain.nexus.commons.sparql.client.BlazegraphClient
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity.Subject
 import ch.epfl.bluebrain.nexus.iam.client.types.{Caller, Identity}
-import ch.epfl.bluebrain.nexus.kg.KgError.InternalError
 import ch.epfl.bluebrain.nexus.kg.cache.{ProjectCache, ResolverCache}
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig._
@@ -21,11 +19,14 @@ import ch.epfl.bluebrain.nexus.kg.config.Contexts._
 import ch.epfl.bluebrain.nexus.kg.config.Schemas._
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary._
 import ch.epfl.bluebrain.nexus.kg.indexing.View.{ElasticSearchView, SparqlView}
-import ch.epfl.bluebrain.nexus.kg.resolve.{Materializer, Resolver}
 import ch.epfl.bluebrain.nexus.kg.resolve.Resolver.{CrossProjectResolver, InProjectResolver}
+import ch.epfl.bluebrain.nexus.kg.resolve.ResolverEncoder._
+import ch.epfl.bluebrain.nexus.kg.resolve.{Materializer, Resolver}
+import ch.epfl.bluebrain.nexus.kg.resources.Rejection.NotFound._
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection._
 import ch.epfl.bluebrain.nexus.kg.resources.ResourceF.Value
 import ch.epfl.bluebrain.nexus.kg.resources.syntax._
+import ch.epfl.bluebrain.nexus.kg.routes.SearchParams
 import ch.epfl.bluebrain.nexus.rdf.Graph.Triple
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import ch.epfl.bluebrain.nexus.rdf.RootedGraph
@@ -34,8 +35,6 @@ import ch.epfl.bluebrain.nexus.rdf.instances._
 import ch.epfl.bluebrain.nexus.rdf.syntax._
 import io.circe.Json
 import org.apache.jena.rdf.model.Model
-import ch.epfl.bluebrain.nexus.kg.resources.Rejection.NotFound._
-import ch.epfl.bluebrain.nexus.kg.routes.SearchParams
 
 class Resolvers[F[_]: Timer](repo: Repo[F])(
     implicit F: Effect[F],
@@ -310,14 +309,7 @@ class Resolvers[F[_]: Timer](repo: Repo[F])(
 
   private def validateShacl(data: RootedGraph): EitherT[F, Rejection, Unit] = {
     val model: CId[Model] = data.as[Model]()
-    ShaclEngine(model, resolverSchemaModel, validateShapes = false, reportDetails = true) match {
-      case Some(r) if r.isValid() => EitherT.rightT(())
-      case Some(r)                => EitherT.leftT(InvalidResource(resolverRef, r))
-      case _ =>
-        EitherT(
-          F.raiseError(InternalError(s"Unexpected error while attempting to validate schema '$resolverSchemaUri'"))
-        )
-    }
+    toEitherT(resolverRef, ShaclEngine(model, resolverSchemaModel, validateShapes = false, reportDetails = true))
   }
 
   private def resolverValidation(resId: ResId, graph: RootedGraph, rev: Long, types: Set[AbsoluteIri])(

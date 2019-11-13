@@ -14,7 +14,6 @@ import ch.epfl.bluebrain.nexus.commons.search.{FromPagination, Pagination}
 import ch.epfl.bluebrain.nexus.commons.shacl.ShaclEngine
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity.Subject
 import ch.epfl.bluebrain.nexus.iam.client.types.{AccessControlLists, Caller}
-import ch.epfl.bluebrain.nexus.kg.KgError.InternalError
 import ch.epfl.bluebrain.nexus.kg.cache.{ProjectCache, ViewCache}
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig
 import ch.epfl.bluebrain.nexus.kg.config.Contexts._
@@ -27,6 +26,7 @@ import ch.epfl.bluebrain.nexus.kg.resolve.Materializer
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection.NotFound._
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection._
 import ch.epfl.bluebrain.nexus.kg.resources.ResourceF.Value
+import ch.epfl.bluebrain.nexus.kg.resources.Resources.generateId
 import ch.epfl.bluebrain.nexus.kg.resources.Views._
 import ch.epfl.bluebrain.nexus.kg.resources.syntax._
 import ch.epfl.bluebrain.nexus.kg.routes.Clients._
@@ -38,11 +38,10 @@ import ch.epfl.bluebrain.nexus.rdf.RootedGraph
 import ch.epfl.bluebrain.nexus.rdf.Vocabulary.rdf
 import ch.epfl.bluebrain.nexus.rdf.instances._
 import ch.epfl.bluebrain.nexus.rdf.syntax._
-import io.circe.{Encoder, Json}
 import io.circe.parser.parse
 import io.circe.syntax._
+import io.circe.{Encoder, Json}
 import org.apache.jena.rdf.model.Model
-import ch.epfl.bluebrain.nexus.kg.resources.Resources.generateId
 
 class Views[F[_]: Timer](repo: Repo[F])(
     implicit F: Effect[F],
@@ -281,12 +280,7 @@ class Views[F[_]: Timer](repo: Repo[F])(
 
   private def validateShacl(data: RootedGraph): EitherT[F, Rejection, Unit] = {
     val model: CId[Model] = data.as[Model]()
-    ShaclEngine(model, viewSchemaModel, validateShapes = false, reportDetails = true) match {
-      case Some(r) if r.isValid() => EitherT.rightT(())
-      case Some(r)                => EitherT.leftT(InvalidResource(viewRef, r))
-      case _ =>
-        EitherT(F.raiseError(InternalError(s"Unexpected error while attempting to validate schema '$viewSchemaUri'")))
-    }
+    toEitherT(viewRef, ShaclEngine(model, viewSchemaModel, validateShapes = false, reportDetails = true))
   }
 
   private def viewValidation(resId: ResId, graph: RootedGraph, rev: Long, types: Set[AbsoluteIri])(

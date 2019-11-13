@@ -7,10 +7,9 @@ import ch.epfl.bluebrain.nexus.commons.es.client.ElasticSearchClient
 import ch.epfl.bluebrain.nexus.commons.http.HttpClient
 import ch.epfl.bluebrain.nexus.commons.rdf.syntax._
 import ch.epfl.bluebrain.nexus.commons.search.{FromPagination, Pagination}
-import ch.epfl.bluebrain.nexus.commons.shacl.{ShaclEngine, ValidationReport}
+import ch.epfl.bluebrain.nexus.commons.shacl.ShaclEngine
 import ch.epfl.bluebrain.nexus.commons.sparql.client.BlazegraphClient
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity.Subject
-import ch.epfl.bluebrain.nexus.kg.KgError.InternalError
 import ch.epfl.bluebrain.nexus.kg._
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig
 import ch.epfl.bluebrain.nexus.kg.config.Schemas._
@@ -30,8 +29,8 @@ import ch.epfl.bluebrain.nexus.rdf.instances._
 import ch.epfl.bluebrain.nexus.rdf.syntax._
 import ch.epfl.bluebrain.nexus.rdf.{Graph, RootedGraph}
 import io.circe.Json
-import org.apache.jena.rdf.model.Model
 import io.circe.syntax._
+import org.apache.jena.rdf.model.Model
 
 /**
   * Resource operations.
@@ -331,14 +330,6 @@ class Resources[F[_]: Timer](
     outgoing(id, view, pagination, includeExternalLinks)
 
   private def validate(schema: Ref, data: Graph)(implicit project: Project): EitherT[F, Rejection, Unit] = {
-    def toEitherT(optReport: Option[ValidationReport]): EitherT[F, Rejection, Unit] =
-      optReport match {
-        case Some(r) if r.isValid() => EitherT.rightT(())
-        case Some(r)                => EitherT.leftT(InvalidResource(schema, r))
-        case _ =>
-          val err = InternalError(s"Unexpected error while attempting to validate schema '${schema.iri.asString}'")
-          EitherT(F.raiseError(err))
-      }
 
     def partition(set: Set[ResourceV]): (Set[ResourceV], Set[ResourceV]) =
       set.partition(_.isSchema)
@@ -359,7 +350,7 @@ class Resources[F[_]: Timer](
           val resolvedSchema   = RootedGraph(blank, resolvedSchemaSets).as[Model]()
           val resolvedDataSets = resolved.dataImports.foldLeft(data.triples)(_ ++ _.value.graph.triples)
           val resolvedData     = RootedGraph(blank, resolvedDataSets).as[Model]()
-          toEitherT(ShaclEngine(resolvedData, resolvedSchema, validateShapes = false, reportDetails = true))
+          toEitherT(schema, ShaclEngine(resolvedData, resolvedSchema, validateShapes = false, reportDetails = true))
         }
     }
   }

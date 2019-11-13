@@ -13,7 +13,6 @@ import ch.epfl.bluebrain.nexus.commons.search.{FromPagination, Pagination}
 import ch.epfl.bluebrain.nexus.commons.shacl.ShaclEngine
 import ch.epfl.bluebrain.nexus.commons.sparql.client.BlazegraphClient
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity.Subject
-import ch.epfl.bluebrain.nexus.kg.KgError.InternalError
 import ch.epfl.bluebrain.nexus.kg.cache.StorageCache
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig.StorageConfig
@@ -275,14 +274,7 @@ class Storages[F[_]: Timer](repo: Repo[F])(
 
   private def validateShacl(data: RootedGraph): EitherT[F, Rejection, Unit] = {
     val model: CId[Model] = data.as[Model]()
-    ShaclEngine(model, storageSchemaModel, validateShapes = false, reportDetails = true) match {
-      case Some(r) if r.isValid() => EitherT.rightT(())
-      case Some(r)                => EitherT.leftT(InvalidResource(storageRef, r))
-      case _ =>
-        EitherT(
-          F.raiseError(InternalError(s"Unexpected error while attempting to validate schema '$storageSchemaUri'"))
-        )
-    }
+    toEitherT(storageRef, ShaclEngine(model, storageSchemaModel, validateShapes = false, reportDetails = true))
   }
 
   private def storageValidation(resId: ResId, graph: RootedGraph, rev: Long, types: Set[AbsoluteIri])(
