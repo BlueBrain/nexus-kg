@@ -11,7 +11,6 @@ import ch.epfl.bluebrain.nexus.commons.rdf.syntax._
 import ch.epfl.bluebrain.nexus.commons.shacl.ShaclEngine
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity.Subject
 import ch.epfl.bluebrain.nexus.iam.client.types.{AccessControlLists, Caller}
-import ch.epfl.bluebrain.nexus.kg.KgError.InternalError
 import ch.epfl.bluebrain.nexus.kg.archives.ArchiveEncoder._
 import ch.epfl.bluebrain.nexus.kg.archives.{Archive, ArchiveCache}
 import ch.epfl.bluebrain.nexus.kg.cache.ProjectCache
@@ -86,14 +85,7 @@ class Archives[F[_]](
 
   private def validateShacl(data: RootedGraph): EitherT[F, Rejection, Unit] = {
     val model: CId[Model] = data.as[Model]()
-    ShaclEngine(model, archiveSchemaModel, validateShapes = false, reportDetails = true) match {
-      case Some(r) if r.isValid() => EitherT.rightT(())
-      case Some(r)                => EitherT.leftT(InvalidResource(archiveRef, r))
-      case _ =>
-        EitherT(
-          F.raiseError(InternalError(s"Unexpected error while attempting to validate schema '$archiveSchemaUri'"))
-        )
-    }
+    toEitherT(archiveRef, ShaclEngine(model, archiveSchemaModel, validateShapes = false, reportDetails = true))
   }
 
   private def fetchArchive(id: ResId): RejOrArchive[F] =

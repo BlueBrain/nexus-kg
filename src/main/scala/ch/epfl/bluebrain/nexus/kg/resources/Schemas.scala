@@ -10,7 +10,6 @@ import ch.epfl.bluebrain.nexus.commons.search.{FromPagination, Pagination}
 import ch.epfl.bluebrain.nexus.commons.shacl.ShaclEngine
 import ch.epfl.bluebrain.nexus.commons.sparql.client.BlazegraphClient
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity.Subject
-import ch.epfl.bluebrain.nexus.kg.KgError.InternalError
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig
 import ch.epfl.bluebrain.nexus.kg.config.Contexts._
 import ch.epfl.bluebrain.nexus.kg.config.Schemas._
@@ -18,7 +17,6 @@ import ch.epfl.bluebrain.nexus.kg.config.Vocabulary._
 import ch.epfl.bluebrain.nexus.kg.indexing.View.{ElasticSearchView, SparqlView}
 import ch.epfl.bluebrain.nexus.kg.resolve.Materializer
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection.NotFound._
-import ch.epfl.bluebrain.nexus.kg.resources.Rejection._
 import ch.epfl.bluebrain.nexus.kg.resources.ResourceF.Value
 import ch.epfl.bluebrain.nexus.kg.resources.syntax._
 import ch.epfl.bluebrain.nexus.kg.routes.SearchParams
@@ -210,14 +208,7 @@ class Schemas[F[_]: Timer](repo: Repo[F])(implicit F: Effect[F], materializer: M
     materializer.imports(resId, data).flatMap { resolved =>
       val resolvedSets = resolved.foldLeft(data.triples)(_ ++ _.value.graph.triples)
       val resolvedData = RootedGraph(data.rootNode, resolvedSets).as[Model]()
-      ShaclEngine(resolvedData, reportDetails = true) match {
-        case Some(r) if r.isValid() => EitherT.rightT[F, Rejection](())
-        case Some(r)                => EitherT.leftT[F, Unit](InvalidResource(shaclRef, r))
-        case _ =>
-          EitherT(
-            F.raiseError(InternalError(s"Unexpected error while attempting to validate schema '$shaclSchemaUri'"))
-          )
-      }
+      toEitherT(shaclRef, ShaclEngine(resolvedData, reportDetails = true))
     }
 }
 
