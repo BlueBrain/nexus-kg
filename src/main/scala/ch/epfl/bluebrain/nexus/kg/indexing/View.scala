@@ -284,11 +284,11 @@ object View {
     def deleteIndex[F[_]](implicit config: AppConfig, clients: Clients[F]): F[Boolean]
 
     /**
-      * Attempts to delete an index id.
+      * Attempts to delete the resource on the view index.
       *
       * @param resId the resource id to be deleted from the current index
       */
-    def deleteIndexId[F[_]: Monad](resId: ResId)(implicit clients: Clients[F], config: AppConfig): F[Unit]
+    def deleteResource[F[_]: Monad](resId: ResId)(implicit clients: Clients[F], config: AppConfig): F[Unit]
 
   }
   private def parse(string: String): NodeEncoder.EncoderResult[Json] =
@@ -471,7 +471,7 @@ object View {
     def deleteIndex[F[_]](implicit config: AppConfig, clients: Clients[F]): F[Boolean] =
       clients.elasticSearch.deleteIndex(index)
 
-    def deleteIndexId[F[_]](resId: ResId)(implicit F: Monad[F], clients: Clients[F], config: AppConfig): F[Unit] = {
+    def deleteResource[F[_]](resId: ResId)(implicit F: Monad[F], clients: Clients[F], config: AppConfig): F[Unit] = {
       val client = clients.elasticSearch.withRetryPolicy(config.elasticSearch.indexing.retry)
       client.delete(index, resId.value.asString) >> F.unit
     }
@@ -632,7 +632,7 @@ object View {
     def deleteIndex[F[_]](implicit config: AppConfig, clients: Clients[F]): F[Boolean] =
       clients.sparql.copy(namespace = index).deleteNamespace
 
-    def deleteIndexId[F[_]: Monad](resId: ResId)(implicit clients: Clients[F], config: AppConfig): F[Unit] = {
+    def deleteResource[F[_]: Monad](resId: ResId)(implicit clients: Clients[F], config: AppConfig): F[Unit] = {
       val client = clients.sparql.copy(namespace = index).withRetryPolicy(config.elasticSearch.indexing.retry)
       client.drop(resId.toGraphUri)
     }
@@ -781,7 +781,7 @@ object View {
             logger: Logger,
             project: Project
         ): F[Option[Unit]] = {
-          val client = clients.sparql.copy(namespace = view.index).withRetryPolicy(config.elasticSearch.indexing.retry)
+          val client = clients.sparql.copy(namespace = view.index).withRetryPolicy(config.sparql.indexing.retry)
           client.replace(res.id.toGraphUri, graph) >> F.pure(Some(()))
         }
       }

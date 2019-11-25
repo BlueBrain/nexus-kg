@@ -96,8 +96,8 @@ object CompositeIndexer {
               }
               .mapAsync(res => projection.runQuery(res).map(res -> _.asGraph))
               .mapAsync {
-                case (res, None)                                 => projView.deleteIndexId[F](res.id) >> FSome
-                case (res, Some(graph)) if graph.triples.isEmpty => projView.deleteIndexId[F](res.id) >> FSome
+                case (res, None)                                 => projView.deleteResource[F](res.id) >> FSome
+                case (res, Some(graph)) if graph.triples.isEmpty => projView.deleteResource[F](res.id) >> FSome
                 case (res, Some(graph))                          => projection.indexId[F](res, graph)
               }
               .collectSome[Unit]
