@@ -6,7 +6,6 @@ import cats.implicits._
 import ch.epfl.bluebrain.nexus.admin.client.types._
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity.Subject
 import ch.epfl.bluebrain.nexus.iam.client.types.{AccessControlLists, Caller}
-import ch.epfl.bluebrain.nexus.kg.KgError
 import ch.epfl.bluebrain.nexus.kg.KgError.InternalError
 import ch.epfl.bluebrain.nexus.kg.async.{ProjectAttributesCoordinator, ProjectViewCoordinator}
 import ch.epfl.bluebrain.nexus.kg.cache.Caches
@@ -26,10 +25,11 @@ import ch.epfl.bluebrain.nexus.kg.storage.Storage
 import ch.epfl.bluebrain.nexus.kg.storage.Storage.DiskStorage
 import ch.epfl.bluebrain.nexus.kg.storage.StorageEncoder._
 import ch.epfl.bluebrain.nexus.rdf.syntax._
-import ch.epfl.bluebrain.nexus.sourcing.retry.Retry
-import ch.epfl.bluebrain.nexus.sourcing.retry.syntax._
 import io.circe.Json
 import journal.Logger
+import retry.CatsEffect._
+import retry._
+import retry.syntax.all._
 
 class ProjectInitializer[F[_]: Timer](
     storages: Storages[F],
@@ -38,19 +38,20 @@ class ProjectInitializer[F[_]: Timer](
     viewCoordinator: ProjectViewCoordinator[F],
     fileAttributesCoordinator: ProjectAttributesCoordinator[F]
 )(implicit F: Effect[F], cache: Caches[F], config: AppConfig, as: ActorSystem) {
-  private val logger      = Logger[this.type]
+
+  private val log         = Logger[this.type]
   private val revK        = nxv.rev.prefix
   private val deprecatedK = nxv.deprecated.prefix
   private val algorithmK  = nxv.algorithm.prefix
 
-  private implicit val retry: Retry[F, KgError] = {
-    import ch.epfl.bluebrain.nexus.kg.instances.kgErrorMonadError
-    Retry[F, KgError](config.keyValueStore.indexing.retry.retryStrategy)
-  }
+  private implicit val policy: RetryPolicy[F] = config.keyValueStore.indexing.retry.retryPolicy[F]
+  private implicit val logErrors: (Either[Rejection, Resource], RetryDetails) => F[Unit] =
+    (err, details) => F.pure(log.warn(s"Retrying on resource creation with retry details '$details' and error: '$err'"))
 
-  private val createdOrExists: PartialFunction[Either[Rejection, Resource], Either[ResourceAlreadyExists, Resource]] = {
-    case Left(exists: ResourceAlreadyExists) => Left(exists)
-    case Right(value)                        => Right(value)
+  private val wasSuccessful: Either[Rejection, Resource] => Boolean = {
+    case Right(_)                       => true
+    case Left(_: ResourceAlreadyExists) => true
+    case Left(_)                        => false
   }
 
   /**
@@ -65,7 +66,7 @@ class ProjectInitializer[F[_]: Timer](
     */
   def apply(project: Project, subject: Subject): F[Unit] = {
     implicit val caller: Caller = Caller(subject, Set(subject))
-    implicit val p              = project
+    implicit val p: Project     = project
     for {
       _ <- cache.project.replace(project)
       _ <- viewCoordinator.start(project)
@@ -77,7 +78,7 @@ class ProjectInitializer[F[_]: Timer](
   private def asJson(view: View): F[Json] =
     view.as[Json](viewCtx.appendContextOf(resourceCtx)) match {
       case Left(err) =>
-        logger.error(s"Could not convert view with id '${view.id}' from Graph back to json. Reason: '${err.message}'")
+        log.error(s"Could not convert view with id '${view.id}' from Graph back to json. Reason: '${err.message}'")
         F.raiseError(InternalError("Could not decode default view from graph to Json"))
       case Right(json) =>
         F.pure(json.removeKeys(revK, deprecatedK).replaceContext(viewCtxUri).addContext(resourceCtxUri))
@@ -86,7 +87,7 @@ class ProjectInitializer[F[_]: Timer](
   private def asJson(storage: Storage): F[Json] =
     storage.as[Json](storageCtx.appendContextOf(resourceCtx)) match {
       case Left(err) =>
-        logger.error(s"Could not convert storage '${storage.id}' from Graph to json. Reason: '${err.message}'")
+        log.error(s"Could not convert storage '${storage.id}' from Graph to json. Reason: '${err.message}'")
         F.raiseError(InternalError("Could not decode default storage from graph to Json"))
       case Right(json) =>
         F.pure(json.removeKeys(revK, deprecatedK, algorithmK).replaceContext(storageCtxUri).addContext(resourceCtxUri))
@@ -95,7 +96,7 @@ class ProjectInitializer[F[_]: Timer](
   private def asJson(resolver: Resolver): F[Json] =
     resolver.as[Json](resolverCtx.appendContextOf(resourceCtx)) match {
       case Left(err) =>
-        logger.error(s"Could not convert resolver '${resolver.id}' from Graph to json. Reason: '${err.message}'")
+        log.error(s"Could not convert resolver '${resolver.id}' from Graph to json. Reason: '${err.message}'")
         F.raiseError(InternalError("Could not decode default in project resolver from graph to Json"))
       case Right(json) =>
         F.pure(json.removeKeys(revK, deprecatedK, algorithmK).replaceContext(resolverCtxUri).addContext(resourceCtxUri))
@@ -105,7 +106,7 @@ class ProjectInitializer[F[_]: Timer](
     implicit val acls: AccessControlLists = AccessControlLists.empty
     val view: View                        = ElasticSearchView.default(project.ref)
     asJson(view).flatMap { json =>
-      withRetry(views.create(Id(project.ref, view.id), json, extractUuid = true).value, "ElasticSearchView")
+      views.create(Id(project.ref, view.id), json, extractUuid = true).value.retryingM(wasSuccessful)
     }
   }
 
@@ -113,29 +114,21 @@ class ProjectInitializer[F[_]: Timer](
     implicit val acls: AccessControlLists = AccessControlLists.empty
     val view: View                        = SparqlView.default(project.ref)
     asJson(view).flatMap { json =>
-      withRetry(views.create(Id(project.ref, view.id), json, extractUuid = true).value, "SparqlView")
+      views.create(Id(project.ref, view.id), json, extractUuid = true).value.retryingM(wasSuccessful)
     }
   }
 
   private def createResolver(implicit project: Project, c: Caller): F[Either[Rejection, Resource]] = {
     val resolver: Resolver = InProjectResolver.default(project.ref)
     asJson(resolver).flatMap { json =>
-      withRetry(resolvers.create(Id(project.ref, resolver.id), json).value, "InProject")
+      resolvers.create(Id(project.ref, resolver.id), json).value.retryingM(wasSuccessful)
     }
   }
 
   private def createDiskStorage(implicit project: Project, s: Subject): F[Either[Rejection, Resource]] = {
     val storage: Storage = DiskStorage.default(project.ref)
     asJson(DiskStorage.default(project.ref)).flatMap { json =>
-      withRetry(storages.create(Id(project.ref, storage.id), json).value, "DiskStorage")
+      storages.create(Id(project.ref, storage.id), json).value.retryingM(wasSuccessful)
     }
   }
-
-  private def withRetry(created: F[Either[Rejection, Resource]], resourceType: String)(
-      implicit project: Project
-  ): F[Either[Rejection, Resource]] = {
-    val internalError: KgError = InternalError(s"Couldn't create default $resourceType for project '${project.ref}'")
-    created.mapRetry(createdOrExists, internalError)
-  }
-
 }

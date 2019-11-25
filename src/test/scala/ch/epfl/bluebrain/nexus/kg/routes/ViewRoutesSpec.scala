@@ -6,7 +6,6 @@ import akka.http.scaladsl.model.Uri.Query
 import akka.http.scaladsl.model._
 import akka.http.scaladsl.model.headers.Accept
 import akka.http.scaladsl.testkit.ScalatestRouteTest
-import akka.stream.ActorMaterializer
 import cats.data.EitherT
 import cats.syntax.show._
 import ch.epfl.bluebrain.nexus.admin.client.AdminClient
@@ -33,7 +32,7 @@ import ch.epfl.bluebrain.nexus.kg.config.Contexts._
 import ch.epfl.bluebrain.nexus.kg.config.Schemas._
 import ch.epfl.bluebrain.nexus.kg.config.Settings
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary.nxv
-import ch.epfl.bluebrain.nexus.kg.indexing.View
+import ch.epfl.bluebrain.nexus.kg.indexing.{Statistics, View}
 import ch.epfl.bluebrain.nexus.kg.indexing.View._
 import ch.epfl.bluebrain.nexus.kg.indexing.View.Filter
 import ch.epfl.bluebrain.nexus.kg.marshallers.instances._
@@ -50,7 +49,7 @@ import io.circe.Json
 import io.circe.parser.parse
 import io.circe.generic.auto._
 import monix.eval.Task
-import org.mockito.IdiomaticMockito
+import org.mockito.{ArgumentMatchersSugar, IdiomaticMockito}
 import org.mockito.Mockito.when
 import org.mockito.matchers.MacroBasedMatchers
 import org.scalatest._
@@ -71,6 +70,7 @@ class ViewRoutesSpec
     with test.Resources
     with ScalaFutures
     with IdiomaticMockito
+    with ArgumentMatchersSugar
     with MacroBasedMatchers
     with TestHelper
     with Inspectors
@@ -101,7 +101,6 @@ class ViewRoutesSpec
     Caches(projectCache, viewCache, resolverCache, storageCache, mock[ArchiveCache[Task]])
 
   private implicit val ec            = system.dispatcher
-  private implicit val mt            = ActorMaterializer()
   private implicit val utClient      = untyped[Task]
   private implicit val qrClient      = withUnmarshaller[Task, QueryResults[Json]]
   private implicit val jsonClient    = withUnmarshaller[Task, Json]
@@ -109,11 +108,12 @@ class ViewRoutesSpec
   private implicit val elasticSearch = mock[ElasticSearchClient[Task]]
   private implicit val storageClient = mock[StorageClient[Task]]
   private implicit val clients       = Clients()
+  private val coordinator            = mock[ProjectViewCoordinator[Task]]
 
   private val manageResolver =
     Set(Permission.unsafe("views/query"), Permission.unsafe("resources/read"), Permission.unsafe("views/write"))
   // format: off
-  private val routes = Routes(resources, mock[Resolvers[Task]], views, mock[Storages[Task]], mock[Schemas[Task]], mock[Files[Task]], mock[Archives[Task]], tagsRes, mock[ProjectViewCoordinator[Task]])
+  private val routes = Routes(resources, mock[Resolvers[Task]], views, mock[Storages[Task]], mock[Schemas[Task]], mock[Files[Task]], mock[Archives[Task]], tagsRes, coordinator)
   // format: on
 
   //noinspection NameBooleanParameters
@@ -401,7 +401,8 @@ class ViewRoutesSpec
         elasticSearch.searchRaw(
           Eq(query),
           Eq(Set(s"kg_${defaultEsView.name}")),
-          Eq(Uri.Query(Map("other" -> "value")))
+          Eq(Uri.Query(Map("other" -> "value"))),
+          any[Throwable => Boolean]
         )(any[HttpClient[Task, Json]])
       ).thenReturn(Task.pure(esResponse))
 
@@ -432,7 +433,8 @@ class ViewRoutesSpec
         elasticSearch.searchRaw(
           Eq(query),
           Eq(Set(s"kg_${defaultEsView.name}")),
-          Eq(Uri.Query(Map("other" -> "value")))
+          Eq(Uri.Query(Map("other" -> "value"))),
+          any[Throwable => Boolean]
         )(any[HttpClient[Task, Json]])
       ).thenReturn(Task.pure(esResponse))
 
@@ -465,7 +467,8 @@ class ViewRoutesSpec
 
       when(sparql.copy(namespace = s"kg_${defaultSparqlView.name}")).thenReturn(sparql)
 
-      when(sparql.queryRaw(query)).thenReturn(Task.pure(result.as[SparqlResults].right.value))
+      sparql.queryRaw(query, any[Throwable => Boolean]) shouldReturn
+        Task.pure(result.as[SparqlResults].right.value)
 
       val httpEntity = HttpEntity(RdfMediaTypes.`application/sparql-query`, query)
 
@@ -505,7 +508,8 @@ class ViewRoutesSpec
         elasticSearch.searchRaw(
           Eq(query),
           Eq(Set(s"kg_${defaultEsView.name}", s"kg_${otherEsView.name}")),
-          Eq(Query())
+          Eq(Query()),
+          any[Throwable => Boolean]
         )(any[HttpClient[Task, Json]])
       ).thenReturn(Task.pure(esResponse))
 
@@ -532,7 +536,9 @@ class ViewRoutesSpec
         .thenReturn(Task.pure(Some(defaultEsView)))
 
       when(
-        elasticSearch.searchRaw(Eq(query), Eq(Set(s"kg_${defaultEsView.name}")), Eq(qp))(any[HttpClient[Task, Json]])
+        elasticSearch.searchRaw(Eq(query), Eq(Set(s"kg_${defaultEsView.name}")), Eq(qp), any[Throwable => Boolean])(
+          any[HttpClient[Task, Json]]
+        )
       ).thenReturn(Task.raiseError(ElasticSearchClientError(StatusCodes.BadRequest, esResponse.noSpaces)))
 
       val endpoints = List(
@@ -557,7 +563,9 @@ class ViewRoutesSpec
         .thenReturn(Task.pure(Some(defaultEsView)))
 
       when(
-        elasticSearch.searchRaw(Eq(query), Eq(Set(s"kg_${defaultEsView.name}")), Eq(qp))(any[HttpClient[Task, Json]])
+        elasticSearch.searchRaw(Eq(query), Eq(Set(s"kg_${defaultEsView.name}")), Eq(qp), any[Throwable => Boolean])(
+          any[HttpClient[Task, Json]]
+        )
       ).thenReturn(Task.raiseError(ElasticSearchClientError(StatusCodes.BadRequest, esResponse)))
 
       val endpoints = List(
@@ -581,7 +589,9 @@ class ViewRoutesSpec
         .thenReturn(Task.pure(Some(defaultEsView)))
 
       when(
-        elasticSearch.searchRaw(Eq(query), Eq(Set(s"kg_${defaultEsView.name}")), Eq(qp))(any[HttpClient[Task, Json]])
+        elasticSearch.searchRaw(Eq(query), Eq(Set(s"kg_${defaultEsView.name}")), Eq(qp), any[Throwable => Boolean])(
+          any[HttpClient[Task, Json]]
+        )
       ).thenReturn(Task.raiseError(ElasticUnexpectedError(StatusCodes.ImATeapot, esResponse)))
 
       Post(s"/v1/views/$organization/$project/documents/_search?other=value", query) ~> addCredentials(oauthToken) ~> routes ~> check {
@@ -599,7 +609,8 @@ class ViewRoutesSpec
 
       when(sparql.copy(namespace = s"kg_${defaultSQLView.name}")).thenReturn(sparql)
 
-      when(sparql.queryRaw(query)).thenReturn(Task.pure(result.as[SparqlResults].right.value))
+      sparql.queryRaw(query, any[Throwable => Boolean]) shouldReturn
+        Task.pure(result.as[SparqlResults].right.value)
 
       val httpEntity = HttpEntity(RdfMediaTypes.`application/sparql-query`, query)
 
@@ -623,7 +634,8 @@ class ViewRoutesSpec
 
       when(sparql.copy(namespace = s"kg_${defaultSQLView.name}")).thenReturn(sparql)
 
-      when(sparql.queryRaw(query)).thenReturn(Task.raiseError(SparqlClientError(StatusCodes.BadRequest, "some error")))
+      sparql.queryRaw(query, any[Throwable => Boolean]) shouldReturn
+        Task.raiseError(SparqlClientError(StatusCodes.BadRequest, "some error"))
 
       val httpEntity = HttpEntity(RdfMediaTypes.`application/sparql-query`, query)
       val endpoints = List(
@@ -661,8 +673,10 @@ class ViewRoutesSpec
 
       when(sparql.copy(namespace = s"kg_${defaultSQLView.name}")).thenReturn(sparql1)
       when(sparql.copy(namespace = s"kg_${otherSQLView.name}")).thenReturn(sparql2)
-      when(sparql1.queryRaw(query)).thenReturn(Task.pure(response1.as[SparqlResults].right.value))
-      when(sparql2.queryRaw(query)).thenReturn(Task.pure(response2.as[SparqlResults].right.value))
+      sparql1.queryRaw(query, any[Throwable => Boolean]) shouldReturn
+        Task.pure(response1.as[SparqlResults].right.value)
+      sparql2.queryRaw(query, any[Throwable => Boolean]) shouldReturn
+        Task.pure(response2.as[SparqlResults].right.value)
 
       val httpEntity = HttpEntity(RdfMediaTypes.`application/sparql-query`, query)
       val expected   = jsonContentOf("/search/sparql-query-result-combined.json")
@@ -694,6 +708,51 @@ class ViewRoutesSpec
         Post(endpoint, Json.obj()) ~> addCredentials(oauthToken) ~> routes ~> check {
           status shouldEqual StatusCodes.NotFound
           responseAs[Error].tpe shouldEqual classNameOf[NotFound]
+        }
+      }
+    }
+
+    "fetch view statistics" in new Context {
+
+      when(viewCache.getBy[View](Eq(projectRef), Eq(nxv.defaultSparqlIndex.value))(any[Typeable[View]]))
+        .thenReturn(Task.pure(Some(defaultSQLView)))
+
+      val statistics = Statistics(10L, 1L, 2L, 12L, None, None)
+
+      coordinator.statistics(finalProject, defaultSQLView) shouldReturn Task(statistics)
+
+      val endpoints = List(
+        s"/v1/views/$organization/$project/graph/statistics",
+        s"/v1/resources/$organization/$project/view/graph/statistics"
+      )
+      forAll(endpoints) { endpoint =>
+        Get(endpoint) ~> addCredentials(oauthToken) ~> routes ~> check {
+          status shouldEqual StatusCodes.OK
+          responseAs[Json] shouldEqual jsonContentOf("/view/statistics.json")
+        }
+      }
+    }
+
+    "fetch projection statistics" in new Context {
+      viewCache
+        .getProjectionBy[View](eqTo(projectRef), eqTo(compositeView.id), eqTo(nxv.defaultElasticSearchIndex.value))(
+          any[Typeable[View]]
+        ) shouldReturn
+        Task.pure(Some(defaultEsView))
+
+      val viewId     = urlEncode(compositeView.id)
+      val statistics = Statistics(10L, 1L, 2L, 12L, None, None)
+      coordinator.statistics(finalProject, defaultEsView) shouldReturn Task(statistics)
+
+      val endpoints = List(
+        s"/v1/views/$organization/$project/$viewId/projections/documents/statistics",
+        s"/v1/resources/$organization/$project/view/$viewId/projections/documents/statistics"
+      )
+
+      forAll(endpoints) { endpoint =>
+        Get(endpoint) ~> addCredentials(oauthToken) ~> routes ~> check {
+          status shouldEqual StatusCodes.OK
+          responseAs[Json] shouldEqual jsonContentOf("/view/statistics.json")
         }
       }
     }

@@ -11,9 +11,9 @@ import ch.epfl.bluebrain.nexus.kg.async.ProjectViewCoordinatorActor.Msg._
 import ch.epfl.bluebrain.nexus.kg.cache.Caches
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig
 import ch.epfl.bluebrain.nexus.kg.indexing.Statistics
-import ch.epfl.bluebrain.nexus.kg.indexing.View.IndexedView
+import ch.epfl.bluebrain.nexus.kg.indexing.View.{IndexedView, SingleView}
 import ch.epfl.bluebrain.nexus.kg.resources.syntax._
-import ch.epfl.bluebrain.nexus.kg.resources.{Event, OrganizationRef, ProjectRef, Resources}
+import ch.epfl.bluebrain.nexus.kg.resources.{OrganizationRef, ProjectRef, Resources}
 import ch.epfl.bluebrain.nexus.kg.routes.Clients
 import ch.epfl.bluebrain.nexus.sourcing.projections.Projections
 import journal.Logger
@@ -47,7 +47,7 @@ class ProjectViewCoordinator[F[_]](cache: Caches[F], ref: ActorRef)(
     * @param view     the view to fetch the statistics for.
     * @return [[Statistics]] wrapped in [[F]]
     */
-  def statistics(project: Project, view: IndexedView): F[Statistics] = {
+  def statistics(project: Project, view: SingleView): F[Statistics] = {
     lazy val label = project.show
     IO.fromFuture(IO(ref ? FetchProgress(project.uuid, view)))
       .to[F]
@@ -91,7 +91,7 @@ class ProjectViewCoordinator[F[_]](cache: Caches[F], ref: ActorRef)(
     * @param orgRef the organization unique identifier
     */
   def stop(orgRef: OrganizationRef): F[Unit] =
-    cache.project.list(orgRef).flatMap(projects => projects.map(project => stop(project.ref)).sequence) *> F.unit
+    cache.project.list(orgRef).flatMap(projects => projects.map(project => stop(project.ref)).sequence) >> F.unit
 
   /**
     * Stops the coordinator children view actors and indices that belong to the provided organization.
@@ -122,7 +122,7 @@ object ProjectViewCoordinator {
       implicit config: AppConfig,
       as: ActorSystem,
       clients: Clients[Task],
-      P: Projections[Task, Event]
+      P: Projections[Task, String]
   ): ProjectViewCoordinator[Task] = {
     val coordinatorRef = ProjectViewCoordinatorActor.start(resources, cache.view, None, config.cluster.shards)
     new ProjectViewCoordinator[Task](cache, coordinatorRef)

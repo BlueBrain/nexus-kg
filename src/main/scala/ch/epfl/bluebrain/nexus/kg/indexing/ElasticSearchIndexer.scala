@@ -1,94 +1,30 @@
 package ch.epfl.bluebrain.nexus.kg.indexing
 
 import akka.actor.{ActorRef, ActorSystem, Props}
-import cats.Functor
+import akka.stream.scaladsl.Source
 import cats.effect.{Effect, Timer}
 import cats.implicits._
 import ch.epfl.bluebrain.nexus.admin.client.types.Project
+import ch.epfl.bluebrain.nexus.commons.es.client.ElasticSearchClient
 import ch.epfl.bluebrain.nexus.commons.es.client.ElasticSearchClient.BulkOp
-import ch.epfl.bluebrain.nexus.commons.es.client.ElasticSearchFailure.ElasticSearchServerOrUnexpectedFailure
-import ch.epfl.bluebrain.nexus.commons.test.Resources._
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig._
-import ch.epfl.bluebrain.nexus.kg.config.Vocabulary._
-import ch.epfl.bluebrain.nexus.kg.indexing.ElasticSearchIndexer._
 import ch.epfl.bluebrain.nexus.kg.indexing.View.ElasticSearchView
-import ch.epfl.bluebrain.nexus.kg.resources.ResourceF._
 import ch.epfl.bluebrain.nexus.kg.resources._
 import ch.epfl.bluebrain.nexus.kg.routes.Clients
-import ch.epfl.bluebrain.nexus.rdf.Node.IriNode
-import ch.epfl.bluebrain.nexus.rdf.decoder.GraphDecoder.DecoderResult
-import ch.epfl.bluebrain.nexus.rdf.instances._
-import ch.epfl.bluebrain.nexus.rdf.syntax._
-import ch.epfl.bluebrain.nexus.rdf.{Graph, RootedGraph}
+import ch.epfl.bluebrain.nexus.sourcing.projections.ProgressFlow.ProgressFlowElem
+import ch.epfl.bluebrain.nexus.sourcing.projections.ProjectionProgress.NoProgress
 import ch.epfl.bluebrain.nexus.sourcing.projections._
-import io.circe.Json
 import journal.Logger
-import kamon.Kamon
-import monix.execution.atomic.AtomicLong
 
-private class ElasticSearchIndexerMapping[F[_]: Functor](view: ElasticSearchView, resources: Resources[F])(
-    implicit config: AppConfig,
-    project: Project
-) {
+import scala.concurrent.ExecutionContext
 
-  private val logger          = Logger[this.type]
-  private val metaKeys        = metaPredicates.map(_.prefix).toSeq
-  private val metadataOptions = MetadataOptions(linksAsIri = false, expandedLinks = true)
-
-  /**
-    * When an event is received, the current state is obtained and if the resource matches the view criteria a [[BulkOp]] is built.
-    *
-    * @param event event to be mapped to a Elastic Search insert query
-    */
-  final def apply(event: Event): F[Option[(ResourceV, BulkOp)]] =
-    view.filter.resourceTag
-      .filter(_.trim.nonEmpty)
-      .map(resources.fetch(event.id, _, metadataOptions, None))
-      .getOrElse(resources.fetch(event.id, metadataOptions, None))
-      .value
-      .map {
-        case Right(res) if validSchema(view, res) && validTypes(view, res) => deleteOrIndex(res).map(res -> _)
-        case Right(res) if validSchema(view, res)                          => Some(res -> delete(res))
-        case _                                                             => None
-      }
-
-  private def deleteOrIndex(res: ResourceV): Option[BulkOp] =
-    if (res.deprecated && !view.filter.includeDeprecated)
-      Some(delete(res))
-    else
-      toEsDocument(res).map(doc => BulkOp.Index(view.index, res.id.value.asString, doc))
-
-  private def delete(res: ResourceV): BulkOp =
-    BulkOp.Delete(view.index, res.id.value.asString)
-
-  private def toEsDocument(res: ResourceV): Option[Json] = {
-    val rootNode = IriNode(res.id.value)
-
-    def asJson(g: Graph): DecoderResult[Json] = RootedGraph(rootNode, g).as[Json](ctx)
-
-    val transformed: DecoderResult[Json] = {
-      val metaGraph    = if (view.includeMetadata) Graph(res.metadata(metadataOptions)) else Graph()
-      val keysToRemove = if (view.includeMetadata) Seq.empty[String] else metaKeys
-      if (view.sourceAsText)
-        asJson(metaGraph.add(rootNode, nxv.original_source, res.value.source.removeKeys(metaKeys: _*).noSpaces))
-      else
-        asJson(metaGraph).map(metaJson => res.value.source.removeKeys(keysToRemove: _*) deepMerge metaJson)
-    }
-    transformed match {
-      case Left(err) =>
-        logger.error(
-          s"Could not convert resource with id '${res.id}' and value '${res.value}' from Graph back to json. Reason: '${err.message}'"
-        )
-        None
-      case Right(value) => Some(value.removeKeys("@context"))
-    }
-  }
-}
-
+// $COVERAGE-OFF$
+@SuppressWarnings(Array("MaxParameters"))
 object ElasticSearchIndexer {
 
-  // $COVERAGE-OFF$
+  private implicit val log: Logger = Logger[ElasticSearchIndexer.type]
+
   /**
     * Starts the index process for an ElasticSearch client
     *
@@ -103,63 +39,50 @@ object ElasticSearchIndexer {
       project: Project,
       restartOffset: Boolean
   )(
-      implicit clients: Clients[F],
-      as: ActorSystem,
+      implicit as: ActorSystem,
       actorInitializer: (Props, String) => ActorRef,
-      config: AppConfig,
-      P: Projections[F, Event],
-      F: Effect[F]
+      projections: Projections[F, String],
+      F: Effect[F],
+      clients: Clients[F],
+      config: AppConfig
   ): StreamSupervisor[F, ProjectionProgress] = {
 
-    val elasticErrorMonadError            = ch.epfl.bluebrain.nexus.kg.instances.elasticErrorMonadError
-    implicit val p: Project               = project
-    implicit val indexing: IndexingConfig = config.elasticSearch.indexing
+    implicit val ec: ExecutionContext          = as.dispatcher
+    implicit val p: Project                    = project
+    implicit val indexing: IndexingConfig      = config.elasticSearch.indexing
+    implicit val metadataOpts: MetadataOptions = MetadataOptions(linksAsIri = false, expandedLinks = true)
+    val client: ElasticSearchClient[F]         = clients.elasticSearch.withRetryPolicy(config.elasticSearch.indexing.retry)
 
-    val mapper = new ElasticSearchIndexerMapping(view, resources)
+    def deleteOrIndex(res: ResourceV): Option[BulkOp] =
+      if (res.deprecated && !view.filter.includeDeprecated) Some(delete(res))
+      else view.toDocument(res).map(doc => BulkOp.Index(view.index, res.id.value.asString, doc))
 
-    val processedEventsGauge = Kamon
-      .gauge("kg_indexer_gauge")
-      .withTag("type", "elasticsearch")
-      .withTag("project", project.show)
-      .withTag("organization", project.organizationLabel)
-      .withTag("viewId", view.id.show)
-    val processedEventsCounter = Kamon
-      .counter("kg_indexer_counter")
-      .withTag("type", "elasticsearch")
-      .withTag("project", project.show)
-      .withTag("organization", project.organizationLabel)
-      .withTag("viewId", view.id.show)
-    val processedEventsCount = AtomicLong(0L)
+    def delete(res: ResourceV): BulkOp =
+      BulkOp.Delete(view.index, res.id.value.asString)
 
-    TagProjection.start(
-      ProjectionConfig
-        .builder[F]
-        .name(s"elasticSearch-indexer-${view.name}")
-        .tag(s"project=${view.ref.id}")
-        .actorOf(actorInitializer)
-        .plugin(config.persistence.queryJournalPlugin)
-        .retry[ElasticSearchServerOrUnexpectedFailure](indexing.retry.retryStrategy)(elasticErrorMonadError)
-        .batch(indexing.batch, indexing.batchTimeout)
-        .restart(restartOffset)
-        .init(view.createIndex)
-        .mapping(mapper.apply)
-        .index(inserts => clients.elasticSearch.bulk(inserts.removeDupIds))
-        .mapInitialProgress { p =>
-          processedEventsCount.set(p.processedCount)
-          processedEventsGauge.update(p.processedCount.toDouble)
-          F.unit
+    val initFetchProgressF: F[ProjectionProgress] =
+      if (restartOffset)
+        projections.recordProgress(view.progressId, NoProgress) >> view.createIndex >> F.delay(NoProgress)
+      else view.createIndex >> projections.progress(view.progressId)
+
+    val sourceF: F[Source[ProjectionProgress, _]] = initFetchProgressF.map { initial =>
+      val flow = ProgressFlowElem[F, Any]
+        .collectCast[Event]
+        .groupedWithin(indexing.batch, indexing.batchTimeout)
+        .distinct()
+        .mapAsync(view.toResource(resources, _))
+        .collectSome[ResourceV]
+        .collect {
+          case res if view.allowedSchemas(res) && view.allowedTypes(res) => deleteOrIndex(res)
+          case res if view.allowedSchemas(res)                           => Some(delete(res))
         }
-        .mapProgress { p =>
-          val previousCount = processedEventsCount.get()
-          processedEventsGauge.update(p.processedCount.toDouble)
-          processedEventsCounter.increment(p.processedCount - previousCount)
-          processedEventsCount.set(p.processedCount)
-          F.unit
-        }
-        .build
-    )
+        .collectSome[BulkOp]
+        .runAsyncBatch(client.bulk(_))()
+        .mergeEmit()
+        .toPersistedProgress(view.progressId, initial)
+      cassandraSource(s"project=${view.ref.id}", view.progressId, initial.minProgress.offset).via(flow)
+    }
+    StreamSupervisor.start(sourceF, view.progressId, actorInitializer)
   }
-  // $COVERAGE-ON$
-
-  private[indexing] val ctx: Json = jsonContentOf("/elasticsearch/default-context.json")
 }
+// $COVERAGE-ON$

@@ -3,7 +3,6 @@ package ch.epfl.bluebrain.nexus.kg.storage
 import java.nio.file.Paths
 
 import akka.http.scaladsl.model.{ContentTypes, Uri}
-import akka.stream.ActorMaterializer
 import cats.effect.IO
 import ch.epfl.bluebrain.nexus.commons.test._
 import ch.epfl.bluebrain.nexus.commons.test.io.IOEitherValues
@@ -28,15 +27,13 @@ class DiskStorageOperationsSpec
     with TestHelper
     with OptionValues {
 
-  private implicit val mt = ActorMaterializer()
-
   private implicit val sc: StorageConfig = StorageConfig(
     DiskStorageConfig(Paths.get("/tmp"), "SHA-256", read, write, false, 1024L),
     RemoteDiskStorageConfig("http://example.com", "v1", None, "SHA-256", read, write, true, 1024L),
     S3StorageConfig("MD5", read, write, true, 1024L),
     "password",
     "salt",
-    RetryStrategyConfig("linear", 300 millis, 5 minutes, 100, 0.2, 1 second)
+    RetryStrategyConfig("linear", 300 millis, 5 minutes, 100, 1 second)
   )
 
   private val project  = ProjectRef(genUUID)

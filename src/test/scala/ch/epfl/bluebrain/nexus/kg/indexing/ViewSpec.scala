@@ -28,7 +28,7 @@ import ch.epfl.bluebrain.nexus.kg.resources.{Id, ProjectLabel, ProjectRef}
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import ch.epfl.bluebrain.nexus.rdf.syntax._
 import io.circe.Json
-import org.mockito.IdiomaticMockito
+import org.mockito.{ArgumentMatchersSugar, IdiomaticMockito}
 import org.mockito.Mockito.when
 import org.scalatest._
 
@@ -43,11 +43,13 @@ class ViewSpec
     with BeforeAndAfter
     with CirceEq
     with IdiomaticMockito
+    with ArgumentMatchersSugar
     with IOValues {
 
   private implicit val clock = Clock.fixed(Instant.ofEpochSecond(3600), ZoneId.systemDefault())
 
   private implicit val appConfig = Settings(system).appConfig
+  implicit val timer             = IO.timer(system.dispatcher)
 
   private implicit val client: BlazegraphClient[IO] = mock[BlazegraphClient[IO]]
 
@@ -236,7 +238,7 @@ class ViewSpec
             "/blazegraph/incoming.txt",
             Map(quote("{id}") -> "http://example.com/id", quote("{size}") -> "100", quote("{offset}") -> "0")
           )
-        client.queryRaw(query) shouldReturn IO(SparqlResults.empty)
+        client.queryRaw(query, any[Throwable => Boolean]) shouldReturn IO(SparqlResults.empty)
         view.incoming[IO](url"http://example.com/id".value, FromPagination(0, 100)).ioValue shouldEqual
           UnscoredQueryResults(0, List.empty[UnscoredQueryResult[SparqlLink]])
       }
@@ -254,7 +256,7 @@ class ViewSpec
               quote("{offset}") -> "10"
             )
           )
-        client.queryRaw(query) shouldReturn IO(SparqlResults.empty)
+        client.queryRaw(query, any[Throwable => Boolean]) shouldReturn IO(SparqlResults.empty)
         view
           .outgoing[IO](url"http://example.com/id2".value, FromPagination(10, 100), includeExternalLinks = true)
           .ioValue shouldEqual
@@ -274,7 +276,7 @@ class ViewSpec
               quote("{offset}") -> "10"
             )
           )
-        client.queryRaw(query) shouldReturn IO(SparqlResults.empty)
+        client.queryRaw(query, any[Throwable => Boolean]) shouldReturn IO(SparqlResults.empty)
         view
           .outgoing[IO](url"http://example.com/id2".value, FromPagination(10, 100), includeExternalLinks = false)
           .ioValue shouldEqual

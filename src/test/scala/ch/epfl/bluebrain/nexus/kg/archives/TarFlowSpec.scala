@@ -4,7 +4,6 @@ import java.nio.file.Files
 import java.time.{Clock, Instant, ZoneId}
 
 import akka.actor.ActorSystem
-import akka.stream.ActorMaterializer
 import akka.stream.scaladsl.FileIO
 import akka.testkit.TestKit
 import ch.epfl.bluebrain.nexus.kg.TestHelper
@@ -21,7 +20,6 @@ class TarFlowSpec
     with TestHelper
     with ScalaFutures {
 
-  private implicit val mt    = ActorMaterializer()
   private implicit val ec    = system.dispatcher
   private implicit val clock = Clock.fixed(Instant.EPOCH, ZoneId.systemDefault())
 

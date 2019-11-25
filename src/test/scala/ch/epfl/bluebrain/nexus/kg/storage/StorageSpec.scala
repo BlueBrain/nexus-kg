@@ -52,7 +52,7 @@ class StorageSpec
       S3StorageConfig("MD5", readS3, writeS3, true, 3000L),
       "password",
       "salt",
-      RetryStrategyConfig("linear", 300 millis, 5 minutes, 100, 0.2, 1 second)
+      RetryStrategyConfig("linear", 300 millis, 5 minutes, 100, 1 second)
     )
   "A Storage" when {
     val iri        = url"http://example.com/id".value

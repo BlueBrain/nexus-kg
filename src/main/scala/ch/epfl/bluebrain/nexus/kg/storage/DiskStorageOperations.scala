@@ -6,7 +6,6 @@ import java.util.UUID
 import akka.actor.ActorSystem
 import akka.http.scaladsl.model.Uri
 import akka.stream.scaladsl.{FileIO, Keep}
-import akka.stream.{ActorMaterializer, Materializer}
 import cats.effect.{ContextShift, Effect, IO}
 import cats.implicits._
 import ch.epfl.bluebrain.nexus.kg.KgError
@@ -60,7 +59,6 @@ object DiskStorageOperations {
       extends SaveFile[F, AkkaSource] {
 
     private implicit val ec: ExecutionContext           = as.dispatcher
-    private implicit val mt: Materializer               = ActorMaterializer()
     private implicit val contextShift: ContextShift[IO] = IO.contextShift(ec)
 
     override def apply(id: ResId, fileDesc: FileDescription, source: AkkaSource): F[FileAttributes] =
@@ -71,7 +69,7 @@ object DiskStorageOperations {
             .toMat(FileIO.toPath(fullPath)) {
               case (digFuture, ioFuture) =>
                 digFuture.zipWith(ioFuture) {
-                  case (dig, io) if io.wasSuccessful && fullPath.toFile.exists() =>
+                  case (dig, io) if fullPath.toFile.exists() =>
                     val summary = StoredSummary(pathToUri(fullPath), relativePath, io.count, dig)
                     Future.successful(fileDesc.process(summary))
                   case _ =>

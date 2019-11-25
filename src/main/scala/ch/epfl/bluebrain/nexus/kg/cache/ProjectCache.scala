@@ -4,11 +4,10 @@ import java.util.UUID
 
 import akka.actor.ActorSystem
 import cats.Monad
-import cats.effect.{Async, Timer}
+import cats.effect.{Effect, Timer}
 import cats.implicits._
 import ch.epfl.bluebrain.nexus.admin.client.types.Project
 import ch.epfl.bluebrain.nexus.commons.cache.{KeyValueStore, KeyValueStoreConfig}
-import ch.epfl.bluebrain.nexus.kg.cache.Cache._
 import ch.epfl.bluebrain.nexus.kg.resources.syntax._
 import ch.epfl.bluebrain.nexus.kg.resources.{OrganizationRef, ProjectLabel, ProjectRef}
 
@@ -94,7 +93,7 @@ class ProjectCache[F[_]] private (store: KeyValueStore[F, UUID, Project])(implic
     * @param rev the project new revision
     */
   def deprecate(ref: ProjectRef, rev: Long): F[Unit] =
-    store.computeIfPresent(ref.id, c => c.copy(rev = rev, deprecated = true)) *> F.unit
+    store.computeIfPresent(ref.id, c => c.copy(rev = rev, deprecated = true)) >> F.unit
 
 }
 
@@ -103,8 +102,6 @@ object ProjectCache {
   /**
     * Creates a new project index.
     */
-  def apply[F[_]: Timer](implicit as: ActorSystem, config: KeyValueStoreConfig, F: Async[F]): ProjectCache[F] = {
-    import ch.epfl.bluebrain.nexus.kg.instances.kgErrorMonadError
-    new ProjectCache(KeyValueStore.distributed("projects", (_, project) => project.rev, mapError))(F)
-  }
+  def apply[F[_]: Effect: Timer](implicit as: ActorSystem, config: KeyValueStoreConfig): ProjectCache[F] =
+    new ProjectCache(KeyValueStore.distributed("projects", (_, project) => project.rev))
 }

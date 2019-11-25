@@ -8,25 +8,26 @@ import akka.cluster.sharding.ShardRegion.{ExtractEntityId, ExtractShardId}
 import akka.cluster.sharding.{ClusterSharding, ClusterShardingSettings, ShardRegion}
 import akka.pattern.pipe
 import akka.persistence.query.{NoOffset, Offset, Sequence, TimeBasedUUID}
-import cats.MonadError
+import akka.stream.scaladsl.Source
 import cats.implicits._
 import ch.epfl.bluebrain.nexus.admin.client.types.Project
-import ch.epfl.bluebrain.nexus.kg.KgError
-import ch.epfl.bluebrain.nexus.kg.KgError.InternalError
+import ch.epfl.bluebrain.nexus.iam.client.types.Identity.Subject
 import ch.epfl.bluebrain.nexus.kg.async.ProjectAttributesCoordinatorActor.Msg._
-import ch.epfl.bluebrain.nexus.kg.async.ProjectAttributesCoordinatorActor.OffsetSyntax
+import ch.epfl.bluebrain.nexus.kg.async.ProjectAttributesCoordinatorActor._
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig._
-import ch.epfl.bluebrain.nexus.kg.indexing.Statistics
-import ch.epfl.bluebrain.nexus.kg.resources.Rejection.{FileDigestNotComputed, UnexpectedState}
-import ch.epfl.bluebrain.nexus.kg.resources.{Event, Files, Resource}
+import ch.epfl.bluebrain.nexus.kg.indexing.{cassandraSource, Statistics}
+import ch.epfl.bluebrain.nexus.kg.resources.Rejection.FileDigestAlreadyExists
+import ch.epfl.bluebrain.nexus.kg.resources.{Event, Files, Rejection, Resource}
 import ch.epfl.bluebrain.nexus.kg.storage.Storage.StorageOperations.FetchAttributes
+import ch.epfl.bluebrain.nexus.sourcing.projections.ProgressFlow.ProgressFlowElem
 import ch.epfl.bluebrain.nexus.sourcing.projections.ProjectionProgress.NoProgress
 import ch.epfl.bluebrain.nexus.sourcing.projections._
-import kamon.Kamon
 import monix.eval.Task
 import monix.execution.Scheduler.Implicits.global
-import monix.execution.atomic.AtomicLong
+import retry.CatsEffect._
+import retry._
+import retry.syntax.all._
 
 /**
   * Coordinator backed by akka actor which runs the attributes stream inside the provided project
@@ -43,7 +44,7 @@ private abstract class ProjectAttributesCoordinatorActor(implicit val config: Ap
       log.debug("Started attributes coordinator for project '{}'", project.show)
       context.become(initialized(project))
       child = Some(startCoordinator(project, restartOffset = false))
-    case FetchProgress(_) => val _ = progress.runToFuture pipeTo sender()
+    case FetchProgress(uuid) => val _ = progress(uuid).runToFuture pipeTo sender()
     case other =>
       log.debug("Received non Start message '{}', ignore", other)
   }
@@ -55,7 +56,7 @@ private abstract class ProjectAttributesCoordinatorActor(implicit val config: Ap
       child = None
       context.become(receive)
 
-    case FetchProgress(_) => val _ = progress.runToFuture pipeTo sender()
+    case FetchProgress(uuid) => val _ = progress(uuid).runToFuture pipeTo sender()
 
     case _: Start => //ignore, it has already been started
 
@@ -64,40 +65,19 @@ private abstract class ProjectAttributesCoordinatorActor(implicit val config: Ap
 
   def startCoordinator(project: Project, restartOffset: Boolean): StreamSupervisor[Task, ProjectionProgress]
 
-  private def progress: Task[Statistics] =
-    child.map(_.state().map(_.getOrElse(NoProgress))).getOrElse(Task.pure(NoProgress)).map { p =>
-      Statistics(p.processedCount, p.discardedCount, p.processedCount, p.offset.asInstant, p.offset.asInstant)
-    }
-}
-
-private class FileDigestEventMapping[F[_]: FetchAttributes](files: Files[F])(implicit F: MonadError[F, KgError]) {
-
-  /**
-    * When an event is received, a file attributes is attempted to be calculated if the file does not currently have a digest.
-    *
-    * @param event event to be mapped to a Elastic Search insert query
-    */
-  final def apply(event: Event): F[Option[Resource]] =
-    event match {
-      case _: Event.FileCreated | _: Event.FileUpdated =>
-        implicit val subject = event.subject
-        files.updateFileAttrEmpty(event.id).value.flatMap[Option[Resource]] {
-          case Left(FileDigestNotComputed(_)) =>
-            F.raiseError(InternalError(s"Resource '${event.id.ref.show}' does not have a computed digest."): KgError)
-          case Left(UnexpectedState(_)) =>
-            F.raiseError(
-              InternalError(s"Storage for resource '${event.id.ref.show}' is not still on the cache."): KgError
-            )
-          case Left(_) =>
-            F.pure(None)
-          case Right(resource) =>
-            F.pure(Some(resource))
-        }
-      case _ => F.pure(None)
-    }
+  private def progress(uuid: UUID): Task[Statistics] =
+    child
+      .map(_.state().map(_.getOrElse(NoProgress)))
+      .getOrElse(Task.pure(NoProgress))
+      .map(_.progress(progressName(uuid)))
+      .map { p =>
+        Statistics(p.processed, p.discarded, p.failed, p.processed, p.offset.asInstant, p.offset.asInstant)
+      }
 }
 
 object ProjectAttributesCoordinatorActor {
+
+  def progressName(uuid: UUID): String = s"attributes-computation-$uuid"
 
   private[async] sealed trait Msg {
 
@@ -138,56 +118,53 @@ object ProjectAttributesCoordinatorActor {
       config: AppConfig,
       fetchDigest: FetchAttributes[Task],
       as: ActorSystem,
-      projections: Projections[Task, Event]
+      projections: Projections[Task, String]
   ): ActorRef = {
+
     val props = Props(new ProjectAttributesCoordinatorActor {
+
       override def startCoordinator(
           project: Project,
           restartOffset: Boolean
       ): StreamSupervisor[Task, ProjectionProgress] = {
-        val kgErrorMonadError = ch.epfl.bluebrain.nexus.kg.instances.kgErrorMonadError[Task]
 
-        val mapper = new FileDigestEventMapping(files)(fetchDigest, kgErrorMonadError)
+        implicit val indexing: IndexingConfig  = config.sparql.indexing
+        implicit val policy: RetryPolicy[Task] = config.storage.fileAttrRetry.retryPolicy[Task]
+        implicit val logErrors: (Either[Rejection, Resource], RetryDetails) => Task[Unit] =
+          (err, d) =>
+            Task.pure(log.warning("Retrying on resource creation with retry details '{}' and error: '{}'", err, d))
+        val name: String = progressName(project.uuid)
 
-        val ignoreIndex: List[Resource] => Task[Unit] = _ => Task.unit
+        val initFetchProgressF: Task[ProjectionProgress] =
+          if (restartOffset) projections.recordProgress(name, NoProgress) >> Task.delay(NoProgress)
+          else projections.progress(name)
 
-        val processedEventsGauge = Kamon
-          .gauge("digest_computation_gauge")
-          .withTag("type", "digest")
-          .withTag("project", project.show)
-          .withTag("organization", project.organizationLabel)
-        val processedEventsCounter = Kamon
-          .counter("digest_computation_counter")
-          .withTag("type", "digest")
-          .withTag("project", project.show)
-          .withTag("organization", project.organizationLabel)
-        val processedEventsCount = AtomicLong(0L)
+        val sourceF: Task[Source[ProjectionProgress, _]] = initFetchProgressF.map {
+          initial =>
+            val flow = ProgressFlowElem[Task, Any]
+              .collectCast[Event]
+              .collect {
+                case ev: Event.FileCreated => ev: Event
+                case ev: Event.FileUpdated => ev: Event
+              }
+              .mapAsync { event =>
+                implicit val subject: Subject = event.subject
+                files
+                  .updateFileAttrEmpty(event.id)
+                  .value
+                  .retryingM {
+                    case Right(_) | Left(_: FileDigestAlreadyExists) => true
+                    case Left(_)                                     => false
+                  }
+                  .map(_.toOption)
 
-        TagProjection.start(
-          ProjectionConfig
-            .builder[Task]
-            .name(s"attributes-computation-${project.uuid}")
-            .tag(s"project=${project.uuid}")
-            .actorOf(context.actorOf)
-            .plugin(config.persistence.queryJournalPlugin)
-            .retry[KgError](config.storage.fileAttrRetry.retryStrategy)(kgErrorMonadError)
-            .restart(restartOffset)
-            .mapping(mapper.apply)
-            .index(ignoreIndex)
-            .mapInitialProgress { p =>
-              processedEventsCount.set(p.processedCount)
-              processedEventsGauge.update(p.processedCount.toDouble)
-              Task.unit
-            }
-            .mapProgress { p =>
-              val previousCount = processedEventsCount.get()
-              processedEventsGauge.update(p.processedCount.toDouble)
-              processedEventsCounter.increment(p.processedCount - previousCount)
-              processedEventsCount.set(p.processedCount)
-              Task.unit
-            }
-            .build
-        )
+              }
+              .collectSome[Resource]
+              .toPersistedProgress(name, initial)
+
+            cassandraSource(s"project=${project.uuid}", name, initial.minProgress.offset).via(flow)
+        }
+        StreamSupervisor.start(sourceF, name, context.actorOf)
       }
     })
     start(props, shardingSettings, shards)

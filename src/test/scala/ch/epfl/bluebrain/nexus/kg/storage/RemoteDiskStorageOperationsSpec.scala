@@ -2,7 +2,6 @@ package ch.epfl.bluebrain.nexus.kg.storage
 
 import akka.http.scaladsl.model.ContentTypes._
 import akka.http.scaladsl.model.Uri
-import akka.stream.{ActorMaterializer, Materializer}
 import cats.effect.IO
 import ch.epfl.bluebrain.nexus.commons.test.io.IOEitherValues
 import ch.epfl.bluebrain.nexus.commons.test.{ActorSystemFixture, Resources}
@@ -28,8 +27,6 @@ class RemoteDiskStorageOperationsSpec
     with TestHelper {
 
   private val endpoint = "http://nexus.example.com/v1"
-
-  private implicit val mt: Materializer = ActorMaterializer()
 
   sealed trait Ctx {
     val cred                              = genString()

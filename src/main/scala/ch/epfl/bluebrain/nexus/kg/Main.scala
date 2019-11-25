@@ -8,7 +8,6 @@ import akka.cluster.Cluster
 import akka.event.Logging
 import akka.http.scaladsl.Http
 import akka.http.scaladsl.server.Route
-import akka.stream.ActorMaterializer
 import cats.effect.Effect
 import ch.epfl.bluebrain.nexus.admin.client.AdminClient
 import ch.epfl.bluebrain.nexus.commons.es.client.{ElasticSearchClient, ElasticSearchDecoder}
@@ -76,7 +75,6 @@ object Main {
 
     implicit val as                = ActorSystem(appConfig.description.fullName, config)
     implicit val ec                = as.dispatcher
-    implicit val mt                = ActorMaterializer()
     implicit val eff: Effect[Task] = Task.catsEffect(Scheduler.global)
 
     implicit val utClient            = untyped[Task]
@@ -85,9 +83,20 @@ object Main {
     implicit val esDecoders          = ElasticSearchDecoder[Json]
     implicit val qrClient            = withUnmarshaller[Task, QueryResults[Json]]
 
-    def clients(implicit elasticSearchConfig: ElasticSearchConfig, sparqlConfig: SparqlConfig): Clients[Task] = {
-      val sparql                 = BlazegraphClient[Task](sparqlConfig.base, sparqlConfig.defaultIndex, sparqlConfig.akkaCredentials)
-      implicit val elasticSearch = ElasticSearchClient[Task](elasticSearchConfig.base)
+    def defaultSparqlClient(implicit config: SparqlConfig): BlazegraphClient[Task] = {
+      implicit val retryConfig = config.query
+      BlazegraphClient[Task](config.base, config.defaultIndex, config.akkaCredentials)
+    }
+
+    def defaultElasticSearchClient(implicit config: ElasticSearchConfig): ElasticSearchClient[Task] = {
+      implicit val retryConfig = config.query
+      ElasticSearchClient[Task](config.base)
+    }
+
+    def clients(): Clients[Task] = {
+
+      val sparql                 = defaultSparqlClient
+      implicit val elasticSearch = defaultElasticSearchClient
 
       implicit val adminClient   = AdminClient[Task](appConfig.admin)
       implicit val iamClient     = IamClient[Task]
@@ -109,7 +118,7 @@ object Main {
     implicit val pm    = CanBlock.permit
 
     implicit val repo     = Repo[Task].runSyncUnsafe()(Scheduler.global, pm)
-    implicit val indexers = clients
+    implicit val indexers = clients()
     implicit val cache =
       Caches(
         ProjectCache[Task],
@@ -138,17 +147,16 @@ object Main {
       logger.info("==== Cluster is Live ====")
 
       if (sys.env.getOrElse("MIGRATE_V10_TO_V11", "false").toBoolean) {
-        Migrations.V1ToV11.migrate(appConfig)(as, mt, Scheduler.global, CanBlock.permit)
-        RepairFromMessages.repair(repo)(as, mt, Scheduler.global, CanBlock.permit)
+        Migrations.V1ToV11.migrate(appConfig)(as, Scheduler.global, CanBlock.permit)
+        RepairFromMessages.repair(repo)(as, Scheduler.global, CanBlock.permit)
       }
 
       if (sys.env.getOrElse("REPAIR_FROM_MESSAGES", "false").toBoolean) {
-        RepairFromMessages.repair(repo)(as, mt, Scheduler.global, CanBlock.permit)
+        RepairFromMessages.repair(repo)(as, Scheduler.global, CanBlock.permit)
       }
 
-      implicit val projections: Projections[Task, Event] = {
-        import ch.epfl.bluebrain.nexus.kg.serializers.Serializer._
-        Projections[Task, Event].runSyncUnsafe(10 seconds)(Scheduler.global, CanBlock.permit)
+      implicit val projections: Projections[Task, String] = {
+        Projections[Task, String].runSyncUnsafe(10 seconds)(Scheduler.global, CanBlock.permit)
       }
 
       val projectViewCoordinator   = ProjectViewCoordinator(resources, cache)

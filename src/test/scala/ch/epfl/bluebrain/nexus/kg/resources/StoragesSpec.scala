@@ -2,9 +2,8 @@ package ch.epfl.bluebrain.nexus.kg.resources
 
 import java.nio.file.Paths
 import java.time.{Clock, Instant, ZoneId}
+import java.util.regex.Pattern.quote
 
-import akka.stream.ActorMaterializer
-import ch.epfl.bluebrain.nexus.kg.resources.syntax._
 import cats.effect.{ContextShift, IO, Timer}
 import cats.syntax.show._
 import ch.epfl.bluebrain.nexus.admin.client.types.Project
@@ -23,6 +22,7 @@ import ch.epfl.bluebrain.nexus.kg.config.Vocabulary._
 import ch.epfl.bluebrain.nexus.kg.resolve.{Materializer, ProjectResolution, Resolver, StaticResolution}
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection._
 import ch.epfl.bluebrain.nexus.kg.resources.ResourceF.Value
+import ch.epfl.bluebrain.nexus.kg.resources.syntax._
 import ch.epfl.bluebrain.nexus.kg.storage.Storage
 import ch.epfl.bluebrain.nexus.kg.storage.Storage.StorageOperations.Verify
 import ch.epfl.bluebrain.nexus.kg.storage.Storage._
@@ -33,7 +33,6 @@ import ch.epfl.bluebrain.nexus.rdf.{Iri, RootedGraph}
 import io.circe.Json
 import org.mockito.{ArgumentMatchersSugar, IdiomaticMockito, Mockito}
 import org.scalatest._
-import java.util.regex.Pattern.quote
 
 import scala.concurrent.ExecutionContext
 import scala.concurrent.duration._
@@ -57,11 +56,10 @@ class StoragesSpec
 
   override implicit def patienceConfig: PatienceConfig = PatienceConfig(3 second, 15 milliseconds)
 
-  private implicit val appConfig              = Settings(system).appConfig
-  private implicit val clock: Clock           = Clock.fixed(Instant.ofEpochSecond(3600), ZoneId.systemDefault())
-  private implicit val mat: ActorMaterializer = ActorMaterializer()
-  private implicit val ctx: ContextShift[IO]  = IO.contextShift(ExecutionContext.global)
-  private implicit val timer: Timer[IO]       = IO.timer(ExecutionContext.global)
+  private implicit val appConfig             = Settings(system).appConfig
+  private implicit val clock: Clock          = Clock.fixed(Instant.ofEpochSecond(3600), ZoneId.systemDefault())
+  private implicit val ctx: ContextShift[IO] = IO.contextShift(ExecutionContext.global)
+  private implicit val timer: Timer[IO]      = IO.timer(ExecutionContext.global)
 
   private implicit val repo          = Repo[IO].ioValue
   private implicit val resolverCache = mock[ResolverCache[IO]]

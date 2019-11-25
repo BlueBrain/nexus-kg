@@ -25,27 +25,27 @@ scalafmt: {
  */
 
 // Dependency versions
-val adminVersion                = "51b9575d"
-val commonsVersion              = "0.17.23"
-val storageVersion              = "d7142488"
-val sourcingVersion             = "0.16.6"
-val akkaVersion                 = "2.5.25"
-val akkaCorsVersion             = "0.4.1"
+val adminVersion                = "1.2.1+2-5e3ee05f"
+val commonsVersion              = "0.19.0"
+val storageVersion              = "1.2.2+2-f21a8d7c"
+val sourcingVersion             = "0.18.0"
+val akkaVersion                 = "2.6.0"
+val akkaCorsVersion             = "0.4.2"
 val akkaHttpVersion             = "10.1.10"
 val akkaPersistenceInMemVersion = "2.5.15.2"
-val akkaPersistenceCassVersion  = "0.99"
-val alpakkaVersion              = "1.1.1"
+val akkaPersistenceCassVersion  = "0.100"
+val alpakkaVersion              = "1.1.2"
 val catsVersion                 = "2.0.0"
 val catsEffectVersion           = "2.0.0"
-val circeVersion                = "0.12.1"
+val circeVersion                = "0.12.3"
 val journalVersion              = "3.0.19"
 val logbackVersion              = "1.2.3"
-val mockitoVersion              = "1.5.18"
-val monixVersion                = "3.0.0"
-val pureconfigVersion           = "0.12.0"
+val mockitoVersion              = "1.7.1"
+val monixVersion                = "3.1.0"
+val pureconfigVersion           = "0.12.1"
 val shapelessVersion            = "2.3.3"
 val scalaTestVersion            = "3.0.8"
-val kryoVersion                 = "0.5.2"
+val kryoVersion                 = "1.0.0"
 val s3mockVersion               = "0.2.5"
 val apacheCommonsVersion        = "3.9"
 
@@ -82,7 +82,7 @@ lazy val monixEval            = "io.monix"                %% "monix-eval"       
 lazy val pureconfig           = "com.github.pureconfig"   %% "pureconfig"                 % pureconfigVersion
 lazy val scalaTest            = "org.scalatest"           %% "scalatest"                  % scalaTestVersion
 lazy val shapeless            = "com.chuusai"             %% "shapeless"                  % shapelessVersion
-lazy val kryo                 = "com.github.romix.akka"   %% "akka-kryo-serialization"    % kryoVersion
+lazy val kryo                 = "io.altoo"                %% "akka-kryo-serialization"    % kryoVersion
 lazy val s3mock               = "io.findify"              %% "s3mock"                     % s3mockVersion
 
 lazy val kg = project
@@ -138,6 +138,7 @@ lazy val kg = project
 
 lazy val testSettings = Seq(
   Test / testOptions       += Tests.Argument(TestFrameworks.ScalaTest, "-o", "-u", "target/test-reports"),
+  Test / fork              := true,
   Test / parallelExecution := false
 )
 

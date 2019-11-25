@@ -2,7 +2,6 @@ package ch.epfl.bluebrain.nexus.kg.routes
 
 import akka.http.scaladsl.model.StatusCodes
 import akka.http.scaladsl.testkit.ScalatestRouteTest
-import akka.stream.ActorMaterializer
 import ch.epfl.bluebrain.nexus.admin.client.AdminClient
 import ch.epfl.bluebrain.nexus.admin.client.types.{ServiceDescription => AdminServiceDescription}
 import ch.epfl.bluebrain.nexus.commons.es.client.{ElasticSearchClient, ServiceDescription => EsServiceDescription}
@@ -36,7 +35,6 @@ class AppInfoRoutesSpec
 
   private implicit val appConfig     = Settings(system).appConfig
   private implicit val ec            = system.dispatcher
-  private implicit val mt            = ActorMaterializer()
   private implicit val utClient      = untyped[Task]
   private implicit val qrClient      = withUnmarshaller[Task, QueryResults[Json]]
   private implicit val jsonClient    = withUnmarshaller[Task, Json]

@@ -3,7 +3,6 @@ package ch.epfl.bluebrain.nexus.kg.resources
 import java.time.{Clock, Instant, ZoneId}
 import java.util.regex.Pattern.quote
 
-import akka.stream.ActorMaterializer
 import cats.data.OptionT
 import cats.effect.{ContextShift, IO, Timer}
 import cats.syntax.show._
@@ -12,13 +11,11 @@ import ch.epfl.bluebrain.nexus.commons.test
 import ch.epfl.bluebrain.nexus.commons.test.io.{IOEitherValues, IOOptionValues}
 import ch.epfl.bluebrain.nexus.commons.test.{ActorSystemFixture, CirceEq}
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity._
-import ch.epfl.bluebrain.nexus.kg.TestHelper
 import ch.epfl.bluebrain.nexus.kg.archives.Archive.ResourceDescription
 import ch.epfl.bluebrain.nexus.kg.archives.{Archive, ArchiveCache}
 import ch.epfl.bluebrain.nexus.kg.cache.{AclsCache, ProjectCache, ResolverCache}
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig._
 import ch.epfl.bluebrain.nexus.kg.config.Contexts._
-import ch.epfl.bluebrain.nexus.kg.resources.syntax._
 import ch.epfl.bluebrain.nexus.kg.config.Schemas._
 import ch.epfl.bluebrain.nexus.kg.config.Settings
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary._
@@ -26,6 +23,8 @@ import ch.epfl.bluebrain.nexus.kg.resolve.Resolver.InProjectResolver
 import ch.epfl.bluebrain.nexus.kg.resolve.{Materializer, ProjectResolution, StaticResolution}
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection._
 import ch.epfl.bluebrain.nexus.kg.resources.ResourceF.Value
+import ch.epfl.bluebrain.nexus.kg.resources.syntax._
+import ch.epfl.bluebrain.nexus.kg.{urlEncode, TestHelper}
 import ch.epfl.bluebrain.nexus.rdf.Iri.{AbsoluteIri, Path}
 import ch.epfl.bluebrain.nexus.rdf.instances._
 import ch.epfl.bluebrain.nexus.rdf.syntax._
@@ -33,7 +32,6 @@ import ch.epfl.bluebrain.nexus.rdf.{Iri, RootedGraph}
 import io.circe.Json
 import org.mockito.{ArgumentMatchersSugar, IdiomaticMockito, Mockito}
 import org.scalatest._
-import ch.epfl.bluebrain.nexus.kg.urlEncode
 
 import scala.concurrent.ExecutionContext
 import scala.concurrent.duration._
@@ -57,11 +55,10 @@ class ArchivesSpec
 
   override implicit def patienceConfig: PatienceConfig = PatienceConfig(3 second, 15 milliseconds)
 
-  private implicit val appConfig              = Settings(system).appConfig
-  private implicit val clock: Clock           = Clock.fixed(Instant.ofEpochSecond(3600), ZoneId.systemDefault())
-  private implicit val mat: ActorMaterializer = ActorMaterializer()
-  private implicit val ctx: ContextShift[IO]  = IO.contextShift(ExecutionContext.global)
-  private implicit val timer: Timer[IO]       = IO.timer(ExecutionContext.global)
+  private implicit val appConfig             = Settings(system).appConfig
+  private implicit val clock: Clock          = Clock.fixed(Instant.ofEpochSecond(3600), ZoneId.systemDefault())
+  private implicit val ctx: ContextShift[IO] = IO.contextShift(ExecutionContext.global)
+  private implicit val timer: Timer[IO]      = IO.timer(ExecutionContext.global)
 
   private implicit val repo          = Repo[IO].ioValue
   private implicit val resolverCache = mock[ResolverCache[IO]]

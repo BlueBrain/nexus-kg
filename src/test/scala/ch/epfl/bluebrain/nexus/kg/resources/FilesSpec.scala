@@ -5,7 +5,6 @@ import java.time.{Clock, Instant, ZoneId}
 import akka.http.scaladsl.model.ContentTypes._
 import akka.http.scaladsl.model.StatusCodes.InternalServerError
 import akka.http.scaladsl.model.Uri
-import akka.stream.ActorMaterializer
 import cats.effect.{ContextShift, IO, Timer}
 import ch.epfl.bluebrain.nexus.admin.client.types.Project
 import ch.epfl.bluebrain.nexus.commons.test
@@ -56,11 +55,10 @@ class FilesSpec
 
   override implicit def patienceConfig: PatienceConfig = PatienceConfig(3 second, 15 milliseconds)
 
-  private implicit val appConfig              = Settings(system).appConfig
-  private implicit val clock: Clock           = Clock.fixed(Instant.ofEpochSecond(3600), ZoneId.systemDefault())
-  private implicit val mat: ActorMaterializer = ActorMaterializer()
-  private implicit val ctx: ContextShift[IO]  = IO.contextShift(ExecutionContext.global)
-  private implicit val timer: Timer[IO]       = IO.timer(ExecutionContext.global)
+  private implicit val appConfig             = Settings(system).appConfig
+  private implicit val clock: Clock          = Clock.fixed(Instant.ofEpochSecond(3600), ZoneId.systemDefault())
+  private implicit val ctx: ContextShift[IO] = IO.contextShift(ExecutionContext.global)
+  private implicit val timer: Timer[IO]      = IO.timer(ExecutionContext.global)
 
   private implicit val repo                                = Repo[IO].ioValue
   private val saveFile: SaveFile[IO, String]               = mock[SaveFile[IO, String]]

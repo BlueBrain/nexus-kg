@@ -12,7 +12,8 @@ import io.circe.generic.extras.semiauto.deriveConfiguredEncoder
   * Representation of statistics.
   *
   * @param processedEvents            count of processed events
-  * @param discardedEvents            count of events dropped due to not matching selection criteria
+  * @param discardedEvents            count of events dropped
+  * @param failedEvents               count of events failed
   * @param evaluatedEvents            count of events in the stream that have been used to update an index
   * @param remainingEvents            count of events still remaining to be processed
   * @param totalEvents                total number of events for the project
@@ -23,6 +24,7 @@ import io.circe.generic.extras.semiauto.deriveConfiguredEncoder
 final case class Statistics(
     processedEvents: Long,
     discardedEvents: Long,
+    failedEvents: Long,
     evaluatedEvents: Long,
     remainingEvents: Long,
     totalEvents: Long,
@@ -37,7 +39,8 @@ object Statistics {
     * Create an instance of [[Statistics]].
     *
     * @param processedEvents            count of processed events
-    * @param discardedEvents            count of events dropped due to not matching selection criteria
+    * @param discardedEvents            count of events dropped
+    * @param failedEvents               count of events failed
     * @param totalEvents                total number of events for the project
     * @param lastEventDateTime          datetime of the last event in the project
     * @param lastProcessedEventDateTime time of the last processed event in the project
@@ -45,6 +48,7 @@ object Statistics {
   def apply(
       processedEvents: Long,
       discardedEvents: Long,
+      failedEvents: Long,
       totalEvents: Long,
       lastEventDateTime: Option[Instant],
       lastProcessedEventDateTime: Option[Instant]
@@ -53,8 +57,9 @@ object Statistics {
       processedEvents = processedEvents,
       totalEvents = totalEvents,
       discardedEvents = discardedEvents,
+      failedEvents = failedEvents,
       remainingEvents = totalEvents - processedEvents,
-      evaluatedEvents = processedEvents - discardedEvents,
+      evaluatedEvents = processedEvents - discardedEvents - failedEvents,
       lastEventDateTime = lastEventDateTime,
       lastProcessedEventDateTime = lastProcessedEventDateTime,
       delayInSeconds = for {

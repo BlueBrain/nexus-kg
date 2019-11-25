@@ -50,7 +50,7 @@ class EventSerializerSpec
       S3StorageConfig("MD5", read, write, true, 1024L),
       "password",
       "salt",
-      RetryStrategyConfig("linear", 300 millis, 5 minutes, 100, 0.2, 1 second)
+      RetryStrategyConfig("linear", 300 millis, 5 minutes, 100, 1 second)
     )
   private case class Other(str: String)
 

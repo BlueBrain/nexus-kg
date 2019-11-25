@@ -8,7 +8,6 @@ import akka.http.scaladsl.model.ContentTypes._
 import akka.http.scaladsl.model.Uri
 import akka.stream.alpakka.s3
 import akka.stream.scaladsl.{FileIO, Sink}
-import akka.stream.{ActorMaterializer, Materializer}
 import cats.effect.IO
 import ch.epfl.bluebrain.nexus.commons.test.io.IOValues
 import ch.epfl.bluebrain.nexus.commons.test.{ActorSystemFixture, Randomness, Resources}
@@ -36,8 +35,6 @@ class S3StorageOperationsSpec
     with IOValues
     with Randomness
     with Resources {
-
-  private implicit val mt: Materializer = ActorMaterializer()
 
   private val port    = freePort
   private val address = s"http://localhost:$port"

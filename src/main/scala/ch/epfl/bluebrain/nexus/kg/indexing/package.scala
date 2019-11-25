@@ -1,14 +1,21 @@
 package ch.epfl.bluebrain.nexus.kg
 
-import cats.MonadError
+import akka.NotUsed
+import akka.actor.ActorSystem
+import akka.persistence.query.scaladsl.EventsByTagQuery
+import akka.persistence.query.{NoOffset, Offset, PersistenceQuery}
+import akka.stream.scaladsl.Source
+import cats.effect.Effect
 import cats.implicits._
 import ch.epfl.bluebrain.nexus.admin.client.AdminClient
 import ch.epfl.bluebrain.nexus.admin.client.types.Project
 import ch.epfl.bluebrain.nexus.iam.client.types.AuthToken
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity.Subject
 import ch.epfl.bluebrain.nexus.kg.cache.ProjectCache
-import ch.epfl.bluebrain.nexus.kg.indexing.View.FilteredView
+import ch.epfl.bluebrain.nexus.kg.config.AppConfig.PersistenceConfig
 import ch.epfl.bluebrain.nexus.kg.resources.{OrganizationRef, ProjectInitializer, ProjectRef, ResourceV}
+import ch.epfl.bluebrain.nexus.sourcing.projections.Message
+import ch.epfl.bluebrain.nexus.sourcing.projections.ProgressFlow.PairMsg
 
 package object indexing {
   implicit class ListResourcesSyntax[A](private val events: List[(ResourceV, A)]) extends AnyVal {
@@ -22,6 +29,15 @@ package object indexing {
       events.groupBy { case (res, _) => res.id }.values.flatMap(_.lastOption.map { case (_, elem) => elem }).toList
 
   }
+
+  def cassandraSource(tag: String, projectionId: String, offset: Offset = NoOffset)(
+      implicit config: PersistenceConfig,
+      as: ActorSystem
+  ): Source[PairMsg[Any], NotUsed] =
+    PersistenceQuery(as)
+      .readJournalFor[EventsByTagQuery](config.queryJournalPlugin)
+      .eventsByTag(tag, offset)
+      .map[PairMsg[Any]](e => Right(Message(e, projectionId)))
 
   /**
     * Attempts to fetch the project from the cache and retries until it is found.
@@ -41,7 +57,7 @@ package object indexing {
       adminClient: AdminClient[F],
       cred: Option[AuthToken],
       initializer: ProjectInitializer[F],
-      F: MonadError[F, KgError]
+      F: Effect[F]
   ): F[Project] = {
 
     def initializeOrError(projectOpt: Option[Project]): F[Project] =
@@ -57,10 +73,4 @@ package object indexing {
         case _             => adminClient.fetchProject(organizationRef.id, projectRef.id).flatMap(initializeOrError)
       }
   }
-
-  private[indexing] def validTypes(view: FilteredView, resource: ResourceV): Boolean =
-    view.filter.resourceTypes.isEmpty || view.filter.resourceTypes.intersect(resource.types).nonEmpty
-
-  private[indexing] def validSchema(view: FilteredView, resource: ResourceV): Boolean =
-    view.filter.resourceSchemas.isEmpty || view.filter.resourceSchemas.contains(resource.schema.iri)
 }

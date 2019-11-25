@@ -6,7 +6,7 @@ import java.util.concurrent.ConcurrentHashMap
 
 import akka.actor.ActorSystem
 import cats.Monad
-import cats.effect.{Async, Timer}
+import cats.effect.{Effect, Timer}
 import cats.implicits._
 import ch.epfl.bluebrain.nexus.commons.cache.{KeyValueStore, KeyValueStoreConfig}
 import ch.epfl.bluebrain.nexus.kg.RevisionedValue
@@ -16,9 +16,8 @@ import ch.epfl.bluebrain.nexus.kg.resources.ProjectRef
 import ch.epfl.bluebrain.nexus.kg.storage.Storage
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 
-class StorageCache[F[_]: Timer] private (projectToCache: ConcurrentHashMap[UUID, StorageProjectCache[F]])(
+class StorageCache[F[_]: Effect: Timer] private (projectToCache: ConcurrentHashMap[UUID, StorageProjectCache[F]])(
     implicit as: ActorSystem,
-    F: Async[F],
     config: KeyValueStoreConfig,
     clock: Clock
 ) {
@@ -65,9 +64,8 @@ class StorageCache[F[_]: Timer] private (projectToCache: ConcurrentHashMap[UUID,
   *
   * @param store the underlying Distributed Data LWWMap store.
   */
-private class StorageProjectCache[F[_]] private (store: KeyValueStore[F, AbsoluteIri, RevisionedStorage])(
-    implicit F: Monad[F]
-) extends Cache[F, AbsoluteIri, RevisionedStorage](store) {
+private class StorageProjectCache[F[_]: Monad] private (store: KeyValueStore[F, AbsoluteIri, RevisionedStorage])
+    extends Cache[F, AbsoluteIri, RevisionedStorage](store) {
 
   private implicit val ordering: Ordering[RevisionedStorage] = Ordering.by((s: RevisionedStorage) => s.rev).reverse
 
@@ -92,19 +90,17 @@ private object StorageProjectCache {
 
   type RevisionedStorage = RevisionedValue[Storage]
 
-  def apply[F[_]: Timer](
+  def apply[F[_]: Effect: Timer](
       project: ProjectRef
-  )(implicit as: ActorSystem, config: KeyValueStoreConfig, F: Async[F]): StorageProjectCache[F] = {
-    import ch.epfl.bluebrain.nexus.kg.instances.kgErrorMonadError
+  )(implicit as: ActorSystem, config: KeyValueStoreConfig): StorageProjectCache[F] =
     new StorageProjectCache(
-      KeyValueStore.distributed(s"storage-${project.id}", (_, storage) => storage.value.rev, mapError)
-    )(F)
-  }
+      KeyValueStore.distributed(s"storage-${project.id}", (_, storage) => storage.value.rev)
+    )
 
 }
 
 object StorageCache {
 
-  def apply[F[_]: Timer: Async](implicit as: ActorSystem, config: KeyValueStoreConfig, clock: Clock): StorageCache[F] =
+  def apply[F[_]: Timer: Effect](implicit as: ActorSystem, config: KeyValueStoreConfig, clock: Clock): StorageCache[F] =
     new StorageCache(new ConcurrentHashMap[UUID, StorageProjectCache[F]]())
 }

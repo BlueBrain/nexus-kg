@@ -1,16 +1,14 @@
 package ch.epfl.bluebrain.nexus.kg
 
 import cats.data.EitherT
-import cats.effect.{Effect, Timer}
+import cats.effect.Effect
 import cats.syntax.all._
 import ch.epfl.bluebrain.nexus.commons.es.client.ElasticSearchClient
-import ch.epfl.bluebrain.nexus.commons.es.client.ElasticSearchFailure.ElasticSearchServerOrUnexpectedFailure
 import ch.epfl.bluebrain.nexus.commons.http.HttpClient
-import ch.epfl.bluebrain.nexus.commons.search.{FromPagination, Pagination, QueryResults}
 import ch.epfl.bluebrain.nexus.commons.search.QueryResults.UnscoredQueryResults
+import ch.epfl.bluebrain.nexus.commons.search.{FromPagination, Pagination, QueryResults}
 import ch.epfl.bluebrain.nexus.commons.shacl.ValidationReport
 import ch.epfl.bluebrain.nexus.commons.sparql.client.BlazegraphClient
-import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlFailure.SparqlServerOrUnexpectedFailure
 import ch.epfl.bluebrain.nexus.iam.client.types.Caller
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity.Subject
 import ch.epfl.bluebrain.nexus.kg.KgError.InternalError
@@ -26,8 +24,6 @@ import ch.epfl.bluebrain.nexus.kg.storage.{AkkaSource, Storage}
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import ch.epfl.bluebrain.nexus.rdf.encoder.NodeEncoder.EncoderResult
 import ch.epfl.bluebrain.nexus.rdf.encoder.NodeEncoderError.IllegalConversion
-import ch.epfl.bluebrain.nexus.sourcing.retry.Retry
-import ch.epfl.bluebrain.nexus.sourcing.retry.syntax._
 import io.circe.Json
 
 package object resources {
@@ -114,7 +110,7 @@ package object resources {
 
   implicit def toSubject(implicit caller: Caller): Subject = caller.subject
 
-  private[resources] def listResources[F[_]: Timer](
+  private[resources] def listResources[F[_]](
       view: Option[ElasticSearchView],
       params: SearchParams,
       pagination: Pagination
@@ -123,40 +119,27 @@ package object resources {
       config: AppConfig,
       tc: HttpClient[F, JsonResults],
       elasticSearch: ElasticSearchClient[F]
-  ): F[JsonResults] = {
-    import ch.epfl.bluebrain.nexus.kg.instances.elasticErrorMonadError
-    implicit val retryer = Retry[F, ElasticSearchServerOrUnexpectedFailure](config.elasticSearch.query.retryStrategy)
-
+  ): F[JsonResults] =
     view
       .map(v => elasticSearch.search[Json](queryFor(params), Set(v.index))(pagination))
       .getOrElse(F.pure[JsonResults](UnscoredQueryResults(0L, List.empty)))
-      .retry
-  }
 
-  private[resources] def incoming[F[_]: Timer](
+  private[resources] def incoming[F[_]](
       id: AbsoluteIri,
       view: Option[SparqlView],
       pagination: FromPagination
-  )(implicit F: Effect[F], config: AppConfig, client: BlazegraphClient[F]): F[LinkResults] = {
-    import ch.epfl.bluebrain.nexus.kg.instances.sparqlErrorMonadError
-    implicit val retryer = Retry[F, SparqlServerOrUnexpectedFailure](config.sparql.query.retryStrategy)
+  )(implicit F: Effect[F], config: AppConfig, client: BlazegraphClient[F]): F[LinkResults] =
+    view.map(_.incoming(id, pagination)).getOrElse(F.pure[LinkResults](UnscoredQueryResults(0L, List.empty)))
 
-    view.map(_.incoming(id, pagination)).getOrElse(F.pure[LinkResults](UnscoredQueryResults(0L, List.empty))).retry
-  }
-
-  private[resources] def outgoing[F[_]: Timer](
+  private[resources] def outgoing[F[_]](
       id: AbsoluteIri,
       view: Option[SparqlView],
       pagination: FromPagination,
       includeExternalLinks: Boolean
   )(implicit F: Effect[F], config: AppConfig, client: BlazegraphClient[F]): F[LinkResults] = {
-    import ch.epfl.bluebrain.nexus.kg.instances.sparqlErrorMonadError
-    implicit val retryer = Retry[F, SparqlServerOrUnexpectedFailure](config.sparql.query.retryStrategy)
-
     view
       .map(_.outgoing(id, pagination, includeExternalLinks))
       .getOrElse(F.pure[LinkResults](UnscoredQueryResults(0L, List.empty)))
-      .retry
   }
 
   def nonEmpty(s: String): EncoderResult[String] =

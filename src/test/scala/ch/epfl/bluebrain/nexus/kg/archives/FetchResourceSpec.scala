@@ -6,7 +6,6 @@ import java.time.{Clock, Instant, ZoneId}
 import akka.actor.ActorSystem
 import akka.http.scaladsl.model.ContentTypes.`text/plain(UTF-8)`
 import akka.http.scaladsl.model.Uri
-import akka.stream.ActorMaterializer
 import akka.testkit.TestKit
 import cats.data.EitherT
 import cats.syntax.show._
@@ -54,7 +53,6 @@ class FetchResourceSpec
 
   override implicit def patienceConfig: PatienceConfig = PatienceConfig(5 second, 150 milliseconds)
 
-  private implicit val mt                         = ActorMaterializer()
   private implicit val resources: Resources[Task] = mock[Resources[Task]]
   private implicit val files: Files[Task]         = mock[Files[Task]]
   private val myUser                              = User("mySubject", "myRealm")

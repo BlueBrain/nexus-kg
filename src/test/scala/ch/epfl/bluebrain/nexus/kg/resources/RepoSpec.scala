@@ -4,7 +4,6 @@ import java.time.{Clock, Instant, ZoneId}
 
 import akka.http.scaladsl.model.ContentTypes._
 import akka.http.scaladsl.model.Uri
-import akka.stream.ActorMaterializer
 import cats.effect.{ContextShift, IO, Timer}
 import ch.epfl.bluebrain.nexus.commons.test.ActorSystemFixture
 import ch.epfl.bluebrain.nexus.commons.test.io.{IOEitherValues, IOOptionValues}
@@ -42,11 +41,10 @@ class RepoSpec
 
   override implicit def patienceConfig: PatienceConfig = PatienceConfig(3 second, 15 milliseconds)
 
-  private implicit val appConfig: AppConfig   = Settings(system).appConfig
-  private implicit val clock: Clock           = Clock.fixed(Instant.ofEpochSecond(3600), ZoneId.systemDefault())
-  private implicit val mat: ActorMaterializer = ActorMaterializer()
-  private implicit val ctx: ContextShift[IO]  = IO.contextShift(ExecutionContext.global)
-  private implicit val timer: Timer[IO]       = IO.timer(ExecutionContext.global)
+  private implicit val appConfig: AppConfig  = Settings(system).appConfig
+  private implicit val clock: Clock          = Clock.fixed(Instant.ofEpochSecond(3600), ZoneId.systemDefault())
+  private implicit val ctx: ContextShift[IO] = IO.contextShift(ExecutionContext.global)
+  private implicit val timer: Timer[IO]      = IO.timer(ExecutionContext.global)
 
   private val repo     = Repo[IO].ioValue
   private val saveFile = mock[SaveFile[IO, String]]
