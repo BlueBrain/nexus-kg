@@ -12,7 +12,7 @@ import ch.epfl.bluebrain.nexus.kg.cache.ProjectCache
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig
 import ch.epfl.bluebrain.nexus.kg.indexing.Statistics
 import ch.epfl.bluebrain.nexus.kg.resources.syntax._
-import ch.epfl.bluebrain.nexus.kg.resources.{Event, Files, OrganizationRef, ProjectRef}
+import ch.epfl.bluebrain.nexus.kg.resources.{Files, OrganizationRef, ProjectRef}
 import ch.epfl.bluebrain.nexus.kg.storage.Storage.StorageOperations.FetchAttributes
 import ch.epfl.bluebrain.nexus.sourcing.projections.Projections
 import journal.Logger
@@ -88,7 +88,7 @@ class ProjectAttributesCoordinator[F[_]](projectCache: ProjectCache[F], ref: Act
     * @param orgRef the organization unique identifier
     */
   def stop(orgRef: OrganizationRef): F[Unit] =
-    projectCache.list(orgRef).flatMap(projects => projects.map(project => stop(project.ref)).sequence) *> F.unit
+    projectCache.list(orgRef).flatMap(projects => projects.map(project => stop(project.ref)).sequence) >> F.unit
 
   /**
     * Stops the coordinator children attributes actor for the provided project
@@ -106,7 +106,7 @@ object ProjectAttributesCoordinator {
       implicit config: AppConfig,
       fetchAttributes: FetchAttributes[Task],
       as: ActorSystem,
-      P: Projections[Task, Event]
+      P: Projections[Task, String]
   ): ProjectAttributesCoordinator[Task] = {
     implicit val ec: ExecutionContext = as.dispatcher
     val coordinatorRef                = ProjectAttributesCoordinatorActor.start(files, None, config.cluster.shards)

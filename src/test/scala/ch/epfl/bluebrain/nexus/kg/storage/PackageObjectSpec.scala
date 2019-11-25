@@ -5,7 +5,6 @@ import java.util.UUID
 
 import akka.actor.ActorSystem
 import akka.http.scaladsl.model.Uri
-import akka.stream.{ActorMaterializer, Materializer}
 import akka.stream.scaladsl.FileIO
 import ch.epfl.bluebrain.nexus.kg.resources.ProjectRef
 import ch.epfl.bluebrain.nexus.kg.resources.file.File.Digest
@@ -32,8 +31,7 @@ class PackageObjectSpec extends FlatSpec with Matchers with ScalaFutures {
   }
 
   "digest" should "properly compute the hash of a given input" in {
-    implicit val as: ActorSystem  = ActorSystem()
-    implicit val mt: Materializer = ActorMaterializer()
+    implicit val as: ActorSystem = ActorSystem()
 
     val filePath = "/storage/s3.json"
     val path     = Paths.get(getClass.getResource(filePath).toURI)

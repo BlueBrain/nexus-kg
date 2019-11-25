@@ -6,7 +6,6 @@ import java.util.{UUID, Arrays => JArrays, HashSet => JHashSet, Set => JSet}
 
 import akka.actor.{ActorSystem, ExtendedActorSystem}
 import akka.persistence.cassandra.query.scaladsl.CassandraReadJournal
-import akka.stream.ActorMaterializer
 import akka.stream.scaladsl.Source
 import cats.implicits._
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig
@@ -43,7 +42,7 @@ object Migrations {
 
     private final case class Project(uuid: UUID, orgUuid: UUID, base: AbsoluteIri, vocab: AbsoluteIri)
 
-    def migrate(c: AppConfig)(implicit as: ActorSystem, mt: ActorMaterializer, s: Scheduler, permit: CanBlock): Unit = {
+    def migrate(c: AppConfig)(implicit as: ActorSystem, s: Scheduler, permit: CanBlock): Unit = {
       val log = Logger("V1 ====> V1.1")
       val journal = new CassandraReadJournal(
         as.asInstanceOf[ExtendedActorSystem],

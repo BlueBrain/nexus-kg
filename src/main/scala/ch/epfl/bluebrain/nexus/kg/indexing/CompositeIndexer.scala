@@ -1,122 +1,30 @@
 package ch.epfl.bluebrain.nexus.kg.indexing
 
-import java.util.regex.Pattern.quote
-
 import akka.actor.{ActorRef, ActorSystem, Props}
+import akka.stream.SourceShape
+import akka.stream.scaladsl._
 import cats.effect.{Effect, Timer}
 import cats.implicits._
 import ch.epfl.bluebrain.nexus.admin.client.types.Project
-import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlFailure.SparqlServerOrUnexpectedFailure
-import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlWriteQuery
-import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlWriteQuery.replace
-import ch.epfl.bluebrain.nexus.commons.test.Resources._
+import ch.epfl.bluebrain.nexus.commons.sparql.client.{BlazegraphClient, SparqlWriteQuery}
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig._
-import ch.epfl.bluebrain.nexus.kg.config.Vocabulary._
-import ch.epfl.bluebrain.nexus.kg.indexing.CompositeIndexer.ctx
-import ch.epfl.bluebrain.nexus.kg.indexing.View.CompositeView
-import ch.epfl.bluebrain.nexus.kg.indexing.View.CompositeView.Projection
-import ch.epfl.bluebrain.nexus.kg.indexing.View.CompositeView.Projection.{ElasticSearchProjection, SparqlProjection}
-import ch.epfl.bluebrain.nexus.kg.resources.ResourceF._
+import ch.epfl.bluebrain.nexus.kg.indexing.View.{CompositeView, SparqlView}
 import ch.epfl.bluebrain.nexus.kg.resources._
-import ch.epfl.bluebrain.nexus.kg.resources.syntax._
 import ch.epfl.bluebrain.nexus.kg.routes.Clients
-import ch.epfl.bluebrain.nexus.rdf.Node.IriNode
-import ch.epfl.bluebrain.nexus.rdf.decoder.GraphDecoder.DecoderResult
-import ch.epfl.bluebrain.nexus.rdf.instances._
-import ch.epfl.bluebrain.nexus.rdf.syntax._
-import ch.epfl.bluebrain.nexus.rdf.{Graph, RootedGraph}
+import ch.epfl.bluebrain.nexus.sourcing.projections.ProgressFlow.{Eval, PairMsg, ProgressFlowElem, ProgressFlowList}
+import ch.epfl.bluebrain.nexus.sourcing.projections.ProjectionProgress.NoProgress
 import ch.epfl.bluebrain.nexus.sourcing.projections._
-import io.circe.Json
 import journal.Logger
-import kamon.Kamon
-import monix.execution.atomic.AtomicLong
 
-private class CompositeIndexerProjections[F[_]](view: CompositeView)(
-    implicit F: Effect[F],
-    config: AppConfig,
-    project: Project,
-    clients: Clients[F]
-) {
+import scala.concurrent.ExecutionContext
 
-  private val logger                 = Logger[this.type]
-  private val metaKeys               = metaPredicates.map(_.prefix).toSeq
-  private val metadataOptions        = MetadataOptions(linksAsIri = false, expandedLinks = true)
-  private val FSome: F[Option[Unit]] = F.pure(Option(()))
-
-  /**
-    * After a resource gets indexed in the temporary namespace, a projection queries it, transforms it into a graph
-    * and indexes into the corresponding projection.
-    *
-    * @param res resource to be mapped to a Elastic Search insert query
-    */
-  final def apply(res: ResourceV, command: SparqlWriteQuery): F[List[Unit]] = {
-    val commands: Set[F[Option[Unit]]] = command match {
-      case _: SparqlWriteQuery.SparqlDropQuery =>
-        view.projections.map(deleteIndexId(res))
-      case _ =>
-        view.projections.filter(candidate(res, _)).map { projection =>
-          query(projection, res).map(_.asGraph -> projection).flatMap[Option[Unit]] {
-            case (None, _)                                 => deleteIndexId(res)(projection)
-            case (Some(graph), _) if graph.triples.isEmpty => deleteIndexId(res)(projection)
-            case (Some(graph), p: ElasticSearchProjection) =>
-              toEsDocument(res, p, graph) match {
-                case Some(doc) => clients.elasticSearch.create(p.view.index, res.id.value.asString, doc) >> FSome
-                case None      => F.pure(None)
-              }
-            case (Some(graph), p: SparqlProjection) =>
-              clients.sparql.copy(namespace = p.view.index).bulk(replace(res.id.toGraphUri, graph)) >> FSome
-          }
-        }
-    }
-    commands.toList.sequence.map(_.flatten)
-  }
-
-  private def deleteIndexId(res: ResourceV): Projection => F[Option[Unit]] = {
-    case p: ElasticSearchProjection => clients.elasticSearch.delete(p.view.index, res.id.value.asString) >> FSome
-    case p: SparqlProjection        => clients.sparql.copy(namespace = p.view.index).drop(res.id.toGraphUri) >> FSome
-  }
-
-  private def candidate(res: ResourceV, p: Projection): Boolean =
-    validSchema(p.view, res) && validTypes(p.view, res) && view.filter.resourceTag.forall(res.tags.contains)
-
-  private def toEsDocument(res: ResourceV, p: ElasticSearchProjection, graph: Graph): Option[Json] = {
-    val rootNode      = IriNode(res.id.value)
-    val projectionCtx = Json.obj("@context" -> p.context)
-    val context       = if (p.view.includeMetadata) ctx.appendContextOf(projectionCtx) else projectionCtx
-
-    def asJson(g: Graph): DecoderResult[Json] = RootedGraph(rootNode, g).as[Json](context)
-
-    val transformed: DecoderResult[Json] = {
-
-      val metaGraph    = if (p.view.includeMetadata) Graph(graph.triples ++ res.metadata(metadataOptions)) else graph
-      val keysToRemove = if (p.view.includeMetadata) Seq.empty[String] else metaKeys
-
-      if (p.view.sourceAsText)
-        asJson(metaGraph.add(res.id.value, nxv.original_source, res.value.source.removeKeys(metaKeys: _*).noSpaces))
-      else
-        asJson(metaGraph).map(metaJson => res.value.source.removeKeys(keysToRemove: _*) deepMerge metaJson)
-    }
-
-    transformed match {
-      case Left(err) =>
-        logger.error(
-          s"Could not convert resource with id '${res.id}' and value '${res.value}' from Graph back to json. Reason: '${err.message}'"
-        )
-        None
-      case Right(value) => Some(value.removeKeys("@context"))
-    }
-  }
-
-  private def query(p: Projection, res: ResourceV) =
-    clients.sparql
-      .copy(namespace = view.defaultSparqlView.index)
-      .queryRaw(p.query.replaceAll(quote("{resource_id}"), s"<${res.id.value.asString}>"))
-}
-
+// $COVERAGE-OFF$
+@SuppressWarnings(Array("MaxParameters"))
 object CompositeIndexer {
 
-  // $COVERAGE-OFF$
+  private implicit val log: Logger = Logger[CompositeIndexer.type]
+
   /**
     * Starts the index process for an CompositeIndexer
     *
@@ -135,69 +43,80 @@ object CompositeIndexer {
       as: ActorSystem,
       actorInitializer: (Props, String) => ActorRef,
       config: AppConfig,
-      P: Projections[F, Event],
+      projections: Projections[F, String],
       F: Effect[F]
   ): StreamSupervisor[F, ProjectionProgress] = {
+    val defaultView: SparqlView                         = view.defaultSparqlView
+    val name: String                                    = view.defaultSparqlView.progressId
+    val FSome: F[Option[Unit]]                          = F.delay(Option(()))
+    implicit val ec: ExecutionContext                   = as.dispatcher
+    implicit val proj: Project                          = project
+    implicit val indexing: IndexingConfig               = config.sparql.indexing
+    implicit val metadataOpts: MetadataOptions          = MetadataOptions(linksAsIri = true, expandedLinks = true)
+    implicit val sparqlClientQuery: BlazegraphClient[F] = clients.sparql.copy(namespace = defaultView.index)
+    val sparqlClientIndex: BlazegraphClient[F] =
+      clients.sparql.copy(namespace = defaultView.index).withRetryPolicy(config.sparql.indexing.retry)
 
-    val sparqlErrorMonadError             = ch.epfl.bluebrain.nexus.kg.instances.sparqlErrorMonadError
-    val sparqlClient                      = clients.sparql.copy(namespace = view.defaultSparqlView.index)
-    implicit val p: Project               = project
-    implicit val indexing: IndexingConfig = config.sparql.indexing
+    def buildInsertOrDeleteQuery(res: ResourceV, view: SparqlView): SparqlWriteQuery =
+      if (res.deprecated && !view.filter.includeDeprecated) view.buildDeleteQuery(res)
+      else view.buildInsertQuery(res)
 
-    val mapper            = new SparqlIndexerMapping(view.defaultSparqlView, resources)
-    val projectionIndexer = new CompositeIndexerProjections[F](view)
+    val init = defaultView.createIndex >> view.projections.map(_.view.createIndex).toList.sequence >> F.unit
 
-    val init = view.defaultSparqlView.createIndex >> view.projections.map(_.view.createIndex).toList.sequence >> F.unit
+    val initFetchProgressF: F[ProjectionProgress] =
+      if (restartOffset) projections.recordProgress(name, NoProgress) >> init >> F.delay(NoProgress)
+      else init >> projections.progress(name)
 
-    val processedEventsGauge = Kamon
-      .gauge("kg_indexer_gauge")
-      .withTag("type", "composite")
-      .withTag("project", project.show)
-      .withTag("organization", project.organizationLabel)
-      .withTag("viewId", view.id.show)
-    val processedEventsCounter = Kamon
-      .counter("kg_indexer_counter")
-      .withTag("type", "composite")
-      .withTag("project", project.show)
-      .withTag("organization", project.organizationLabel)
-      .withTag("viewId", view.id.show)
-    val processedEventsCount = AtomicLong(0L)
+    val sourceF: F[Source[ProjectionProgress, _]] = initFetchProgressF.map { initial =>
+      Source.fromGraph(GraphDSL.create() { implicit b =>
+        import GraphDSL.Implicits._
+        // format: off
+        val source: Source[PairMsg[Any], _] = cassandraSource(s"project=${view.ref.id}", name, initial.minProgress.offset)
+        val mainFlow = ProgressFlowElem[F, Any]
+          .collectCast[Event]
+          .groupedWithin(indexing.batch, indexing.batchTimeout)
+          .distinct()
+          .mapAsync(view.toResource(resources, _))
+          .collectSome[ResourceV]
+          .collect {
+            case res if defaultView.allowedSchemas(res) && defaultView.allowedTypes(res) => res -> buildInsertOrDeleteQuery(res, defaultView)
+            case res if defaultView.allowedSchemas(res) =>                                  res -> defaultView.buildDeleteQuery(res)
+          }
+          .runAsyncBatch(list => sparqlClientIndex.bulk(list.map { case (_, bulkQuery) => bulkQuery }))(Eval.After(initial.progress(name).offset))
+          .map { case (res, _) => res }
+          .mergeEmit()
 
-    // TODO: Retry SparqlServerOrUnexpectedFailure and ElasticSearchServerOrUnexpectedFailure
-    TagProjection.start(
-      ProjectionConfig
-        .builder[F]
-        .name(s"composite-indexer-${view.name}")
-        .tag(s"project=${view.ref.id}")
-        .actorOf(actorInitializer)
-        .plugin(config.persistence.queryJournalPlugin)
-        .retry[SparqlServerOrUnexpectedFailure](indexing.retry.retryStrategy)(sparqlErrorMonadError)
-        .batch(indexing.batch, indexing.batchTimeout)
-        .restart(restartOffset)
-        .init(init)
-        .mapping(mapper.apply)
-        .index { inserts =>
-          val uniqueInserts = inserts.groupBy { case (res, _) => res.id }.values.flatMap(_.lastOption).toList
-          sparqlClient.bulk(uniqueInserts.map { case (_, elem) => elem }: _*) >>
-            uniqueInserts.map { case (res, cmd) => projectionIndexer(res, cmd) }.sequence.map(_.flatten) >> F.unit
+        val projectionsFlow = view.projections.map { projection =>
+            val projView = projection.view
+            ProgressFlowElem[F, ResourceV]
+              .select(projView.progressId)
+              .evaluateAfter(initial.progress(projView.progressId).offset)
+              .collect {
+                case res if projView.allowedSchemas(res) && projView.allowedTypes(res) && projView.allowedTag(res) => res
+              }
+              .mapAsync(res => projection.runQuery(res).map(res -> _.asGraph))
+              .mapAsync {
+                case (res, None)                                 => projView.deleteIndexId[F](res.id) >> FSome
+                case (res, Some(graph)) if graph.triples.isEmpty => projView.deleteIndexId[F](res.id) >> FSome
+                case (res, Some(graph))                          => projection.indexId[F](res, graph)
+              }
+              .collectSome[Unit]
         }
-        .mapInitialProgress { p =>
-          processedEventsCount.set(p.processedCount)
-          processedEventsGauge.update(p.processedCount.toDouble)
-          F.unit
-        }
-        .mapProgress { p =>
-          val previousCount = processedEventsCount.get()
-          processedEventsGauge.update(p.processedCount.toDouble)
-          processedEventsCounter.increment(p.processedCount - previousCount)
-          processedEventsCount.set(p.processedCount)
-          F.unit
-        }
-        .build
-    )
+
+        val broadcast = b.add(Broadcast[PairMsg[ResourceV]](view.projections.size))
+        val merge     = b.add(ZipWithN[PairMsg[Unit], List[PairMsg[Unit]]](_.toList)(view.projections.size))
+
+        val persistFlow = b.add(ProgressFlowList[F, Unit].mergeCombine().toPersistedProgress(name, initial))
+
+        source ~> mainFlow.flow ~> broadcast
+                                   projectionsFlow.foreach(broadcast ~> _.flow ~> merge)
+                                                                                  merge ~> persistFlow.in
+
+        SourceShape(persistFlow.out)
+        // format: on
+      })
+    }
+    StreamSupervisor.start(sourceF, name, actorInitializer)
   }
-  // $COVERAGE-ON$
-
-  private[indexing] val ctx: Json = jsonContentOf("/elasticsearch/default-context.json")
-
 }
+// $COVERAGE-ON$

@@ -27,19 +27,19 @@ import scala.concurrent.duration.FiniteDuration
 /**
   * Application configuration
   *
-  * @param description   service description
-  * @param http          http interface configuration
-  * @param cluster       akka cluster configuration
-  * @param persistence   persistence configuration
-  * @param storage       storages configuration
-  * @param admin         admin client configuration
-  * @param iam           IAM client configuration
-  * @param sparql        Sparql endpoint configuration
-  * @param elasticSearch ElasticSearch endpoint configuration
-  * @param pagination    Pagination configuration
-  * @param keyValueStore Distributed data configuration
-  * @param sourcing      Sourcing configuration
-  * @param archives  Archive collection cache configuration
+  * @param description      service description
+  * @param http             http interface configuration
+  * @param cluster          akka cluster configuration
+  * @param persistence      persistence configuration
+  * @param storage          storages configuration
+  * @param admin            admin client configuration
+  * @param iam              IAM client configuration
+  * @param sparql           Sparql endpoint configuration
+  * @param elasticSearch    ElasticSearch endpoint configuration
+  * @param pagination       Pagination configuration
+  * @param keyValueStore    Distributed data configuration
+  * @param sourcing         Sourcing configuration
+  * @param archives         Archive collection cache configuration
   */
 final case class AppConfig(
     description: Description,
@@ -336,6 +336,12 @@ object AppConfig {
       nxv.maxScore.prefix,
       nxv.results.prefix,
       nxv.score.prefix,
+      "totalEvents",
+      "processedEvents",
+      "evaluatedEvents",
+      "remainingEvents",
+      "discardedEvents",
+      "failedEvents",
       "",
       nxv.readPermission.prefix,
       nxv.writePermission.prefix,

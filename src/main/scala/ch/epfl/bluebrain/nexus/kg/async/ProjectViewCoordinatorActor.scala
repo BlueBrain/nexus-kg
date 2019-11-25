@@ -8,29 +8,28 @@ import akka.cluster.sharding.ShardRegion.{ExtractEntityId, ExtractShardId}
 import akka.cluster.sharding.{ClusterSharding, ClusterShardingSettings, ShardRegion}
 import akka.pattern.pipe
 import akka.persistence.query.{NoOffset, Offset, Sequence, TimeBasedUUID}
+import akka.stream.scaladsl.Source
 import cats.implicits._
 import ch.epfl.bluebrain.nexus.admin.client.types.Project
 import ch.epfl.bluebrain.nexus.commons.cache.KeyValueStoreSubscriber.KeyValueStoreChange._
 import ch.epfl.bluebrain.nexus.commons.cache.KeyValueStoreSubscriber.KeyValueStoreChanges
 import ch.epfl.bluebrain.nexus.commons.cache.OnKeyValueStoreChange
-import ch.epfl.bluebrain.nexus.commons.es.client.ElasticSearchFailure.ElasticSearchServerOrUnexpectedFailure
 import ch.epfl.bluebrain.nexus.kg.async.ProjectViewCoordinatorActor.Msg._
 import ch.epfl.bluebrain.nexus.kg.async.ProjectViewCoordinatorActor.OffsetSyntax
 import ch.epfl.bluebrain.nexus.kg.cache.ViewCache
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig
+import ch.epfl.bluebrain.nexus.kg.config.AppConfig._
 import ch.epfl.bluebrain.nexus.kg.indexing.View._
-import ch.epfl.bluebrain.nexus.kg.indexing.{CompositeIndexer, ElasticSearchIndexer, SparqlIndexer, Statistics, View}
+import ch.epfl.bluebrain.nexus.kg.indexing._
 import ch.epfl.bluebrain.nexus.kg.resources.syntax._
 import ch.epfl.bluebrain.nexus.kg.resources.{Event, Resources}
 import ch.epfl.bluebrain.nexus.kg.routes.Clients
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
-import ch.epfl.bluebrain.nexus.sourcing.akka.SourcingConfig
+import ch.epfl.bluebrain.nexus.sourcing.projections.ProgressFlow.ProgressFlowElem
 import ch.epfl.bluebrain.nexus.sourcing.projections.ProjectionProgress.NoProgress
 import ch.epfl.bluebrain.nexus.sourcing.projections._
-import kamon.Kamon
 import monix.eval.Task
 import monix.execution.Scheduler.Implicits.global
-import monix.execution.atomic.AtomicLong
 import shapeless.TypeCase
 
 import scala.collection.immutable.Set
@@ -43,7 +42,7 @@ import scala.collection.mutable
 private abstract class ProjectViewCoordinatorActor(viewCache: ViewCache[Task])(
     implicit val config: AppConfig,
     as: ActorSystem,
-    projections: Projections[Task, Event]
+    projections: Projections[Task, String]
 ) extends Actor
     with Stash
     with ActorLogging {
@@ -60,22 +59,25 @@ private abstract class ProjectViewCoordinatorActor(viewCache: ViewCache[Task])(
       children ++= views.map(view => view -> startCoordinator(view, project, restartOffset = false))
       projectStream = Some(startProjectStream(project))
       unstashAll()
-    case FetchProgress(_, view: IndexedView) => val _ = viewProgress(view).runToFuture pipeTo sender()
+    case FetchProgress(_, view) => val _ = viewProgress(view).runToFuture pipeTo sender()
     case other =>
       log.debug("Received non Start message '{}', stashing until the actor is initialized", other)
       stash()
   }
 
-  private def viewProgress(view: IndexedView): Task[Statistics] = {
-    val viewProgress    = children.get(view).map(projectionProgress).getOrElse(Task.pure(NoProgress))
-    val projectProgress = projectStream.map(projectionProgress).getOrElse(Task.pure(NoProgress))
+  private def viewProgress(view: SingleView): Task[Statistics] = {
+    val viewProgress =
+      children.get(view).map(projectionProgress).getOrElse(Task.pure(NoProgress)).map(_.progress(view.progressId))
+    val projectProgress =
+      projectStream.map(projectionProgress).getOrElse(Task.pure(NoProgress)).map(_.minProgress)
     for {
       vp <- viewProgress
       pp <- projectProgress
     } yield Statistics(
-      vp.processedCount,
-      vp.discardedCount,
-      pp.processedCount,
+      vp.processed,
+      vp.discarded,
+      vp.failed,
+      pp.processed,
       vp.offset.asInstant,
       pp.offset.asInstant
     )
@@ -85,47 +87,20 @@ private abstract class ProjectViewCoordinatorActor(viewCache: ViewCache[Task])(
     coordinator.state().map(_.getOrElse(NoProgress))
 
   private def startProjectStream(project: Project): StreamSupervisor[Task, ProjectionProgress] = {
-    val elasticErrorMonadError                  = ch.epfl.bluebrain.nexus.kg.instances.elasticErrorMonadError[Task]
-    implicit val indexing: IndexingConfig       = config.elasticSearch.indexing
-    implicit val sourcingConfig: SourcingConfig = config.sourcing
-    val g = Kamon
-      .gauge("kg_indexer_gauge")
-      .withTag("type", "eventCount")
-      .withTag("project", project.show)
-      .withTag("organization", project.organizationLabel)
-    val c = Kamon
-      .counter("kg_indexer_counter")
-      .withTag("type", "eventCount")
-      .withTag("project", project.show)
-      .withTag("organization", project.organizationLabel)
-    val count = AtomicLong(0L)
-    TagProjection.start(
-      ProjectionConfig
-        .builder[Task]
-        .name(s"project-event-count-${project.uuid}")
-        .tag(s"project=${project.uuid}")
-        .actorOf(context.actorOf)
-        .plugin(config.persistence.queryJournalPlugin)
-        .retry[ElasticSearchServerOrUnexpectedFailure](indexing.retry.retryStrategy)(elasticErrorMonadError)
-        .batch(indexing.batch, indexing.batchTimeout)
-        .restart(false)
-        .init(Task.unit)
-        .mapping[Event, Event](a => Task.pure(Some(a)))
-        .index(_ => Task.unit)
-        .mapInitialProgress { p =>
-          count.set(p.processedCount)
-          g.update(p.processedCount.toDouble)
-          Task.unit
-        }
-        .mapProgress { p =>
-          val previousCount = count.get()
-          g.update(p.processedCount.toDouble)
-          c.increment(p.processedCount - previousCount)
-          count.set(p.processedCount)
-          Task.unit
-        }
-        .build
-    )
+
+    implicit val indexing: IndexingConfig = config.elasticSearch.indexing
+    val name: String                      = s"project-event-count-${project.uuid}"
+
+    val sourceF: Task[Source[ProjectionProgress, _]] = projections.progress(name).map { initial =>
+      val flow = ProgressFlowElem[Task, Any]
+        .collectCast[Event]
+        .groupedWithin(indexing.batch, indexing.batchTimeout)
+        .distinct()
+        .mergeEmit()
+        .toProgress(initial)
+      cassandraSource(s"project=${project.uuid}", name, initial.minProgress.offset).via(flow)
+    }
+    StreamSupervisor.start(sourceF, name, context.actorOf)
   }
 
   /**
@@ -239,7 +214,7 @@ private abstract class ProjectViewCoordinatorActor(viewCache: ViewCache[Task])(
             stopView(view, ref, deleteIndices = false)
         }
 
-      case FetchProgress(_, view: IndexedView) => val _ = viewProgress(view).runToFuture pipeTo sender()
+      case FetchProgress(_, view) => val _ = viewProgress(view).runToFuture pipeTo sender()
 
       case _: Start => //ignore, it has already been started
 
@@ -266,7 +241,7 @@ object ProjectViewCoordinatorActor {
     final case class ViewsAddedOrModified(uuid: UUID, restartOffset: Boolean, views: Set[IndexedView]) extends Msg
     final case class ViewsRemoved(uuid: UUID, views: Set[IndexedView])                                 extends Msg
     final case class ProjectChanges(uuid: UUID, project: Project)                                      extends Msg
-    final case class FetchProgress(uuid: UUID, view: View)                                             extends Msg
+    final case class FetchProgress(uuid: UUID, view: SingleView)                                       extends Msg
   }
 
   private[async] def shardExtractor(shards: Int): ExtractShardId = {
@@ -295,7 +270,7 @@ object ProjectViewCoordinatorActor {
       implicit clients: Clients[Task],
       config: AppConfig,
       as: ActorSystem,
-      projections: Projections[Task, Event]
+      projections: Projections[Task, String]
   ): ActorRef = {
 
     val props = Props(

@@ -9,15 +9,15 @@ import ch.epfl.bluebrain.nexus.admin.client.types._
 import ch.epfl.bluebrain.nexus.commons.cache.OnKeyValueStoreChange
 import ch.epfl.bluebrain.nexus.commons.test.ActorSystemFixture
 import ch.epfl.bluebrain.nexus.kg.TestHelper
-import ch.epfl.bluebrain.nexus.kg.async.ProjectViewCoordinatorActor.onViewChange
 import ch.epfl.bluebrain.nexus.kg.archives.ArchiveCache
+import ch.epfl.bluebrain.nexus.kg.async.ProjectViewCoordinatorActor.onViewChange
 import ch.epfl.bluebrain.nexus.kg.cache._
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig._
 import ch.epfl.bluebrain.nexus.kg.config.Settings
 import ch.epfl.bluebrain.nexus.kg.indexing.View
 import ch.epfl.bluebrain.nexus.kg.indexing.View.{ElasticSearchView, Filter, SparqlView}
+import ch.epfl.bluebrain.nexus.kg.resources.OrganizationRef
 import ch.epfl.bluebrain.nexus.kg.resources.syntax._
-import ch.epfl.bluebrain.nexus.kg.resources.{Event, OrganizationRef}
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import ch.epfl.bluebrain.nexus.sourcing.projections.{ProjectionProgress, Projections, StreamSupervisor}
 import io.circe.Json
@@ -80,7 +80,7 @@ class ProjectViewCoordinatorSpec
     val coordinator2Updated  = mock[StreamSupervisor[Task, ProjectionProgress]]
     val coordinator3         = mock[StreamSupervisor[Task, ProjectionProgress]]
     val coordinator3Updated  = mock[StreamSupervisor[Task, ProjectionProgress]]
-    implicit val projections = mock[Projections[Task, Event]]
+    implicit val projections = mock[Projections[Task, String]]
 
     coordinator1.stop() shouldReturn Task.unit
     coordinator2.stop() shouldReturn Task.unit

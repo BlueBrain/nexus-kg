@@ -1,7 +1,7 @@
 package ch.epfl.bluebrain.nexus.kg.resources
 
 import cats.data.EitherT
-import cats.effect.{Effect, Timer}
+import cats.effect.Effect
 import cats.implicits._
 import ch.epfl.bluebrain.nexus.admin.client.types.Project
 import ch.epfl.bluebrain.nexus.commons.es.client.ElasticSearchClient
@@ -29,7 +29,7 @@ import ch.epfl.bluebrain.nexus.storage.client.types.FileAttributes.{Digest => St
 import ch.epfl.bluebrain.nexus.storage.client.types.{FileAttributes => StorageFileAttributes}
 import io.circe.Json
 
-class Files[F[_]: Timer](repo: Repo[F])(implicit storageCache: StorageCache[F], config: AppConfig, F: Effect[F]) {
+class Files[F[_]](repo: Repo[F])(implicit storageCache: StorageCache[F], config: AppConfig, F: Effect[F]) {
 
   /**
     * Creates a file resource.
@@ -306,7 +306,7 @@ object Files {
     * @tparam F the monadic effect type
     * @return a new [[Files]] for the provided F type
     */
-  final def apply[F[_]: Timer: Effect](
+  final def apply[F[_]: Effect](
       implicit config: AppConfig,
       repo: Repo[F],
       storageCache: StorageCache[F]

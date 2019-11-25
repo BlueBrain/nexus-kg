@@ -3,7 +3,6 @@ package ch.epfl.bluebrain.nexus.kg.resources
 import java.time.{Clock, Instant}
 
 import akka.actor.ActorSystem
-import akka.stream.ActorMaterializer
 import cats.Monad
 import cats.data.{EitherT, OptionT}
 import cats.effect.{Effect, Timer}
@@ -21,10 +20,10 @@ import ch.epfl.bluebrain.nexus.kg.resources.file.File.{Digest, FileAttributes}
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import ch.epfl.bluebrain.nexus.sourcing.Aggregate
 import ch.epfl.bluebrain.nexus.sourcing.akka.{AkkaAggregate, SourcingConfig}
-import ch.epfl.bluebrain.nexus.sourcing.retry.Retry
-import io.circe.Json
 import ch.epfl.bluebrain.nexus.storage.client.types.FileAttributes.{Digest => StorageDigest}
 import ch.epfl.bluebrain.nexus.storage.client.types.{FileAttributes => StorageFileAttributes}
+import io.circe.Json
+import retry.RetryPolicy
 
 /**
   * Resource repository.
@@ -449,24 +448,23 @@ object Repo {
 
   private def aggregate[F[_]: Effect: Timer](
       implicit as: ActorSystem,
-      mt: ActorMaterializer,
       sourcing: SourcingConfig,
       F: Monad[F]
-  ): F[Agg[F]] =
+  ): F[Agg[F]] = {
+    implicit val retryPolicy: RetryPolicy[F] = sourcing.retry.retryPolicy[F]
     AkkaAggregate.sharded[F](
       "resources",
       initial,
       next,
       (st, cmd) => F.pure(eval(st, cmd)),
       sourcing.passivationStrategy(),
-      Retry(sourcing.retry.retryStrategy),
       sourcing.akkaSourcingConfig,
       sourcing.shards
     )
+  }
 
   final def apply[F[_]: Effect: Timer](
       implicit as: ActorSystem,
-      mt: ActorMaterializer,
       sourcing: SourcingConfig,
       clock: Clock = Clock.systemUTC
   ): F[Repo[F]] =

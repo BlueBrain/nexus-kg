@@ -4,10 +4,7 @@ import java.util.concurrent.ConcurrentHashMap
 
 import cats.Monad
 import ch.epfl.bluebrain.nexus.commons.cache.KeyValueStore.Subscription
-import ch.epfl.bluebrain.nexus.commons.cache.KeyValueStoreError._
 import ch.epfl.bluebrain.nexus.commons.cache._
-import ch.epfl.bluebrain.nexus.kg.KgError
-import ch.epfl.bluebrain.nexus.kg.KgError._
 
 abstract class Cache[F[_]: Monad, K, V](private[cache] val store: KeyValueStore[F, K, V]) {
 
@@ -31,15 +28,6 @@ abstract class Cache[F[_]: Monad, K, V](private[cache] val store: KeyValueStore[
 }
 
 object Cache {
-
-  // $COVERAGE-OFF$
-  private[cache] def mapError(cacheError: KeyValueStoreError): KgError =
-    cacheError match {
-      case e: ReadWriteConsistencyTimeout =>
-        OperationTimedOut(s"Timeout while interacting with the cache due to '${e.timeout}'")
-      case e: DistributedDataError => InternalError(e.reason)
-    }
-  // $COVERAGE-ON$
 
   private[cache] implicit class ConcurrentHashMapSyntax[K, V](private val map: ConcurrentHashMap[K, V]) extends AnyVal {
     def getSafe(key: K): Option[V] = Option(map.get(key))

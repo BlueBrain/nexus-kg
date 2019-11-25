@@ -2,13 +2,12 @@ package ch.epfl.bluebrain.nexus.kg.cache
 
 import akka.actor.ActorSystem
 import cats.Monad
-import cats.effect.{Async, Timer}
+import cats.effect.{Effect, Timer}
 import cats.implicits._
 import ch.epfl.bluebrain.nexus.commons.cache.KeyValueStore
 import ch.epfl.bluebrain.nexus.iam.client.IamClient
 import ch.epfl.bluebrain.nexus.iam.client.types.events.Event._
 import ch.epfl.bluebrain.nexus.iam.client.types.{AccessControlList, AccessControlLists, ResourceAccessControlList}
-import ch.epfl.bluebrain.nexus.kg.cache.Cache._
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig._
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary._
@@ -96,11 +95,10 @@ object AclsCache {
   /**
     * Creates a new acl index.
     */
-  def apply[F[_]: Timer](
+  def apply[F[_]: Effect: Timer](
       iamClient: IamClient[F]
-  )(implicit as: ActorSystem, config: AppConfig, F: Async[F]): AclsCache[F] = {
-    import ch.epfl.bluebrain.nexus.kg.instances.kgErrorMonadError
-    val cache = new AclsCache(KeyValueStore.distributed("acls", (_, acls) => acls.rev, mapError))(F)
+  )(implicit as: ActorSystem, config: AppConfig): AclsCache[F] = {
+    val cache = new AclsCache(KeyValueStore.distributed("acls", (_, acls) => acls.rev))
     val handle: AclEvent => F[Unit] = {
       case event: AclReplaced   => cache.replace(event.path, toResourceAcl(event, event.acl))
       case event: AclAppended   => cache.append(event.path, toResourceAcl(event, event.acl))

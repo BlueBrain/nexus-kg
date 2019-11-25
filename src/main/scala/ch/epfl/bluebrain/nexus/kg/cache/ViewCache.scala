@@ -5,7 +5,7 @@ import java.util.concurrent.ConcurrentHashMap
 
 import akka.actor.ActorSystem
 import cats.Monad
-import cats.effect.{Async, Timer}
+import cats.effect.{Effect, Timer}
 import cats.implicits._
 import ch.epfl.bluebrain.nexus.commons.cache.{KeyValueStore, KeyValueStoreConfig, OnKeyValueStoreChange}
 import ch.epfl.bluebrain.nexus.kg.cache.Cache._
@@ -16,9 +16,8 @@ import ch.epfl.bluebrain.nexus.kg.resources.ProjectRef
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import shapeless.{TypeCase, Typeable}
 
-class ViewCache[F[_]: Timer] private (projectToCache: ConcurrentHashMap[UUID, ViewProjectCache[F]])(
+class ViewCache[F[_]: Effect: Timer] private (projectToCache: ConcurrentHashMap[UUID, ViewProjectCache[F]])(
     implicit as: ActorSystem,
-    F: Async[F],
     config: KeyValueStoreConfig
 ) {
 
@@ -114,7 +113,7 @@ class ViewCache[F[_]: Timer] private (projectToCache: ConcurrentHashMap[UUID, Vi
   *
   * @param store the underlying Distributed Data LWWMap store.
   */
-private class ViewProjectCache[F[_]] private (store: KeyValueStore[F, AbsoluteIri, View])(implicit F: Monad[F])
+private class ViewProjectCache[F[_]: Monad] private (store: KeyValueStore[F, AbsoluteIri, View])
     extends Cache[F, AbsoluteIri, View](store) {
 
   def get: F[Set[View]] = store.values
@@ -136,16 +135,14 @@ private class ViewProjectCache[F[_]] private (store: KeyValueStore[F, AbsoluteIr
 
 private object ViewProjectCache {
 
-  def apply[F[_]: Timer](
+  def apply[F[_]: Effect: Timer](
       project: ProjectRef
-  )(implicit as: ActorSystem, config: KeyValueStoreConfig, F: Async[F]): ViewProjectCache[F] = {
-    import ch.epfl.bluebrain.nexus.kg.instances.kgErrorMonadError
-    new ViewProjectCache(KeyValueStore.distributed(s"view-${project.id}", (_, view) => view.rev, mapError))(F)
-  }
+  )(implicit as: ActorSystem, config: KeyValueStoreConfig): ViewProjectCache[F] =
+    new ViewProjectCache(KeyValueStore.distributed(s"view-${project.id}", (_, view) => view.rev))
 }
 
 object ViewCache {
 
-  def apply[F[_]: Async: Timer](implicit as: ActorSystem, config: KeyValueStoreConfig): ViewCache[F] =
+  def apply[F[_]: Effect: Timer](implicit as: ActorSystem, config: KeyValueStoreConfig): ViewCache[F] =
     new ViewCache(new ConcurrentHashMap[UUID, ViewProjectCache[F]]())
 }

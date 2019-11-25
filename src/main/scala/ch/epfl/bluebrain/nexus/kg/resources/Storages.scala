@@ -3,7 +3,7 @@ package ch.epfl.bluebrain.nexus.kg.resources
 import java.time.Instant
 
 import cats.data.EitherT
-import cats.effect.{Effect, Timer}
+import cats.effect.Effect
 import cats.{Id => CId}
 import ch.epfl.bluebrain.nexus.admin.client.types.Project
 import ch.epfl.bluebrain.nexus.commons.es.client.ElasticSearchClient
@@ -40,7 +40,7 @@ import ch.epfl.bluebrain.nexus.rdf.syntax._
 import io.circe.Json
 import org.apache.jena.rdf.model.Model
 
-class Storages[F[_]: Timer](repo: Repo[F])(
+class Storages[F[_]](repo: Repo[F])(
     implicit F: Effect[F],
     materializer: Materializer[F],
     config: AppConfig,
@@ -304,7 +304,7 @@ object Storages {
     * @tparam F the monadic effect type
     * @return a new [[Storages]] for the provided F type
     */
-  final def apply[F[_]: Timer: Effect: Materializer](
+  final def apply[F[_]: Effect: Materializer](
       implicit config: AppConfig,
       repo: Repo[F],
       cache: StorageCache[F]

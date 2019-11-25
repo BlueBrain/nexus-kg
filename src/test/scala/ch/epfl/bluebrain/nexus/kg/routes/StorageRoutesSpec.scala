@@ -5,7 +5,6 @@ import java.time.{Clock, Instant, ZoneId}
 import akka.http.scaladsl.model._
 import akka.http.scaladsl.model.headers.Accept
 import akka.http.scaladsl.testkit.ScalatestRouteTest
-import akka.stream.ActorMaterializer
 import cats.data.EitherT
 import cats.syntax.show._
 import ch.epfl.bluebrain.nexus.admin.client.AdminClient
@@ -88,7 +87,6 @@ class StorageRoutesSpec
     Caches(projectCache, viewCache, resolverCache, storageCache, mock[ArchiveCache[Task]])
 
   private implicit val ec            = system.dispatcher
-  private implicit val mt            = ActorMaterializer()
   private implicit val utClient      = untyped[Task]
   private implicit val qrClient      = withUnmarshaller[Task, QueryResults[Json]]
   private implicit val jsonClient    = withUnmarshaller[Task, Json]

@@ -6,7 +6,6 @@ import java.util.UUID
 import akka.actor.ActorSystem
 import akka.persistence.cassandra.query.scaladsl.CassandraReadJournal
 import akka.persistence.query.PersistenceQuery
-import akka.stream.ActorMaterializer
 import ch.epfl.bluebrain.nexus.kg.resources.{Id, ProjectRef, Repo, ResId}
 import ch.epfl.bluebrain.nexus.rdf.Iri
 import journal.Logger
@@ -25,7 +24,7 @@ object RepairFromMessages {
 
   private val log = Logger[RepairFromMessages.type]
 
-  def repair(repo: Repo[Task])(implicit as: ActorSystem, mt: ActorMaterializer, sc: Scheduler, pm: CanBlock): Unit = {
+  def repair(repo: Repo[Task])(implicit as: ActorSystem, sc: Scheduler, pm: CanBlock): Unit = {
     log.info("Repairing dependent tables from messages.")
     val pq = PersistenceQuery(as).readJournalFor[CassandraReadJournal](CassandraReadJournal.Identifier)
     Task

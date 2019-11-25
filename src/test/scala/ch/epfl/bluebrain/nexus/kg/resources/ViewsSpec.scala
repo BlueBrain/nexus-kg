@@ -2,17 +2,22 @@ package ch.epfl.bluebrain.nexus.kg.resources
 
 import java.time.{Clock, Instant, ZoneId}
 import java.util.UUID
+import java.util.regex.Pattern.quote
 
 import akka.http.scaladsl.model.StatusCodes
-import akka.stream.ActorMaterializer
 import cats.effect.{ContextShift, IO, Timer}
 import cats.implicits._
+import ch.epfl.bluebrain.nexus.admin.client.AdminClient
 import ch.epfl.bluebrain.nexus.admin.client.types.Project
 import ch.epfl.bluebrain.nexus.commons.es.client.ElasticSearchClient
 import ch.epfl.bluebrain.nexus.commons.es.client.ElasticSearchFailure.ElasticServerError
+import ch.epfl.bluebrain.nexus.commons.http.HttpClient
+import ch.epfl.bluebrain.nexus.commons.search.QueryResults
+import ch.epfl.bluebrain.nexus.commons.sparql.client.BlazegraphClient
 import ch.epfl.bluebrain.nexus.commons.test
 import ch.epfl.bluebrain.nexus.commons.test.io.{IOEitherValues, IOOptionValues}
 import ch.epfl.bluebrain.nexus.commons.test.{ActorSystemFixture, CirceEq}
+import ch.epfl.bluebrain.nexus.iam.client.IamClient
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity._
 import ch.epfl.bluebrain.nexus.iam.client.types._
 import ch.epfl.bluebrain.nexus.kg.cache.{AclsCache, ProjectCache, ResolverCache, ViewCache}
@@ -22,34 +27,26 @@ import ch.epfl.bluebrain.nexus.kg.config.Schemas._
 import ch.epfl.bluebrain.nexus.kg.config.Settings
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary._
 import ch.epfl.bluebrain.nexus.kg.indexing.View
-import ch.epfl.bluebrain.nexus.kg.indexing.View.ElasticSearchView
-import ch.epfl.bluebrain.nexus.kg.indexing.View.Filter
+import ch.epfl.bluebrain.nexus.kg.indexing.View.{ElasticSearchView, Filter}
 import ch.epfl.bluebrain.nexus.kg.indexing.ViewEncoder._
 import ch.epfl.bluebrain.nexus.kg.resolve.{Materializer, ProjectResolution, Resolver, StaticResolution}
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection._
 import ch.epfl.bluebrain.nexus.kg.resources.ResourceF.Value
 import ch.epfl.bluebrain.nexus.kg.resources.syntax._
+import ch.epfl.bluebrain.nexus.kg.routes.Clients
 import ch.epfl.bluebrain.nexus.kg.{KgError, TestHelper}
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import ch.epfl.bluebrain.nexus.rdf.Iri.Path._
 import ch.epfl.bluebrain.nexus.rdf.instances._
 import ch.epfl.bluebrain.nexus.rdf.syntax._
 import ch.epfl.bluebrain.nexus.rdf.{Iri, RootedGraph}
+import ch.epfl.bluebrain.nexus.storage.client.StorageClient
 import io.circe.Json
 import io.circe.parser.parse
+import monix.eval.Task
 import org.mockito.matchers.MacroBasedMatchers
 import org.mockito.{ArgumentMatchersSugar, IdiomaticMockito, Mockito}
 import org.scalatest._
-import java.util.regex.Pattern.quote
-
-import ch.epfl.bluebrain.nexus.admin.client.AdminClient
-import ch.epfl.bluebrain.nexus.commons.http.HttpClient
-import ch.epfl.bluebrain.nexus.commons.search.QueryResults
-import ch.epfl.bluebrain.nexus.commons.sparql.client.BlazegraphClient
-import ch.epfl.bluebrain.nexus.iam.client.IamClient
-import ch.epfl.bluebrain.nexus.kg.routes.Clients
-import ch.epfl.bluebrain.nexus.storage.client.StorageClient
-import monix.eval.Task
 
 import scala.concurrent.ExecutionContext
 import scala.concurrent.duration._
@@ -74,11 +71,10 @@ class ViewsSpec
 
   override implicit def patienceConfig: PatienceConfig = PatienceConfig(3 second, 15 milliseconds)
 
-  private implicit val appConfig              = Settings(system).appConfig
-  private implicit val clock: Clock           = Clock.fixed(Instant.ofEpochSecond(3600), ZoneId.systemDefault())
-  private implicit val mat: ActorMaterializer = ActorMaterializer()
-  private implicit val ctx: ContextShift[IO]  = IO.contextShift(ExecutionContext.global)
-  private implicit val timer: Timer[IO]       = IO.timer(ExecutionContext.global)
+  private implicit val appConfig             = Settings(system).appConfig
+  private implicit val clock: Clock          = Clock.fixed(Instant.ofEpochSecond(3600), ZoneId.systemDefault())
+  private implicit val ctx: ContextShift[IO] = IO.contextShift(ExecutionContext.global)
+  private implicit val timer: Timer[IO]      = IO.timer(ExecutionContext.global)
 
   private implicit val repo          = Repo[IO].ioValue
   private implicit val projectCache  = mock[ProjectCache[IO]]
@@ -188,9 +184,9 @@ class ViewsSpec
     // format: off
     val esViewModel = ElasticSearchView(mapping, Filter(Set(nxv.Schema.value, nxv.Resource.value), Set(nxv.withSuffix("MyType").value, nxv.withSuffix("MyType2").value), Some("one")), includeMetadata = false, sourceAsText = true, project.ref, id, UUID.randomUUID(), 1L, deprecated = false)
     // format: on
-    esClient.updateMapping(any[String], eqTo(mapping)) shouldReturn IO(true)
+    esClient.updateMapping(any[String], eqTo(mapping), any[Throwable => Boolean]) shouldReturn IO(true)
     aclsCache.list shouldReturn IO.pure(acls)
-    esClient.createIndex(any[String], any[Json]) shouldReturn IO(true)
+    esClient.createIndex(any[String], any[Json], any[Throwable => Boolean]) shouldReturn IO(true)
 
   }
 
@@ -232,9 +228,9 @@ class ViewsSpec
           .replaceContext(viewCtxUri)
         val mapping = json.hcursor.get[String]("mapping").flatMap(parse).right.value
 
-        esClient.updateMapping(any[String], eqTo(mapping)) shouldReturn IO(true)
+        esClient.updateMapping(any[String], eqTo(mapping), any[Throwable => Boolean]) shouldReturn IO(true)
         aclsCache.list shouldReturn IO.pure(acls)
-        esClient.createIndex(any[String], any[Json]) shouldReturn IO(true)
+        esClient.createIndex(any[String], any[Json], any[Throwable => Boolean]) shouldReturn IO(true)
 
         viewCache.put(view) shouldReturn IO(())
 
@@ -243,23 +239,23 @@ class ViewsSpec
       }
 
       "prevent creating a ElasticSearchView when ElasticSearch client throws" in new EsView {
-        esClient.createIndex(any[String], any[Json]) shouldReturn IO.raiseError(
+        esClient.createIndex(any[String], any[Json], any[Throwable => Boolean]) shouldReturn IO.raiseError(
           ElasticServerError(StatusCodes.BadRequest, "Error on creation...")
         )
         whenReady(views.create(resId, esView).value.unsafeToFuture().failed)(_ shouldBe a[ElasticServerError])
       }
 
       "prevent creating a ElasticSearchView when ElasticSearch client fails while verifying mappings" in new EsView {
-        esClient.createIndex(any[String], any[Json]) shouldReturn IO(true)
-        esClient.updateMapping(any[String], any[Json]) shouldReturn
+        esClient.createIndex(any[String], any[Json], any[Throwable => Boolean]) shouldReturn IO(true)
+        esClient.updateMapping(any[String], any[Json], any[Throwable => Boolean]) shouldReturn
           IO.raiseError(ElasticServerError(StatusCodes.BadRequest, "Error on mappings..."))
 
         whenReady(views.create(resId, esView).value.unsafeToFuture().failed)(_ shouldBe a[ElasticServerError])
       }
 
       "prevent creating a ElasticSearchView when ElasticSearch index does not exist" in new EsView {
-        esClient.createIndex(any[String], any[Json]) shouldReturn IO(true)
-        esClient.updateMapping(any[String], any[Json]) shouldReturn IO(false)
+        esClient.createIndex(any[String], any[Json], any[Throwable => Boolean]) shouldReturn IO(true)
+        esClient.updateMapping(any[String], any[Json], any[Throwable => Boolean]) shouldReturn IO(false)
 
         whenReady(views.create(resId, esView).value.unsafeToFuture().failed)(_ shouldBe a[KgError.InternalError])
       }

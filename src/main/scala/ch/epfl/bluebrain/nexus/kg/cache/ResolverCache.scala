@@ -5,7 +5,7 @@ import java.util.concurrent.ConcurrentHashMap
 
 import akka.actor.ActorSystem
 import cats.Monad
-import cats.effect.{Async, Timer}
+import cats.effect.{Effect, Timer}
 import cats.implicits._
 import ch.epfl.bluebrain.nexus.commons.cache.{KeyValueStore, KeyValueStoreConfig}
 import ch.epfl.bluebrain.nexus.kg.cache.Cache._
@@ -13,9 +13,8 @@ import ch.epfl.bluebrain.nexus.kg.resolve.Resolver
 import ch.epfl.bluebrain.nexus.kg.resources.ProjectRef
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 
-class ResolverCache[F[_]: Timer] private (projectToCache: ConcurrentHashMap[UUID, ResolverProjectCache[F]])(
+class ResolverCache[F[_]: Effect: Timer] private (projectToCache: ConcurrentHashMap[UUID, ResolverProjectCache[F]])(
     implicit as: ActorSystem,
-    F: Async[F],
     config: KeyValueStoreConfig
 ) {
 
@@ -54,7 +53,7 @@ class ResolverCache[F[_]: Timer] private (projectToCache: ConcurrentHashMap[UUID
   *
   * @param store the underlying Distributed Data LWWMap store.
   */
-private class ResolverProjectCache[F[_]] private (store: KeyValueStore[F, AbsoluteIri, Resolver])(implicit F: Monad[F])
+private class ResolverProjectCache[F[_]: Monad] private (store: KeyValueStore[F, AbsoluteIri, Resolver])
     extends Cache[F, AbsoluteIri, Resolver](store) {
 
   private implicit val ordering: Ordering[Resolver] = Ordering.by(_.priority)
@@ -69,19 +68,15 @@ private class ResolverProjectCache[F[_]] private (store: KeyValueStore[F, Absolu
 
 private object ResolverProjectCache {
 
-  def apply[F[_]: Timer](
+  def apply[F[_]: Effect: Timer](
       project: ProjectRef
-  )(implicit as: ActorSystem, config: KeyValueStoreConfig, F: Async[F]): ResolverProjectCache[F] = {
-    import ch.epfl.bluebrain.nexus.kg.instances.kgErrorMonadError
-    new ResolverProjectCache(
-      KeyValueStore.distributed(s"resolver-${project.id}", (_, resolver) => resolver.rev, mapError)
-    )(F)
-  }
+  )(implicit as: ActorSystem, config: KeyValueStoreConfig): ResolverProjectCache[F] =
+    new ResolverProjectCache(KeyValueStore.distributed(s"resolver-${project.id}", (_, resolver) => resolver.rev))
 
 }
 
 object ResolverCache {
 
-  def apply[F[_]: Async: Timer](implicit as: ActorSystem, config: KeyValueStoreConfig): ResolverCache[F] =
+  def apply[F[_]: Effect: Timer](implicit as: ActorSystem, config: KeyValueStoreConfig): ResolverCache[F] =
     new ResolverCache(new ConcurrentHashMap[UUID, ResolverProjectCache[F]]())
 }

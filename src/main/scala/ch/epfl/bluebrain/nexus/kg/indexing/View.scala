@@ -4,13 +4,14 @@ import java.util.regex.Pattern.quote
 import java.util.{Properties, UUID}
 
 import cats.data.EitherT
-import cats.effect.{Async, Effect}
+import cats.effect.{Effect, Timer}
 import cats.implicits._
-import cats.{Monad, Show}
+import cats.{Functor, Monad, Show}
+import ch.epfl.bluebrain.nexus.admin.client.types.Project
 import ch.epfl.bluebrain.nexus.commons.search.FromPagination
 import ch.epfl.bluebrain.nexus.commons.search.QueryResult.UnscoredQueryResult
 import ch.epfl.bluebrain.nexus.commons.search.QueryResults.UnscoredQueryResults
-import ch.epfl.bluebrain.nexus.commons.sparql.client.{BlazegraphClient, SparqlResults}
+import ch.epfl.bluebrain.nexus.commons.sparql.client.{BlazegraphClient, SparqlResults, SparqlWriteQuery}
 import ch.epfl.bluebrain.nexus.commons.test.Resources._
 import ch.epfl.bluebrain.nexus.iam.client.types._
 import ch.epfl.bluebrain.nexus.kg.cache.{ProjectCache, ViewCache}
@@ -22,18 +23,23 @@ import ch.epfl.bluebrain.nexus.kg.indexing.View.CompositeView.{Projection, Sourc
 import ch.epfl.bluebrain.nexus.kg.indexing.View.SparqlView._
 import ch.epfl.bluebrain.nexus.kg.indexing.View._
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection._
+import ch.epfl.bluebrain.nexus.kg.resources.ResourceF.metaKeys
 import ch.epfl.bluebrain.nexus.kg.resources._
 import ch.epfl.bluebrain.nexus.kg.resources.syntax._
 import ch.epfl.bluebrain.nexus.kg.routes.Clients
 import ch.epfl.bluebrain.nexus.kg.{resultOrFailures, KgError}
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
+import ch.epfl.bluebrain.nexus.rdf.Node.IriNode
 import ch.epfl.bluebrain.nexus.rdf.Vocabulary.rdf
 import ch.epfl.bluebrain.nexus.rdf.cursor.GraphCursor
+import ch.epfl.bluebrain.nexus.rdf.decoder.GraphDecoder.DecoderResult
 import ch.epfl.bluebrain.nexus.rdf.encoder.NodeEncoder
 import ch.epfl.bluebrain.nexus.rdf.encoder.NodeEncoderError.IllegalConversion
 import ch.epfl.bluebrain.nexus.rdf.instances._
 import ch.epfl.bluebrain.nexus.rdf.syntax._
+import ch.epfl.bluebrain.nexus.rdf.{Graph, RootedGraph}
 import io.circe.{parser, Json}
+import journal.Logger
 import shapeless.Typeable.ValueTypeable
 import shapeless.{TypeCase, Typeable}
 
@@ -167,27 +173,48 @@ object View {
       * @return filters the data to be indexed
       */
     def filter: Filter
-  }
-
-  /**
-    * Enumeration of single view types.
-    */
-  sealed trait SingleView extends View with FilteredView {
 
     /**
-      * The index value for this view
+      * Retrieves the latest state of the passed resource, according to the view filter
+      *
+      * @param resources the resources operations
+      * @param event     the event
+      * @return Some(resource) if found, None otherwise, wrapped in the effect type ''F[_]''
       */
-    def index(implicit config: AppConfig): String
+    def toResource[F[_]: Functor](
+        resources: Resources[F],
+        event: Event
+    )(implicit project: Project, metadataOpts: MetadataOptions): F[Option[ResourceV]] =
+      filter.resourceTag
+        .filter(_.trim.nonEmpty)
+        .map(resources.fetch(event.id, _, metadataOpts, None))
+        .getOrElse(resources.fetch(event.id, metadataOpts, None))
+        .toOption
+        .value
 
     /**
-      * Attempts to create an index.
+      * Evaluates if the provided resource has some of the types defined on the view filter.
+      *
+      * @param resource the resource
       */
-    def createIndex[F[_]: Effect](implicit config: AppConfig, clients: Clients[F]): F[Unit]
+    def allowedTypes(resource: ResourceV): Boolean =
+      filter.resourceTypes.isEmpty || filter.resourceTypes.intersect(resource.types).nonEmpty
 
     /**
-      * Attempts to delete an index.
+      * Evaluates if the provided resource has some of the schemas defined on the view filter.
+      *
+      * @param resource the resource
       */
-    def deleteIndex[F[_]](implicit config: AppConfig, clients: Clients[F]): F[Boolean]
+    def allowedSchemas(resource: ResourceV): Boolean =
+      filter.resourceSchemas.isEmpty || filter.resourceSchemas.contains(resource.schema.iri)
+
+    /**
+      * Evaluates if the provided resource has the tag defined on the view filter.
+      *
+      * @param resource the resource
+      */
+    def allowedTag(resource: ResourceV): Boolean =
+      filter.resourceTag.forall(tag => resource.tags.get(tag).contains(resource.rev))
   }
 
   /**
@@ -231,6 +258,39 @@ object View {
       }
   }
 
+  /**
+    * Enumeration of single view types.
+    */
+  sealed trait SingleView extends IndexedView {
+
+    /**
+      * The index value for this view
+      */
+    def index(implicit config: AppConfig): String
+
+    /**
+      * The progress id for this view
+      */
+    def progressId(implicit config: AppConfig): String
+
+    /**
+      * Attempts to create an index.
+      */
+    def createIndex[F[_]: Effect](implicit config: AppConfig, clients: Clients[F]): F[Unit]
+
+    /**
+      * Attempts to delete an index.
+      */
+    def deleteIndex[F[_]](implicit config: AppConfig, clients: Clients[F]): F[Boolean]
+
+    /**
+      * Attempts to delete an index id.
+      *
+      * @param resId the resource id to be deleted from the current index
+      */
+    def deleteIndexId[F[_]: Monad](resId: ResId)(implicit clients: Clients[F], config: AppConfig): F[Unit]
+
+  }
   private def parse(string: String): NodeEncoder.EncoderResult[Json] =
     parser.parse(string).left.map(_ => IllegalConversion(""))
 
@@ -391,10 +451,13 @@ object View {
       uuid: UUID,
       rev: Long,
       deprecated: Boolean
-  ) extends IndexedView
-      with SingleView {
+  ) extends SingleView {
+
+    val ctx: Json = jsonContentOf("/elasticsearch/default-context.json")
 
     def index(implicit config: AppConfig): String = s"${config.elasticSearch.indexPrefix}_$name"
+
+    def progressId(implicit config: AppConfig): String = s"elasticSearch-indexer-$index"
 
     def createIndex[F[_]](implicit F: Effect[F], config: AppConfig, clients: Clients[F]): F[Unit] =
       clients.elasticSearch
@@ -407,6 +470,44 @@ object View {
 
     def deleteIndex[F[_]](implicit config: AppConfig, clients: Clients[F]): F[Boolean] =
       clients.elasticSearch.deleteIndex(index)
+
+    def deleteIndexId[F[_]](resId: ResId)(implicit F: Monad[F], clients: Clients[F], config: AppConfig): F[Unit] = {
+      val client = clients.elasticSearch.withRetryPolicy(config.elasticSearch.indexing.retry)
+      client.delete(index, resId.value.asString) >> F.unit
+    }
+
+    /**
+      * Attempts to convert the passed resource to an ElasticSearch Document to be indexed.
+      * The resulting document will have different Json shape depending on the view configuration.
+      *
+      * @param res the resource
+      * @return Some(document) if the conversion was successful, None otherwise
+      */
+    def toDocument(
+        res: ResourceV
+    )(implicit metadataOpts: MetadataOptions, logger: Logger, config: AppConfig, project: Project): Option[Json] = {
+      val rootNode = IriNode(res.id.value)
+
+      val metaGraph    = if (includeMetadata) Graph(res.metadata(metadataOpts)) else Graph()
+      val keysToRemove = if (includeMetadata) Seq.empty[String] else metaKeys
+
+      def asJson(g: Graph): DecoderResult[Json] = RootedGraph(rootNode, g).as[Json](ctx)
+      val transformed: DecoderResult[Json] =
+        if (sourceAsText)
+          asJson(metaGraph.add(rootNode, nxv.original_source, res.value.source.removeKeys(metaKeys: _*).noSpaces))
+        else
+          asJson(metaGraph).map(metaJson => res.value.source.removeKeys(keysToRemove: _*) deepMerge metaJson)
+
+      transformed match {
+        case Left(err) =>
+          logger.error(
+            s"Could not convert resource with id '${res.id}' and value '${res.value}' from Graph back to json. Reason: '${err.message}'"
+          )
+          None
+        case Right(value) => Some(value.removeKeys("@context"))
+      }
+    }
+
   }
 
   object ElasticSearchView {
@@ -447,8 +548,7 @@ object View {
       uuid: UUID,
       rev: Long,
       deprecated: Boolean
-  ) extends IndexedView
-      with SingleView {
+  ) extends SingleView {
 
     private def replace(query: String, id: AbsoluteIri, pagination: FromPagination): String =
       query
@@ -458,16 +558,39 @@ object View {
         .replaceAll(quote("{size}"), pagination.size.toString)
 
     /**
+      * Builds an Sparql INSERT query with all the triples of the passed resource
+      *
+      * @param res the resource
+      * @return a DROP {...} INSERT DATA {triples} Sparql query
+      */
+    def buildInsertQuery(res: ResourceV): SparqlWriteQuery = {
+      val graph = if (includeMetadata) res.value.graph else res.value.graph.removeMetadata
+      SparqlWriteQuery.replace(res.id.toGraphUri, graph)
+    }
+
+    /**
+      * Deletes the namedgraph where the triples for the resource are located inside the Sparql store.
+      *
+      * @param res the resource
+      * @return a DROP {...} Sparql query
+      */
+    def buildDeleteQuery(res: ResourceV): SparqlWriteQuery =
+      SparqlWriteQuery.drop(res.id.toGraphUri)
+
+    /**
       * Runs incoming query using the provided SparqlView index against the provided [[BlazegraphClient]] endpoint
       *
       * @param id         the resource id. The query will select the incomings that match this id
       * @param pagination the pagination for the query
       * @tparam F the effect type
       */
-    def incoming[F[_]: Async](
+    def incoming[F[_]: Functor](
         id: AbsoluteIri,
         pagination: FromPagination
-    )(implicit client: BlazegraphClient[F], config: AppConfig): F[LinkResults] =
+    )(
+        implicit client: BlazegraphClient[F],
+        config: AppConfig
+    ): F[LinkResults] =
       client.copy(namespace = index).queryRaw(replace(incomingQuery, id, pagination)).map(toSparqlLinks)
 
     /**
@@ -478,16 +601,14 @@ object View {
       * @param includeExternalLinks flag to decide whether or not to include external links (not Nexus managed) in the query result
       * @tparam F the effect type
       */
-    def outgoing[F[_]: Async](id: AbsoluteIri, pagination: FromPagination, includeExternalLinks: Boolean)(
+    def outgoing[F[_]: Functor](id: AbsoluteIri, pagination: FromPagination, includeExternalLinks: Boolean)(
         implicit client: BlazegraphClient[F],
         config: AppConfig
     ): F[LinkResults] =
       if (includeExternalLinks)
-        client
-          .copy(namespace = index)
-          .queryRaw(replace(outgoingIncludeExternalQuery, id, pagination))
-          .map(toSparqlLinks)
-      else client.copy(namespace = index).queryRaw(replace(outgoingScopedQuery, id, pagination)).map(toSparqlLinks)
+        client.copy(namespace = index).queryRaw(replace(outgoingWithExternalQuery, id, pagination)).map(toSparqlLinks)
+      else
+        client.copy(namespace = index).queryRaw(replace(outgoingScopedQuery, id, pagination)).map(toSparqlLinks)
 
     private def toSparqlLinks(sparqlResults: SparqlResults): LinkResults = {
       val (count, results) =
@@ -503,11 +624,18 @@ object View {
 
     def index(implicit config: AppConfig): String = s"${config.sparql.indexPrefix}_$name"
 
+    def progressId(implicit config: AppConfig): String = s"sparql-indexer-$index"
+
     def createIndex[F[_]](implicit F: Effect[F], config: AppConfig, clients: Clients[F]): F[Unit] =
       clients.sparql.copy(namespace = index).createNamespace(properties) >> F.unit
 
     def deleteIndex[F[_]](implicit config: AppConfig, clients: Clients[F]): F[Boolean] =
       clients.sparql.copy(namespace = index).deleteNamespace
+
+    def deleteIndexId[F[_]: Monad](resId: ResId)(implicit clients: Clients[F], config: AppConfig): F[Unit] = {
+      val client = clients.sparql.copy(namespace = index).withRetryPolicy(config.elasticSearch.indexing.retry)
+      client.drop(resId.toGraphUri)
+    }
   }
 
   object SparqlView {
@@ -530,9 +658,9 @@ object View {
       props.load(getClass.getResourceAsStream("/blazegraph/index.properties"))
       props.asScala.toMap
     }
-    private val incomingQuery: String                = contentOf("/blazegraph/incoming.txt")
-    private val outgoingIncludeExternalQuery: String = contentOf("/blazegraph/outgoing_include_external.txt")
-    private val outgoingScopedQuery: String          = contentOf("/blazegraph/outgoing_scoped.txt")
+    private val incomingQuery: String             = contentOf("/blazegraph/incoming.txt")
+    private val outgoingWithExternalQuery: String = contentOf("/blazegraph/outgoing_include_external.txt")
+    private val outgoingScopedQuery: String       = contentOf("/blazegraph/outgoing_scoped.txt")
   }
 
   /**
@@ -569,12 +697,94 @@ object View {
     sealed trait Projection {
       def query: String
       def view: SingleView
+      def indexId[F[_]: Monad](res: ResourceV, graph: Graph)(
+          implicit clients: Clients[F],
+          config: AppConfig,
+          metadataOpts: MetadataOptions,
+          logger: Logger,
+          project: Project
+      ): F[Option[Unit]]
+
+      /**
+        * Runs a query replacing the {resource_id} with the resource id
+        *
+        * @param res the resource
+        * @return a Sparql query results response
+        */
+      def runQuery[F[_]: Effect: Timer](res: ResourceV)(
+          implicit client: BlazegraphClient[F],
+          config: AppConfig
+      ): F[SparqlResults] =
+        client
+          .copy(namespace = view.index)
+          .queryRaw(query.replaceAll(quote("{resource_id}"), s"<${res.id.value.asString}>"))
     }
 
     object Projection {
-      final case class ElasticSearchProjection(query: String, view: ElasticSearchView, context: Json) extends Projection
+      final case class ElasticSearchProjection(query: String, view: ElasticSearchView, context: Json)
+          extends Projection {
 
-      final case class SparqlProjection(query: String, view: SparqlView) extends Projection
+        /**
+          * Attempts to convert the passed graph using the current context to an ElasticSearch Document to be indexed.
+          * The resulting document will have different Json shape depending on the view configuration.
+          *
+          * @param res   the resource
+          * @param graph the graph to be converted to a Document
+          * @return Some(())) if the conversion was successful and the document was indexed, None otherwise
+          */
+        def indexId[F[_]](
+            res: ResourceV,
+            graph: Graph
+        )(
+            implicit F: Monad[F],
+            clients: Clients[F],
+            config: AppConfig,
+            metadataOpts: MetadataOptions,
+            logger: Logger,
+            project: Project
+        ): F[Option[Unit]] = {
+          val rootNode  = IriNode(res.id.value)
+          val finalCtx  = if (view.includeMetadata) view.ctx.appendContextOf(context) else context
+          val metaGraph = if (view.includeMetadata) Graph(graph.triples ++ res.metadata(metadataOpts)) else graph
+          val client    = clients.elasticSearch.withRetryPolicy(config.elasticSearch.indexing.retry)
+          RootedGraph(rootNode, metaGraph).as[Json](finalCtx) match {
+            case Left(err) =>
+              val msg =
+                s"Could not convert resource with id '${res.id}' and graph '${graph.show}' from Graph back to json. Reason: '${err.message}'"
+              logger.error(msg)
+              F.pure(None)
+            case Right(value) =>
+              client.create(view.index, res.id.value.asString, value.removeKeys("@context")) >> F.pure(
+                Some(())
+              )
+          }
+        }
+      }
+
+      final case class SparqlProjection(query: String, view: SparqlView) extends Projection {
+
+        /**
+          * Attempts index the passed graph triples into Sparql store.
+          *
+          * @param res   the resource
+          * @param graph the graph to be indexed
+          * @return Some(())) if the triples were indexed, None otherwise
+          */
+        def indexId[F[_]](
+            res: ResourceV,
+            graph: Graph
+        )(
+            implicit F: Monad[F],
+            clients: Clients[F],
+            config: AppConfig,
+            metadataOpts: MetadataOptions,
+            logger: Logger,
+            project: Project
+        ): F[Option[Unit]] = {
+          val client = clients.sparql.copy(namespace = view.index).withRetryPolicy(config.elasticSearch.indexing.retry)
+          client.replace(res.id.toGraphUri, graph) >> F.pure(Some(()))
+        }
+      }
     }
   }
 

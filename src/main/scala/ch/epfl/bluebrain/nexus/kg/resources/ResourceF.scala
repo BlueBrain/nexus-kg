@@ -139,7 +139,8 @@ final case class ResourceF[A](
 }
 
 object ResourceF {
-  val metaPredicates = Set[PrefixMapping](
+
+  val metaPredicates: Set[PrefixMapping] = Set[PrefixMapping](
     nxv.rev,
     nxv.deprecated,
     nxv.createdAt,
@@ -155,6 +156,8 @@ object ResourceF {
     nxv.incoming,
     nxv.outgoing
   )
+
+  val metaKeys: Seq[String] = metaPredicates.map(_.prefix).toSeq
 
   private val metaIris: Set[IriNode] = metaPredicates.map(p => IriNode(p.value))
 

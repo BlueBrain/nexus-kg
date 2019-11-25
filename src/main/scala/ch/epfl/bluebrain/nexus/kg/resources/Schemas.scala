@@ -1,7 +1,7 @@
 package ch.epfl.bluebrain.nexus.kg.resources
 
 import cats.data.EitherT
-import cats.effect.{Effect, Timer}
+import cats.effect.Effect
 import ch.epfl.bluebrain.nexus.admin.client.types.Project
 import ch.epfl.bluebrain.nexus.commons.es.client.ElasticSearchClient
 import ch.epfl.bluebrain.nexus.commons.http.HttpClient
@@ -29,7 +29,7 @@ import ch.epfl.bluebrain.nexus.rdf.syntax._
 import io.circe.Json
 import org.apache.jena.rdf.model.Model
 
-class Schemas[F[_]: Timer](repo: Repo[F])(implicit F: Effect[F], materializer: Materializer[F], config: AppConfig) {
+class Schemas[F[_]](repo: Repo[F])(implicit F: Effect[F], materializer: Materializer[F], config: AppConfig) {
 
   /**
     * Creates a new schema attempting to extract the id from the source. If a primary node of the resulting graph
@@ -219,6 +219,6 @@ object Schemas {
     * @tparam F the monadic effect type
     * @return a new [[Schemas]] for the provided F type
     */
-  final def apply[F[_]: Timer: Effect: Materializer](implicit config: AppConfig, repo: Repo[F]): Schemas[F] =
+  final def apply[F[_]: Effect: Materializer](implicit config: AppConfig, repo: Repo[F]): Schemas[F] =
     new Schemas[F](repo)
 }

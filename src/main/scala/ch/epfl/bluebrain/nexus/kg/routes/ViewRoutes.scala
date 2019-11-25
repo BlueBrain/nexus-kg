@@ -1,13 +1,11 @@
 package ch.epfl.bluebrain.nexus.kg.routes
 
-import akka.http.scaladsl.model.{StatusCodes, Uri}
 import akka.http.scaladsl.model.StatusCodes.{Created, OK}
+import akka.http.scaladsl.model.{StatusCodes, Uri}
 import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.Route
 import akka.http.scaladsl.unmarshalling.FromEntityUnmarshaller
 import ch.epfl.bluebrain.nexus.admin.client.types.Project
-import ch.epfl.bluebrain.nexus.commons.es.client.ElasticSearchFailure.ElasticSearchServerOrUnexpectedFailure
-import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlFailure.SparqlServerOrUnexpectedFailure
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlResults
 import ch.epfl.bluebrain.nexus.commons.test.Resources.jsonContentOf
 import ch.epfl.bluebrain.nexus.iam.client.types._
@@ -29,8 +27,6 @@ import ch.epfl.bluebrain.nexus.kg.resources.syntax._
 import ch.epfl.bluebrain.nexus.kg.routes.OutputFormat._
 import ch.epfl.bluebrain.nexus.kg.search.QueryResultEncoder._
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
-import ch.epfl.bluebrain.nexus.sourcing.retry.Retry
-import ch.epfl.bluebrain.nexus.sourcing.retry.syntax._
 import io.circe.Json
 import kamon.Kamon
 import kamon.instrumentation.akka.http.TracingDirectives.operationName
@@ -40,21 +36,21 @@ import monix.execution.Scheduler.Implicits.global
 class ViewRoutes private[routes] (
     views: Views[Task],
     tags: Tags[Task],
-    projectViewCoordinator: ProjectViewCoordinator[Task]
+    coordinator: ProjectViewCoordinator[Task]
 )(
     implicit acls: AccessControlLists,
     caller: Caller,
     project: Project,
     projectCache: ProjectCache[Task],
     viewCache: ViewCache[Task],
-    indexers: Clients[Task],
+    clients: Clients[Task],
     config: AppConfig,
     um: FromEntityUnmarshaller[String]
 ) {
 
   private val emptyEsList: Json = jsonContentOf("/elasticsearch/empty-list.json")
 
-  import indexers._
+  import clients._
 
   /**
     * Routes for views. Those routes should get triggered after the following segments have been consumed:
@@ -87,9 +83,6 @@ class ViewRoutes private[routes] (
           }
         }
       },
-      sparqlRoute,
-      elasticSearch,
-      stats,
       // Consume the view id segment
       pathPrefix(IdSegment) { id =>
         routes(id)
@@ -106,6 +99,42 @@ class ViewRoutes private[routes] (
     */
   def routes(id: AbsoluteIri): Route =
     concat(
+      // Fetches view statistics
+      (get & pathPrefix("statistics") & pathEndOrSingleSlash) {
+        operationName(s"/${config.http.prefix}/views/{}/{}/{}/statistics") {
+          hasPermission(read).apply {
+            val result: Task[Either[Rejection, Statistics]] = viewCache.getBy[View](project.ref, id).flatMap {
+              case Some(view: CompositeView) => coordinator.statistics(project, view.defaultSparqlView).map(Right(_))
+              case Some(view: SingleView)    => coordinator.statistics(project, view).map(Right(_))
+              case Some(_)                   => Task.pure(Left(NoStatsForAggregateView))
+              case None                      => Task.pure(Left(NotFound(id.ref)))
+            }
+            complete(result.runWithStatus(StatusCodes.OK))
+          }
+        }
+      },
+      // Queries a view on the ElasticSearch endpoint
+      (post & pathPrefix("_search") & pathEndOrSingleSlash) {
+        operationName(s"/${config.http.prefix}/views/{}/{}/{}/_search") {
+          (hasPermission(query) & extract(_.request.uri.query())) { params =>
+            entity(as[Json]) { query =>
+              val result = viewCache.getBy[View](project.ref, id).flatMap(runSearch(params, id, query))
+              complete(result.runWithStatus(StatusCodes.OK))
+            }
+          }
+        }
+      },
+      // Queries a view on the Sparql endpoint
+      (post & pathPrefix("sparql") & pathEndOrSingleSlash) {
+        operationName(s"/${config.http.prefix}/views/{}/{}/{}/sparql") {
+          hasPermission(query).apply {
+            entity(as[String]) { query =>
+              val result = viewCache.getBy[View](project.ref, id).flatMap(runSearch(id, query))
+              complete(result.runWithStatus(StatusCodes.OK))
+            }
+          }
+        }
+      },
       // Create or update a view (depending on rev query parameter)
       (put & pathEndOrSingleSlash) {
         operationName(s"/${config.http.prefix}/views/{}/{}/{}") {
@@ -198,38 +227,55 @@ class ViewRoutes private[routes] (
             }
           }
       },
-      new TagRoutes("views", tags, viewRef, write).routes(id)
+      new TagRoutes("views", tags, viewRef, write).routes(id),
+      // Consume the projection id segment
+      pathPrefix("projections" / IdSegment) { projectionId =>
+        routes(id, projectionId)
+      }
     )
 
-  private def sparqlQuery(view: SparqlView, query: String): Task[SparqlResults] = {
-    import ch.epfl.bluebrain.nexus.kg.instances.sparqlErrorMonadError
-    implicit val retryer: Retry[Task, SparqlServerOrUnexpectedFailure] = Retry(config.sparql.query.retryStrategy)
-    indexers.sparql.copy(namespace = view.index).queryRaw(query).retry
-  }
-
-  private def sparqlRoute: Route =
+  private def routes(id: AbsoluteIri, projectionId: AbsoluteIri): Route =
     concat(
-      (post & pathPrefix(IdSegment / "sparql") & pathEndOrSingleSlash) { id =>
-        operationName(s"/${config.http.prefix}/views/{}/{}/{}/sparql") {
-          hasPermission(query).apply {
-            entity(as[String]) { query =>
-              val result = viewCache.getBy[View](project.ref, id).flatMap(runSearch(id, query))
+      // Queries a projection view on the ElasticSearch endpoint
+      (post & pathPrefix("_search") & pathEndOrSingleSlash) {
+        operationName(s"/${config.http.prefix}/views/{}/{}/{}/projections/{}/_search") {
+          (hasPermission(query) & extract(_.request.uri.query())) { params =>
+            entity(as[Json]) { query =>
+              val result =
+                viewCache.getProjectionBy[View](project.ref, id, projectionId).flatMap(runSearch(params, id, query))
               complete(result.runWithStatus(StatusCodes.OK))
             }
           }
         }
       },
-      (post & pathPrefix(IdSegment / "projections" / IdSegment / "sparql") & pathEndOrSingleSlash) { (id, projId) =>
+      // Queries a projection view on the Sparql endpoint
+      (post & pathPrefix("sparql") & pathEndOrSingleSlash) {
         operationName(s"/${config.http.prefix}/views/{}/{}/{}/projections/{}/sparql") {
           hasPermission(query).apply {
             entity(as[String]) { query =>
-              val result = viewCache.getProjectionBy[View](project.ref, id, projId).flatMap(runSearch(id, query))
+              val result = viewCache.getProjectionBy[View](project.ref, id, projectionId).flatMap(runSearch(id, query))
               complete(result.runWithStatus(StatusCodes.OK))
             }
           }
         }
+      },
+      // Retrieves statistics for a projection
+      (get & pathPrefix("statistics") & pathEndOrSingleSlash) {
+        operationName(s"/${config.http.prefix}/views/{}/{}/{}/projections/{}/statistics") {
+          hasPermission(read).apply {
+            val result: Task[Either[Rejection, Statistics]] =
+              viewCache.getProjectionBy[SingleView](project.ref, id, projectionId).flatMap {
+                case Some(view) => coordinator.statistics(project, view).map(Right(_))
+                case None       => Task.pure(Left(NotFound(id.ref)))
+              }
+            complete(result.runWithStatus(StatusCodes.OK))
+          }
+        }
       }
     )
+
+  private def sparqlQuery(view: SparqlView, query: String): Task[SparqlResults] =
+    clients.sparql.copy(namespace = view.index).queryRaw(query)
 
   private def runSearch(id: AbsoluteIri, query: String): Option[View] => Task[Either[Rejection, SparqlResults]] = {
     case Some(v: SparqlView) => sparqlQuery(v, query).map(Right.apply)
@@ -246,58 +292,12 @@ class ViewRoutes private[routes] (
       id: AbsoluteIri,
       query: Json
   ): Option[View] => Task[Either[Rejection, Json]] = {
-    import ch.epfl.bluebrain.nexus.kg.instances.elasticErrorMonadError
-    implicit val retryer: Retry[Task, ElasticSearchServerOrUnexpectedFailure] =
-      Retry(config.elasticSearch.query.retryStrategy)
-    val f: Option[View] => Task[Either[Rejection, Json]] = {
-      case Some(v: ElasticSearchView) =>
-        indexers.elasticSearch.searchRaw(query, Set(v.index), params).map(Right.apply).retry
-      case Some(agg: AggregateElasticSearchView[_]) =>
-        agg.queryableIndices.flatMap {
-          case indices if indices.isEmpty => Task.pure[Either[Rejection, Json]](Right(emptyEsList))
-          case indices                    => indexers.elasticSearch.searchRaw(query, indices, params).map(Right.apply).retry
-        }
-      case _ => Task.pure(Left(NotFound(id.ref)))
-    }
-    f
+    case Some(v: ElasticSearchView) => clients.elasticSearch.searchRaw(query, Set(v.index), params).map(Right.apply)
+    case Some(agg: AggregateElasticSearchView[_]) =>
+      agg.queryableIndices.flatMap {
+        case indices if indices.isEmpty => Task.pure[Either[Rejection, Json]](Right(emptyEsList))
+        case indices                    => clients.elasticSearch.searchRaw(query, indices, params).map(Right.apply)
+      }
+    case _ => Task.pure(Left(NotFound(id.ref)))
   }
-
-  private def elasticSearch: Route =
-    concat(
-      (post & pathPrefix(IdSegment / "_search") & pathEndOrSingleSlash) { id =>
-        operationName(s"/${config.http.prefix}/views/{}/{}/{}/_search") {
-          (hasPermission(query) & extract(_.request.uri.query())) { params =>
-            entity(as[Json]) { query =>
-              val result = viewCache.getBy[View](project.ref, id).flatMap(runSearch(params, id, query))
-              complete(result.runWithStatus(StatusCodes.OK))
-            }
-          }
-        }
-      },
-      (post & pathPrefix(IdSegment / "projections" / IdSegment / "_search") & pathEndOrSingleSlash) { (id, projId) =>
-        operationName(s"/${config.http.prefix}/views/{}/{}/{}/projections/{}/_search") {
-          (hasPermission(query) & extract(_.request.uri.query())) { params =>
-            entity(as[Json]) { query =>
-              val result =
-                viewCache.getProjectionBy[View](project.ref, id, projId).flatMap(runSearch(params, id, query))
-              complete(result.runWithStatus(StatusCodes.OK))
-            }
-          }
-        }
-      }
-    )
-
-  private def stats: Route =
-    (get & pathPrefix(IdSegment / "statistics") & pathEndOrSingleSlash) { id =>
-      operationName(s"/${config.http.prefix}/views/{}/{}/{}/statistics") {
-        hasPermission(read).apply {
-          val result: Task[Either[Rejection, Statistics]] = viewCache.getBy[View](project.ref, id).flatMap {
-            case Some(view: IndexedView) => projectViewCoordinator.statistics(project, view).map(Right(_))
-            case Some(_)                 => Task.pure(Left(NoStatsForAggregateView))
-            case None                    => Task.pure(Left(NotFound(id.ref)))
-          }
-          complete(result.runWithStatus(StatusCodes.OK))
-        }
-      }
-    }
 }

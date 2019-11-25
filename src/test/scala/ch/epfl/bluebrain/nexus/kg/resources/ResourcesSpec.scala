@@ -3,7 +3,6 @@ package ch.epfl.bluebrain.nexus.kg.resources
 import java.time.{Clock, Instant, ZoneId}
 import java.util.regex.Pattern.quote
 
-import akka.stream.ActorMaterializer
 import cats.effect.{ContextShift, IO, Timer}
 import cats.syntax.show._
 import ch.epfl.bluebrain.nexus.admin.client.types.Project
@@ -12,8 +11,8 @@ import ch.epfl.bluebrain.nexus.commons.search.QueryResult.UnscoredQueryResult
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlResults.{Binding, Bindings, Head}
 import ch.epfl.bluebrain.nexus.commons.sparql.client.{BlazegraphClient, SparqlResults}
 import ch.epfl.bluebrain.nexus.commons.test
-import ch.epfl.bluebrain.nexus.commons.test.io.{IOEitherValues, IOOptionValues}
 import ch.epfl.bluebrain.nexus.commons.test.ActorSystemFixture
+import ch.epfl.bluebrain.nexus.commons.test.io.{IOEitherValues, IOOptionValues}
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity._
 import ch.epfl.bluebrain.nexus.iam.client.types._
 import ch.epfl.bluebrain.nexus.kg.TestHelper
@@ -30,15 +29,14 @@ import ch.epfl.bluebrain.nexus.kg.resolve.Resolver.InProjectResolver
 import ch.epfl.bluebrain.nexus.kg.resolve.{Materializer, ProjectResolution, Resolver, StaticResolution}
 import ch.epfl.bluebrain.nexus.kg.resources.Ref.Latest
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection._
-import ch.epfl.bluebrain.nexus.kg.resources.syntax._
 import ch.epfl.bluebrain.nexus.kg.resources.ResourceF.Value
+import ch.epfl.bluebrain.nexus.kg.resources.syntax._
 import ch.epfl.bluebrain.nexus.rdf.Vocabulary.xsd
 import ch.epfl.bluebrain.nexus.rdf.instances._
 import ch.epfl.bluebrain.nexus.rdf.syntax._
 import ch.epfl.bluebrain.nexus.rdf.{Iri, RootedGraph}
 import io.circe.Json
-import org.mockito.ArgumentMatchers.any
-import org.mockito.IdiomaticMockito
+import org.mockito.{ArgumentMatchersSugar, IdiomaticMockito}
 import org.mockito.Mockito.when
 import org.scalatest._
 
@@ -52,6 +50,7 @@ class ResourcesSpec
     with IOOptionValues
     with WordSpecLike
     with IdiomaticMockito
+    with ArgumentMatchersSugar
     with Matchers
     with OptionValues
     with EitherValues
@@ -63,11 +62,10 @@ class ResourcesSpec
 
   private implicit val client: BlazegraphClient[IO] = mock[BlazegraphClient[IO]]
 
-  private implicit val appConfig              = Settings(system).appConfig
-  private implicit val clock: Clock           = Clock.fixed(Instant.ofEpochSecond(3600), ZoneId.systemDefault())
-  private implicit val mat: ActorMaterializer = ActorMaterializer()
-  private implicit val ctx: ContextShift[IO]  = IO.contextShift(ExecutionContext.global)
-  private implicit val timer: Timer[IO]       = IO.timer(ExecutionContext.global)
+  private implicit val appConfig             = Settings(system).appConfig
+  private implicit val clock: Clock          = Clock.fixed(Instant.ofEpochSecond(3600), ZoneId.systemDefault())
+  private implicit val ctx: ContextShift[IO] = IO.contextShift(ExecutionContext.global)
+  private implicit val timer: Timer[IO]      = IO.timer(ExecutionContext.global)
 
   private implicit val repo = Repo[IO].ioValue
   private val projectCache  = mock[ProjectCache[IO]]
@@ -333,7 +331,7 @@ class ResourcesSpec
             "/blazegraph/incoming.txt",
             Map(quote("{id}") -> resId.value.asString, quote("{size}") -> "10", quote("{offset}") -> "1")
           )
-        client.queryRaw(query) shouldReturn IO(
+        client.queryRaw(query, any[Throwable => Boolean]) shouldReturn IO(
           SparqlResults(Head(List.empty), Bindings(List(binding1, binding2, binding3)))
         )
         val results = resources.listIncoming(resId.value, Some(view), FromPagination(1, 10)).ioValue
@@ -354,7 +352,7 @@ class ResourcesSpec
               quote("{offset}") -> "1"
             )
           )
-        client.queryRaw(query) shouldReturn IO(
+        client.queryRaw(query, any[Throwable => Boolean]) shouldReturn IO(
           SparqlResults(Head(List.empty), Bindings(List(binding1, binding2, binding3)))
         )
         val results =

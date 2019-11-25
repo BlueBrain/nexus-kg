@@ -9,7 +9,6 @@ import akka.http.scaladsl.model.Multipart.FormData.BodyPart
 import akka.http.scaladsl.model._
 import akka.http.scaladsl.model.headers.Accept
 import akka.http.scaladsl.testkit.ScalatestRouteTest
-import akka.stream.ActorMaterializer
 import akka.stream.scaladsl.Source
 import akka.util.ByteString
 import cats.data.EitherT
@@ -96,7 +95,6 @@ class FileRoutesSpec
     Caches(projectCache, viewCache, resolverCache, storageCache, mock[ArchiveCache[Task]])
 
   private implicit val ec            = system.dispatcher
-  private implicit val mt            = ActorMaterializer()
   private implicit val utClient      = untyped[Task]
   private implicit val qrClient      = withUnmarshaller[Task, QueryResults[Json]]
   private implicit val jsonClient    = withUnmarshaller[Task, Json]

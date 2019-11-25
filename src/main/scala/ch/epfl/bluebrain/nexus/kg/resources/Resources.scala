@@ -1,7 +1,7 @@
 package ch.epfl.bluebrain.nexus.kg.resources
 
 import cats.data.EitherT
-import cats.effect.{Effect, Timer}
+import cats.effect.Effect
 import ch.epfl.bluebrain.nexus.admin.client.types.Project
 import ch.epfl.bluebrain.nexus.commons.es.client.ElasticSearchClient
 import ch.epfl.bluebrain.nexus.commons.http.HttpClient
@@ -35,7 +35,7 @@ import org.apache.jena.rdf.model.Model
 /**
   * Resource operations.
   */
-class Resources[F[_]: Timer](
+class Resources[F[_]](
     implicit F: Effect[F],
     val repo: Repo[F],
     materializer: Materializer[F],
@@ -372,7 +372,7 @@ object Resources {
     * @tparam F the monadic effect type
     * @return a new [[Resources]] for the provided F type
     */
-  final def apply[F[_]: Timer: Repo: Effect: Materializer](implicit config: AppConfig): Resources[F] =
+  final def apply[F[_]: Repo: Effect: Materializer](implicit config: AppConfig): Resources[F] =
     new Resources[F]()
 
   private[resources] final case class SchemaContext(
