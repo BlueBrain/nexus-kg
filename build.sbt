@@ -90,8 +90,10 @@ lazy val kg = project
   .settings(testSettings, buildInfoSettings)
   .enablePlugins(BuildInfoPlugin, ServicePackagingPlugin)
   .settings(
-    name       := "kg",
-    moduleName := "kg",
+    name                 := "kg",
+    moduleName           := "kg",
+    cleanFiles           ++= (baseDirectory.value * "ddata*").get,
+    Docker / packageName := "nexus-kg",
     libraryDependencies ++= Seq(
       adminClient,
       akkaDowning,
@@ -123,17 +125,7 @@ lazy val kg = project
       mockito              % Test,
       s3mock               % Test,
       scalaTest            % Test
-    ),
-    cleanFiles ++= (baseDirectory.value * "ddata*").get,
-    mappings in Universal := {
-      val universalMappings = (mappings in Universal).value
-      universalMappings.foldLeft(Vector.empty[(File, String)]) {
-        case (acc, (file, filename)) if filename.contains("kanela-agent") =>
-          acc :+ (file, "lib/instrumentation-agent.jar")
-        case (acc, other) =>
-          acc :+ other
-      }
-    }
+    )
   )
 
 lazy val testSettings = Seq(

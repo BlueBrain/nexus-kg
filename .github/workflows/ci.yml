@@ -13,10 +13,10 @@ jobs:
     strategy:
       fail-fast: true
     steps:
-      - uses: actions/checkout@v1
-      - uses: olafurpg/setup-scala@v5
-        with:
-          java-version: adopt@1.11
+      - name: Checkout
+        uses: actions/checkout@v1
+      - name: SetupSbt
+        uses: olafurpg/setup-scala@v5
       - name: StaticAnalysis
         run: sbt clean scalafmtCheck test:scalafmtCheck scalafmtSbtCheck scapegoat
       - name: Tests
@@ -31,15 +31,23 @@ jobs:
       BINTRAY_USER: ${{ secrets.BINTRAY_USER }}
       BINTRAY_PASS: ${{ secrets.BINTRAY_PASS }}
     steps:
-      - uses: actions/checkout@v1
-      - uses: olafurpg/setup-scala@v5
+      - name: Checkout
+        uses: actions/checkout@v1
+      - name: SetupSbt
+        uses: olafurpg/setup-scala@v5
         with:
           java-version: adopt@1.11
-      - name: Publish
+      - name: PublishToBintray
         run: sbt releaseEarly
+      - name: PublishToDockerHub
+        run: |
+          sbt docker:publishLocal
+          echo ${{ secrets.DOCKER_PASS }} | docker login --username ${{ secrets.DOCKER_USER }} --password-stdin
+          docker push bluebrain/nexus-kg:latest
       - name: RecordCoverage
         run: sbt clean coverage test coverageReport coverageAggregate
-      - uses: codecov/codecov-action@v1
+      - name: PublishCoverage
+        uses: codecov/codecov-action@v1
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
   release:
@@ -52,14 +60,24 @@ jobs:
       BINTRAY_USER: ${{ secrets.BINTRAY_USER }}
       BINTRAY_PASS: ${{ secrets.BINTRAY_PASS }}
     steps:
-      - uses: actions/checkout@v1
-      - uses: olafurpg/setup-scala@v5
+      - name: Checkout
+        uses: actions/checkout@v1
+      - name: SetupSbt
+        uses: olafurpg/setup-scala@v5
         with:
           java-version: adopt@1.11
-      - name: Publish
+      - name: SetVersion
+        run: echo ::set-env name=VERSION::$(echo ${GITHUB_REF:11})
+      - name: PublishToBintray
         run: sbt releaseEarly
+      - name: PublishToDockerHub
+        run: |
+          sbt ";set Docker/version := \"${{ env.VERSION }}\"; docker:publishLocal"
+          echo ${{ secrets.DOCKER_PASS }} | docker login --username ${{ secrets.DOCKER_USER }} --password-stdin
+          docker push bluebrain/nexus-kg:${{ env.VERSION }}
       - name: RecordCoverage
         run: sbt clean coverage test coverageReport coverageAggregate
-      - uses: codecov/codecov-action@v1
+      - name: PublishCoverage
+        uses: codecov/codecov-action@v1
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
