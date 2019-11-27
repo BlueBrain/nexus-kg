@@ -220,7 +220,13 @@ object View {
   /**
     * Enumeration of indexed view types.
     */
-  sealed trait IndexedView extends View with FilteredView
+  sealed trait IndexedView extends View with FilteredView {
+
+    /**
+      * The progress id for this view
+      */
+    def progressId(implicit config: AppConfig): String
+  }
 
   /**
     * Enumeration of multiple view types.
@@ -267,11 +273,6 @@ object View {
       * The index value for this view
       */
     def index(implicit config: AppConfig): String
-
-    /**
-      * The progress id for this view
-      */
-    def progressId(implicit config: AppConfig): String
 
     /**
       * Attempts to create an index.
@@ -685,8 +686,16 @@ object View {
   ) extends IndexedView {
     override def filter: Filter = source.filter
 
+    override def progressId(implicit config: AppConfig): String =
+      defaultSparqlView.progressId
+
     def defaultSparqlView: SparqlView =
       SparqlView(filter, source.includeMetadata, ref, nxv.defaultSparqlIndex.value, uuid, rev, deprecated)
+
+    def projectionsBy[T <: Projection: Typeable]: Set[T] = {
+      val tpe = TypeCase[T]
+      projections.collect { case tpe(projection) => projection }
+    }
 
   }
 
@@ -694,10 +703,10 @@ object View {
 
     final case class Source(filter: Filter, includeMetadata: Boolean)
 
-    sealed trait Projection {
+    sealed trait Projection extends Product with Serializable {
       def query: String
       def view: SingleView
-      def indexId[F[_]: Monad](res: ResourceV, graph: Graph)(
+      def indexResourceGraph[F[_]: Monad](res: ResourceV, graph: Graph)(
           implicit clients: Clients[F],
           config: AppConfig,
           metadataOpts: MetadataOptions,
@@ -711,13 +720,8 @@ object View {
         * @param res the resource
         * @return a Sparql query results response
         */
-      def runQuery[F[_]: Effect: Timer](res: ResourceV)(
-          implicit client: BlazegraphClient[F],
-          config: AppConfig
-      ): F[SparqlResults] =
-        client
-          .copy(namespace = view.index)
-          .queryRaw(query.replaceAll(quote("{resource_id}"), s"<${res.id.value.asString}>"))
+      def runQuery[F[_]: Effect: Timer](res: ResourceV)(implicit client: BlazegraphClient[F]): F[SparqlResults] =
+        client.queryRaw(query.replaceAll(quote("{resource_id}"), s"<${res.id.value.asString}>"))
     }
 
     object Projection {
@@ -732,7 +736,7 @@ object View {
           * @param graph the graph to be converted to a Document
           * @return Some(())) if the conversion was successful and the document was indexed, None otherwise
           */
-        def indexId[F[_]](
+        def indexResourceGraph[F[_]](
             res: ResourceV,
             graph: Graph
         )(
@@ -743,8 +747,9 @@ object View {
             logger: Logger,
             project: Project
         ): F[Option[Unit]] = {
-          val rootNode  = IriNode(res.id.value)
-          val finalCtx  = if (view.includeMetadata) view.ctx.appendContextOf(context) else context
+          val rootNode = IriNode(res.id.value)
+          val finalCtx =
+            if (view.includeMetadata) view.ctx.appendContextOf(Json.obj("@context" -> context)) else context
           val metaGraph = if (view.includeMetadata) Graph(graph.triples ++ res.metadata(metadataOpts)) else graph
           val client    = clients.elasticSearch.withRetryPolicy(config.elasticSearch.indexing.retry)
           RootedGraph(rootNode, metaGraph).as[Json](finalCtx) match {
@@ -770,7 +775,7 @@ object View {
           * @param graph the graph to be indexed
           * @return Some(())) if the triples were indexed, None otherwise
           */
-        def indexId[F[_]](
+        def indexResourceGraph[F[_]](
             res: ResourceV,
             graph: Graph
         )(

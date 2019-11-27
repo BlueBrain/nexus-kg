@@ -1,13 +1,11 @@
 package ch.epfl.bluebrain.nexus.kg.async
 
-import java.time.Instant
 import java.util.UUID
 
 import akka.actor.{Actor, ActorLogging, ActorRef, ActorSystem, Props}
 import akka.cluster.sharding.ShardRegion.{ExtractEntityId, ExtractShardId}
 import akka.cluster.sharding.{ClusterSharding, ClusterShardingSettings, ShardRegion}
 import akka.pattern.pipe
-import akka.persistence.query.{NoOffset, Offset, Sequence, TimeBasedUUID}
 import akka.stream.scaladsl.Source
 import cats.implicits._
 import ch.epfl.bluebrain.nexus.admin.client.types.Project
@@ -17,6 +15,7 @@ import ch.epfl.bluebrain.nexus.kg.async.ProjectAttributesCoordinatorActor._
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig._
 import ch.epfl.bluebrain.nexus.kg.indexing.{cassandraSource, Statistics}
+import ch.epfl.bluebrain.nexus.kg.resources.syntax._
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection.FileDigestAlreadyExists
 import ch.epfl.bluebrain.nexus.kg.resources.{Event, Files, Rejection, Resource}
 import ch.epfl.bluebrain.nexus.kg.storage.Storage.StorageOperations.FetchAttributes
@@ -44,7 +43,7 @@ private abstract class ProjectAttributesCoordinatorActor(implicit val config: Ap
       log.debug("Started attributes coordinator for project '{}'", project.show)
       context.become(initialized(project))
       child = Some(startCoordinator(project, restartOffset = false))
-    case FetchProgress(uuid) => val _ = progress(uuid).runToFuture pipeTo sender()
+    case FetchStatistics(uuid) => val _ = progress(uuid).runToFuture pipeTo sender()
     case other =>
       log.debug("Received non Start message '{}', ignore", other)
   }
@@ -56,7 +55,7 @@ private abstract class ProjectAttributesCoordinatorActor(implicit val config: Ap
       child = None
       context.become(receive)
 
-    case FetchProgress(uuid) => val _ = progress(uuid).runToFuture pipeTo sender()
+    case FetchStatistics(uuid) => val _ = progress(uuid).runToFuture pipeTo sender()
 
     case _: Start => //ignore, it has already been started
 
@@ -90,7 +89,7 @@ object ProjectAttributesCoordinatorActor {
 
     final case class Start(uuid: UUID, project: Project) extends Msg
     final case class Stop(uuid: UUID)                    extends Msg
-    final case class FetchProgress(uuid: UUID)           extends Msg
+    final case class FetchStatistics(uuid: UUID)         extends Msg
   }
 
   private[async] def shardExtractor(shards: Int): ExtractShardId = {
@@ -181,17 +180,5 @@ object ProjectAttributesCoordinatorActor {
       entityExtractor,
       shardExtractor(shards)
     )
-  }
-
-  private[async] implicit class OffsetSyntax(offset: Offset) {
-
-    val NUM_100NS_INTERVALS_SINCE_UUID_EPOCH = 0X01B21DD213814000L
-
-    def asInstant: Option[Instant] = offset match {
-      case NoOffset | Sequence(_) => None
-      case TimeBasedUUID(uuid)    =>
-        //adapted from https://support.datastax.com/hc/en-us/articles/204226019-Converting-TimeUUID-Strings-to-Dates
-        Some(Instant.ofEpochMilli((uuid.timestamp - NUM_100NS_INTERVALS_SINCE_UUID_EPOCH) / 10000))
-    }
   }
 }

@@ -148,6 +148,9 @@ object Vocabulary {
     //Links property
     val paths = PrefixMapping.prefix("paths")
 
+    //Progress offset
+    val offset = PrefixMapping.prefix("offset")
+
     // @type platform ids
     val Archive                    = PrefixMapping.prefix("Archive")
     val UpdateFileAttributes       = PrefixMapping.prefix("UpdateFileAttributes")
@@ -173,6 +176,9 @@ object Vocabulary {
     val Authenticated              = PrefixMapping.prefix("Authenticated")
     val Anonymous                  = PrefixMapping.prefix("Anonymous")
     val AccessControlList          = PrefixMapping.prefix("AccessControlList")
+    val NoProgress                 = PrefixMapping.prefix("NoProgress")
+    val Sequential                 = PrefixMapping.prefix("Sequential")
+    val TimeBased                  = PrefixMapping.prefix("TimeBased")
   }
 
   /**

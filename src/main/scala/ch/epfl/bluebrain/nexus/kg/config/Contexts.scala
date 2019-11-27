@@ -14,6 +14,7 @@ object Contexts {
   val archiveCtxUri: AbsoluteIri    = base + "archive.json"
   val fileAttrCtxUri: AbsoluteIri   = base + "file-attr.json"
   val statisticsCtxUri: AbsoluteIri = base + "statistics.json"
+  val progressCtxUri: AbsoluteIri   = base + "progress.json"
   val resourceCtxUri: AbsoluteIri   = base + "resource.json"
   val resolverCtxUri: AbsoluteIri   = base + "resolver.json"
   val viewCtxUri: AbsoluteIri       = base + "view.json"
@@ -25,6 +26,7 @@ object Contexts {
   val archiveCtx: Json    = jsonContentOf("/contexts/archive-context.json")
   val fileAttrCtx: Json   = jsonContentOf("/contexts/file-attr-context.json")
   val statisticsCtx: Json = jsonContentOf("/contexts/statistics-context.json")
+  val progressCtx: Json   = jsonContentOf("/contexts/progress-context.json")
   val resourceCtx: Json   = jsonContentOf("/contexts/resource-context.json")
   val resolverCtx: Json   = jsonContentOf("/contexts/resolver-context.json")
   val viewCtx: Json       = jsonContentOf("/contexts/view-context.json")

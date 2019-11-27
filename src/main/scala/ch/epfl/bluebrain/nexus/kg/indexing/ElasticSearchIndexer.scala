@@ -50,7 +50,7 @@ object ElasticSearchIndexer {
     implicit val ec: ExecutionContext          = as.dispatcher
     implicit val p: Project                    = project
     implicit val indexing: IndexingConfig      = config.elasticSearch.indexing
-    implicit val metadataOpts: MetadataOptions = MetadataOptions(linksAsIri = false, expandedLinks = true)
+    implicit val metadataOpts: MetadataOptions = MetadataOptions(linksAsIri = true, expandedLinks = true)
     val client: ElasticSearchClient[F]         = clients.elasticSearch.withRetryPolicy(config.elasticSearch.indexing.retry)
 
     def deleteOrIndex(res: ResourceV): Option[BulkOp] =
@@ -62,7 +62,7 @@ object ElasticSearchIndexer {
 
     val initFetchProgressF: F[ProjectionProgress] =
       if (restartOffset)
-        projections.recordProgress(view.progressId, NoProgress) >> view.createIndex >> F.delay(NoProgress)
+        projections.recordProgress(view.progressId, NoProgress) >> view.createIndex >> F.pure(NoProgress)
       else view.createIndex >> projections.progress(view.progressId)
 
     val sourceF: F[Source[ProjectionProgress, _]] = initFetchProgressF.map { initial =>

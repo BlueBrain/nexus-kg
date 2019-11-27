@@ -74,7 +74,9 @@ trait RoutesFixtures extends TestHelper with Resources {
 
   val defaultEsView = ElasticSearchView(Json.obj(), Filter(), false, true, projectRef, nxv.defaultElasticSearchIndex.value, genUUID, 1L, false)
   val defaultSparqlView = SparqlView.default(projectRef)
-  val compositeView = CompositeView(Source(Filter(), includeMetadata = false), Set(SparqlProjection("", defaultSparqlView), ElasticSearchProjection("", defaultEsView, Json.obj())), projectRef, genIri, genUUID, 1L, deprecated = false)
+  val sparqlProjection = SparqlProjection("", defaultSparqlView)
+  val elasticSearchProjection = ElasticSearchProjection("", defaultEsView, Json.obj())
+  val compositeView = CompositeView(Source(Filter(), includeMetadata = false), Set(sparqlProjection, elasticSearchProjection), projectRef, genIri, genUUID, 1L, deprecated = false)
   // format: on
 
   implicit val finalProject = projectMeta.copy(apiMappings = projectMeta.apiMappings ++ defaultPrefixMapping)
