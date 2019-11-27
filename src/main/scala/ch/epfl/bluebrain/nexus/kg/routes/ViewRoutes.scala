@@ -73,7 +73,7 @@ class ViewRoutes private[routes] (
     concat(
       // Create view when id is not provided on the Uri (POST)
       (post & noParameter('rev.as[Long]) & pathEndOrSingleSlash) {
-        operationName(s"/${config.http.prefix}/views/{}/{}") {
+        operationName(s"/${config.http.prefix}/views/{org}/{project}") {
           Kamon.currentSpan().tag("resource.operation", "create")
           (hasPermission(write) & projectNotDeprecated) {
             entity(as[Json]) { source =>
@@ -84,7 +84,7 @@ class ViewRoutes private[routes] (
       },
       // List views
       (get & paginated & searchParams(fixedSchema = viewSchemaUri) & pathEndOrSingleSlash) { (page, params) =>
-        operationName(s"/${config.http.prefix}/views/{}/{}") {
+        operationName(s"/${config.http.prefix}/views/{org}/{project}") {
           extractUri { implicit uri =>
             hasPermission(read).apply {
               val listed = viewCache.getDefaultElasticSearch(project.ref).flatMap(views.list(_, params, page))
@@ -111,7 +111,7 @@ class ViewRoutes private[routes] (
     concat(
       // Retrieves view statistics
       (get & pathPrefix("statistics") & pathEndOrSingleSlash) {
-        operationName(s"/${config.http.prefix}/views/{}/{}/{}/statistics") {
+        operationName(s"/${config.http.prefix}/views/{org}/{project}/{id}/statistics") {
           hasPermission(read).apply {
             val result: Task[Either[Rejection, Statistics]] = viewCache.getBy[View](project.ref, id).flatMap {
               case Some(view: IndexedView) => coordinator.statistics(view).map(Right(_))
@@ -124,7 +124,7 @@ class ViewRoutes private[routes] (
       },
       // Retrieves progress for a view
       (get & pathPrefix("progress") & pathEndOrSingleSlash) {
-        operationName(s"/${config.http.prefix}/views/{}/{}/{}/progress") {
+        operationName(s"/${config.http.prefix}/views/{org}/{project}/{id}/progress") {
           hasPermission(read).apply {
             val result: Task[Either[Rejection, ProgressWrapper]] = viewCache.getBy[View](project.ref, id).flatMap {
               case Some(view: IndexedView) => coordinator.offset(view).map(off => Right(ProgressWrapper(off)))
@@ -137,7 +137,7 @@ class ViewRoutes private[routes] (
       },
       // Delete progress from a view. This triggers view restart with initial progress
       (delete & pathPrefix("progress") & pathEndOrSingleSlash) {
-        operationName(s"/${config.http.prefix}/views/{}/{}/{}/progress") {
+        operationName(s"/${config.http.prefix}/views/{org}/{project}/{id}/progress") {
           hasPermission(write).apply {
             val result: Task[Either[Rejection, ProgressWrapper]] =
               viewCache.getBy[IndexedView](project.ref, id).flatMap {
@@ -150,7 +150,7 @@ class ViewRoutes private[routes] (
       },
       // Queries a view on the ElasticSearch endpoint
       (post & pathPrefix("_search") & pathEndOrSingleSlash) {
-        operationName(s"/${config.http.prefix}/views/{}/{}/{}/_search") {
+        operationName(s"/${config.http.prefix}/views/{org}/{project}/{id}/_search") {
           (hasPermission(query) & extract(_.request.uri.query())) { params =>
             entity(as[Json]) { query =>
               val result = viewCache.getBy[View](project.ref, id).flatMap(runSearch(params, id, query))
@@ -161,7 +161,7 @@ class ViewRoutes private[routes] (
       },
       // Queries a view on the Sparql endpoint
       (post & pathPrefix("sparql") & pathEndOrSingleSlash) {
-        operationName(s"/${config.http.prefix}/views/{}/{}/{}/sparql") {
+        operationName(s"/${config.http.prefix}/views/{org}/{project}/{id}/sparql") {
           hasPermission(query).apply {
             entity(as[String]) { query =>
               val result = viewCache.getBy[View](project.ref, id).flatMap(runSearch(id, query))
@@ -172,7 +172,7 @@ class ViewRoutes private[routes] (
       },
       // Create or update a view (depending on rev query parameter)
       (put & pathEndOrSingleSlash) {
-        operationName(s"/${config.http.prefix}/views/{}/{}/{}") {
+        operationName(s"/${config.http.prefix}/views/{org}/{project}/{id}") {
           (hasPermission(write) & projectNotDeprecated) {
             entity(as[Json]) { source =>
               parameter('rev.as[Long].?) {
@@ -189,7 +189,7 @@ class ViewRoutes private[routes] (
       },
       // Deprecate view
       (delete & parameter('rev.as[Long]) & pathEndOrSingleSlash) { rev =>
-        operationName(s"/${config.http.prefix}/views/{}/{}/{}") {
+        operationName(s"/${config.http.prefix}/views/{org}/{project}/{id}") {
           (hasPermission(write) & projectNotDeprecated) {
             complete(views.deprecate(Id(project.ref, id), rev).value.runWithStatus(OK))
           }
@@ -197,7 +197,7 @@ class ViewRoutes private[routes] (
       },
       // Fetch view
       (get & pathEndOrSingleSlash) {
-        operationName(s"/${config.http.prefix}/views/{}/{}/{}") {
+        operationName(s"/${config.http.prefix}/views/{org}/{project}/{id}") {
           outputFormat(strict = false, Compacted) {
             case format: NonBinaryOutputFormat =>
               hasPermission(read).apply {
@@ -219,7 +219,7 @@ class ViewRoutes private[routes] (
       },
       // Fetch view source
       (get & pathPrefix("source") & pathEndOrSingleSlash) {
-        operationName(s"/${config.http.prefix}/views/{}/{}/{}/source") {
+        operationName(s"/${config.http.prefix}/views/{org}/{project}/{id}/source") {
           hasPermission(read).apply {
             concat(
               (parameter('rev.as[Long]) & noParameter('tag)) { rev =>
@@ -237,7 +237,7 @@ class ViewRoutes private[routes] (
       },
       // Incoming links
       (get & pathPrefix("incoming") & pathEndOrSingleSlash) {
-        operationName(s"/${config.http.prefix}/views/{}/{}/{}/incoming") {
+        operationName(s"/${config.http.prefix}/views/{org}/{project}/{id}/incoming") {
           fromPaginated.apply { implicit page =>
             extractUri { implicit uri =>
               hasPermission(read).apply {
@@ -251,7 +251,7 @@ class ViewRoutes private[routes] (
       // Outgoing links
       (get & pathPrefix("outgoing") & parameter('includeExternalLinks.as[Boolean] ? true) & pathEndOrSingleSlash) {
         links =>
-          operationName(s"/${config.http.prefix}/views/{}/{}/{}/outgoing") {
+          operationName(s"/${config.http.prefix}/views/{org}/{project}/{id}/outgoing") {
             fromPaginated.apply { implicit page =>
               extractUri { implicit uri =>
                 hasPermission(read).apply {
@@ -281,7 +281,7 @@ class ViewRoutes private[routes] (
     concat(
       // Queries the ElasticSearch endpoint of every projection on an aggregated search
       (post & pathPrefix("_search") & pathEndOrSingleSlash) {
-        operationName(s"/${config.http.prefix}/views/{}/{}/{}/projections/_/_search") {
+        operationName(s"/${config.http.prefix}/views/{org}/{project}/{id}/projections/_/_search") {
           (hasPermission(query) & extract(_.request.uri.query())) { params =>
             entity(as[Json]) { query =>
               val result =
@@ -293,7 +293,7 @@ class ViewRoutes private[routes] (
       },
       // Queries the Sparql endpoint of every projection on an aggregated search
       (post & pathPrefix("sparql") & pathEndOrSingleSlash) {
-        operationName(s"/${config.http.prefix}/views/{}/{}/{}/projections/_/sparql") {
+        operationName(s"/${config.http.prefix}/views/{org}/{project}/{id}/projections/_/sparql") {
           hasPermission(query).apply {
             entity(as[String]) { query =>
               val result = viewCache.getBy[CompositeView](project.ref, id).flatMap(runProjectionsSearch(id, query))
@@ -304,7 +304,7 @@ class ViewRoutes private[routes] (
       },
       // Retrieves statistics from all projections
       (get & pathPrefix("statistics") & pathEndOrSingleSlash) {
-        operationName(s"/${config.http.prefix}/views/{}/{}/{}/projections/_/statistics") {
+        operationName(s"/${config.http.prefix}/views/{org}/{project}/{id}/projections/_/statistics") {
           hasPermission(read).apply {
             val listed: Task[ListResults[Statistics]] =
               viewCache.getBy[CompositeView](project.ref, id).flatMap {
@@ -317,7 +317,7 @@ class ViewRoutes private[routes] (
       },
       // Retrieves progress from all projections
       (get & pathPrefix("progress") & pathEndOrSingleSlash) {
-        operationName(s"/${config.http.prefix}/views/{}/{}/{}/projections/_/progress") {
+        operationName(s"/${config.http.prefix}/views/{org}/{project}/{id}/projections/_/progress") {
           hasPermission(read).apply {
             val listed: Task[ListResults[ProgressWrapper]] =
               viewCache.getBy[CompositeView](project.ref, id).flatMap {
@@ -331,7 +331,7 @@ class ViewRoutes private[routes] (
       },
       // Delete progress from all projections. This triggers view restart with initial progress all projections
       (delete & pathPrefix("progress") & pathEndOrSingleSlash) {
-        operationName(s"/${config.http.prefix}/views/{}/{}/{}/projections/_/progress") {
+        operationName(s"/${config.http.prefix}/views/{org}/{project}/{id}/projections/_/progress") {
           hasPermission(write).apply {
             val result: Task[Either[Rejection, ProgressWrapper]] =
               viewCache.getBy[CompositeView](project.ref, id).flatMap {
@@ -348,7 +348,7 @@ class ViewRoutes private[routes] (
     concat(
       // Queries a projection view on the ElasticSearch endpoint
       (post & pathPrefix("_search") & pathEndOrSingleSlash) {
-        operationName(s"/${config.http.prefix}/views/{}/{}/{}/projections/{}/_search") {
+        operationName(s"/${config.http.prefix}/views/{org}/{project}/{id}/projections/{projectionId}/_search") {
           (hasPermission(query) & extract(_.request.uri.query())) { params =>
             entity(as[Json]) { query =>
               val result =
@@ -360,7 +360,7 @@ class ViewRoutes private[routes] (
       },
       // Queries a projection view on the Sparql endpoint
       (post & pathPrefix("sparql") & pathEndOrSingleSlash) {
-        operationName(s"/${config.http.prefix}/views/{}/{}/{}/projections/{}/sparql") {
+        operationName(s"/${config.http.prefix}/views/{org}/{project}/{id}/projections/{projectionId}/sparql") {
           hasPermission(query).apply {
             entity(as[String]) { query =>
               val result = viewCache.getProjectionBy[View](project.ref, id, projectionId).flatMap(runSearch(id, query))
@@ -371,7 +371,7 @@ class ViewRoutes private[routes] (
       },
       // Retrieves statistics for a projection
       (get & pathPrefix("statistics") & pathEndOrSingleSlash) {
-        operationName(s"/${config.http.prefix}/views/{}/{}/{}/projections/{}/statistics") {
+        operationName(s"/${config.http.prefix}/views/{org}/{project}/{id}/projections/{projectionId}/statistics") {
           hasPermission(read).apply {
             val result: Task[Either[Rejection, Statistics]] =
               viewCache.getViewAndProjectionBy[SingleView](project.ref, id, projectionId).flatMap {
@@ -384,7 +384,7 @@ class ViewRoutes private[routes] (
       },
       // Retrieves progress for a projection
       (get & pathPrefix("progress") & pathEndOrSingleSlash) {
-        operationName(s"/${config.http.prefix}/views/{}/{}/{}/projections/{}/progress") {
+        operationName(s"/${config.http.prefix}/views/{org}/{project}/{id}/projections/{projectionId}/progress") {
           hasPermission(read).apply {
             val result: Task[Either[Rejection, ProgressWrapper]] =
               viewCache.getViewAndProjectionBy[SingleView](project.ref, id, projectionId).flatMap {
@@ -397,7 +397,7 @@ class ViewRoutes private[routes] (
       },
       // Delete progress from a projection. This triggers view restart with initial progress for selected projection
       (delete & pathPrefix("progress") & pathEndOrSingleSlash) {
-        operationName(s"/${config.http.prefix}/views/{}/{}/{}/projections/{}/progress") {
+        operationName(s"/${config.http.prefix}/views/{org}/{project}/{id}/projections/{projectionId}/progress") {
           hasPermission(write).apply {
             val result: Task[Either[Rejection, ProgressWrapper]] =
               viewCache.getViewAndProjectionBy[SingleView](project.ref, id, projectionId).flatMap {

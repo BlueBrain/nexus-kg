@@ -201,7 +201,7 @@ object Routes {
 
     def list(implicit acls: AccessControlLists, caller: Caller, project: Project): Route =
       (get & paginated & searchParams & pathEndOrSingleSlash) { (pagination, params) =>
-        operationName(s"/${config.http.prefix}/resources/{}/{}") {
+        operationName(s"/${config.http.prefix}/resources/{org}/{project}") {
           (hasPermission(read) & extractUri) { implicit uri =>
             val listed = viewCache.getDefaultElasticSearch(project.ref).flatMap(resources.list(_, params, pagination))
             complete(listed.runWithStatus(OK))
@@ -216,7 +216,7 @@ object Routes {
 
     def createDefault(implicit acls: AccessControlLists, caller: Caller, project: Project): Route =
       (post & noParameter('rev.as[Long]) & pathEndOrSingleSlash) {
-        operationName(s"/${config.http.prefix}/resources/{}/{}") {
+        operationName(s"/${config.http.prefix}/resources/{org}/{project}") {
           (hasPermission(ResourceRoutes.write) & projectNotDeprecated) {
             entity(as[Json]) { source =>
               complete(resources.create(unconstrainedRef, source).value.runWithStatus(Created))

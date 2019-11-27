@@ -22,7 +22,7 @@ class EventRoutes(acls: AccessControlLists, caller: Caller)(implicit as: ActorSy
 
   def routes(project: Project): Route = {
     lastEventId { offset =>
-      operationName(s"/${config.http.prefix}/resources/{}/{}/events") {
+      operationName(s"/${config.http.prefix}/resources/{org}/{project}/events") {
         implicit val p: Project = project
         hasPermission(read).apply {
           complete(source(s"project=${project.uuid}", offset))
@@ -33,7 +33,7 @@ class EventRoutes(acls: AccessControlLists, caller: Caller)(implicit as: ActorSy
 
   def routes(org: Organization): Route =
     lastEventId { offset =>
-      operationName(s"/${config.http.prefix}/resources/{}/events") {
+      operationName(s"/${config.http.prefix}/resources/{org}/events") {
         hasPermission(read, org.label).apply {
           complete(source(s"org=${org.uuid}", offset))
         }

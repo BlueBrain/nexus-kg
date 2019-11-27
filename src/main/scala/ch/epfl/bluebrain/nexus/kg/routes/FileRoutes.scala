@@ -62,7 +62,7 @@ class FileRoutes private[routes] (files: Files[Task], resources: Resources[Task]
           // Uploading a file from the client
           (withSizeLimit(storage.maxFileSize) & fileUpload("file")) {
             case (metadata, byteSource) =>
-              operationName(s"/${config.http.prefix}/files/{}/{}") {
+              operationName(s"/${config.http.prefix}/files/{org}/{project}") {
                 Kamon.currentSpan().tag("file.operation", "upload").tag("resource.operation", "create")
                 hasPermission(storage.writePermission).apply {
                   val description = FileDescription(metadata.fileName, metadata.contentType)
@@ -73,7 +73,7 @@ class FileRoutes private[routes] (files: Files[Task], resources: Resources[Task]
           },
           // Linking a file from the storage service
           entity(as[Json]) { source =>
-            operationName(s"/${config.http.prefix}/files/{}/{}") {
+            operationName(s"/${config.http.prefix}/files/{org}/{project}") {
               Kamon.currentSpan().tag("file.operation", "link").tag("resource.operation", "create")
               hasPermission(storage.writePermission).apply {
                 val created = files.createLink(storage, source)
@@ -86,7 +86,7 @@ class FileRoutes private[routes] (files: Files[Task], resources: Resources[Task]
       // List files
       (get & paginated & searchParams(fixedSchema = fileSchemaUri) & pathEndOrSingleSlash) { (page, params) =>
         extractUri { implicit uri =>
-          operationName(s"/${config.http.prefix}/files/{}/{}") {
+          operationName(s"/${config.http.prefix}/files/{org}/{project}") {
             hasPermission(read).apply {
               val listed = viewCache.getDefaultElasticSearch(project.ref).flatMap(files.list(_, params, page))
               complete(listed.runWithStatus(OK))
@@ -112,7 +112,7 @@ class FileRoutes private[routes] (files: Files[Task], resources: Resources[Task]
     concat(
       // Create or update a file (depending on rev query parameter)
       (put & pathEndOrSingleSlash & storage) { storage =>
-        operationName(s"/${config.http.prefix}/files/{}/{}/{}") {
+        operationName(s"/${config.http.prefix}/files/{org}/{project}/{id}") {
           val resId = Id(project.ref, id)
           (hasPermission(storage.writePermission) & projectNotDeprecated) {
             // Uploading a file from the client
@@ -147,7 +147,7 @@ class FileRoutes private[routes] (files: Files[Task], resources: Resources[Task]
       },
       // Updating file attributes manually
       (patch & pathEndOrSingleSlash & storage & parameter('rev.as[Long])) { (storage, rev) =>
-        operationName(s"/${config.http.prefix}/files/{}/{}/{}") {
+        operationName(s"/${config.http.prefix}/files/{org}/{project}/{id}") {
           (hasPermission(storage.writePermission) & projectNotDeprecated) {
             entity(as[Json]) { source =>
               complete(files.updateFileAttr(Id(project.ref, id), storage, rev, source).value.runWithStatus(OK))
@@ -157,7 +157,7 @@ class FileRoutes private[routes] (files: Files[Task], resources: Resources[Task]
       },
       // Deprecate file
       (delete & parameter('rev.as[Long]) & pathEndOrSingleSlash) { rev =>
-        operationName(s"/${config.http.prefix}/files/{}/{}/{}") {
+        operationName(s"/${config.http.prefix}/files/{org}/{project}/{id}") {
           (hasPermission(write) & projectNotDeprecated) {
             complete(files.deprecate(Id(project.ref, id), rev).value.runWithStatus(OK))
           }
@@ -171,7 +171,7 @@ class FileRoutes private[routes] (files: Files[Task], resources: Resources[Task]
       },
       // Fetch file source
       (get & pathPrefix("source") & pathEndOrSingleSlash) {
-        operationName(s"/${config.http.prefix}/files/{}/{}/{}/source") {
+        operationName(s"/${config.http.prefix}/files/{org}/{project}/{id}/source") {
           hasPermission(read).apply {
             concat(
               (parameter('rev.as[Long]) & noParameter('tag)) { rev =>
@@ -191,7 +191,7 @@ class FileRoutes private[routes] (files: Files[Task], resources: Resources[Task]
       (get & pathPrefix("incoming") & pathEndOrSingleSlash) {
         fromPaginated.apply { implicit page =>
           extractUri { implicit uri =>
-            operationName(s"/${config.http.prefix}/files/{}/{}/{}/incoming") {
+            operationName(s"/${config.http.prefix}/files/{org}/{project}/{id}/incoming") {
               hasPermission(read).apply {
                 val listed = viewCache.getDefaultSparql(project.ref).flatMap(files.listIncoming(id, _, page))
                 complete(listed.runWithStatus(OK))
@@ -205,7 +205,7 @@ class FileRoutes private[routes] (files: Files[Task], resources: Resources[Task]
         links =>
           fromPaginated.apply { implicit page =>
             extractUri { implicit uri =>
-              operationName(s"/${config.http.prefix}/files/{}/{}/{}/outgoing") {
+              operationName(s"/${config.http.prefix}/files/{org}/{project}/{id}/outgoing") {
                 hasPermission(read).apply {
                   val listed = viewCache.getDefaultSparql(project.ref).flatMap(files.listOutgoing(id, _, page, links))
                   complete(listed.runWithStatus(OK))
@@ -218,7 +218,7 @@ class FileRoutes private[routes] (files: Files[Task], resources: Resources[Task]
     )
 
   private def getResource(id: AbsoluteIri)(implicit format: NonBinaryOutputFormat) =
-    operationName(s"/${config.http.prefix}/files/{}/{}/{}") {
+    operationName(s"/${config.http.prefix}/files/{org}/{project}/{id}") {
       Kamon.currentSpan().tag("file.operation", "read")
       hasPermission(read).apply {
         concat(
@@ -236,7 +236,7 @@ class FileRoutes private[routes] (files: Files[Task], resources: Resources[Task]
     }
 
   private def getFile(id: AbsoluteIri): Route =
-    operationName(s"/${config.http.prefix}/files/{}/{}/{}") {
+    operationName(s"/${config.http.prefix}/files/{org}/{project}/{id}") {
       Kamon.currentSpan().tag("file.operation", "download")
       // permission checks are in completeFile
       concat(
