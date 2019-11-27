@@ -17,6 +17,8 @@ jobs:
         uses: actions/checkout@v1
       - name: SetupSbt
         uses: olafurpg/setup-scala@v5
+        with:
+          java-version: adopt@1.11
       - name: StaticAnalysis
         run: sbt clean scalafmtCheck test:scalafmtCheck scalafmtSbtCheck scapegoat
       - name: Tests
