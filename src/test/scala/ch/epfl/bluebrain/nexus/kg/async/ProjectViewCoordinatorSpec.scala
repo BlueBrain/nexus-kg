@@ -215,7 +215,7 @@ class ProjectViewCoordinatorSpec
     }
 
     "trigger manual view restart" in {
-      coordinator.restart(view)
+      coordinator.restart(view).runToFuture.futureValue
       currentStart.incrementAndGet()
       eventually(coordinator1.stop() wasCalled once)
       eventually(counterStart.get shouldEqual currentStart.get)
@@ -224,7 +224,7 @@ class ProjectViewCoordinatorSpec
     }
 
     "trigger manual projections restart" in {
-      coordinator.restartProjections(view4)
+      coordinator.restartProjections(view4).runToFuture.futureValue
       currentProjStart.incrementAndGet()
       eventually(coordinator4.stop() wasCalled once)
       eventually(counterStartProjections.get shouldEqual currentProjStart.get)

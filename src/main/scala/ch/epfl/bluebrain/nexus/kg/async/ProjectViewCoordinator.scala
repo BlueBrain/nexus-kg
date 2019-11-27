@@ -189,20 +189,16 @@ class ProjectViewCoordinator[F[_]](cache: Caches[F], ref: ActorRef)(
     *
     * @param projectRef the project unique identifier
     */
-  def stop(projectRef: ProjectRef): F[Unit] = {
-    ref ! Stop(projectRef.id)
-    F.unit
-  }
+  def stop(projectRef: ProjectRef): F[Unit] =
+    F.delay(ref ! Stop(projectRef.id))
 
   /**
     * Triggers restart of a view from the initial progress.
     *
     * @param view the view to be restarted
     */
-  def restart(view: IndexedView)(implicit project: Project): F[Unit] = {
-    ref ! RestartView(project.uuid, view)
-    F.unit
-  }
+  def restart(view: IndexedView)(implicit project: Project): F[Unit] =
+    F.delay(ref ! RestartView(project.uuid, view))
 
   /**
     * Triggers restart of a composite view where the passed projection will start from the initial progress.
@@ -219,28 +215,23 @@ class ProjectViewCoordinator[F[_]](cache: Caches[F], ref: ActorRef)(
     * @param project project to which the view belongs
     * @param view    the view to be restarted
     */
-  def restartProjections(view: CompositeView)(implicit project: Project): F[Unit] = {
-    ref ! RestartProjections(project.uuid, view, view.projections.map(_.view))
-    F.unit
-  }
+  def restartProjections(view: CompositeView)(implicit project: Project): F[Unit] =
+    F.delay(ref ! RestartProjections(project.uuid, view, view.projections.map(_.view)))
 
-  private def restart(view: CompositeView, restartOffsetViews: Set[SingleView])(implicit project: Project): F[Unit] = {
-    ref ! RestartProjections(project.uuid, view, restartOffsetViews)
-    F.unit
-  }
+  private def restart(view: CompositeView, restartOffsetViews: Set[SingleView])(implicit project: Project): F[Unit] =
+    F.delay(ref ! RestartProjections(project.uuid, view, restartOffsetViews))
 
   /**
     * Notifies the underlying coordinator actor about a change occurring to the Project
     * whenever this change is relevant to the coordinator
     *
-    * @param newProject the new uncoming project
+    * @param newProject the new incoming project
     * @param project    the previous state of the project
     */
-  def change(newProject: Project, project: Project): F[Unit] = {
+  def change(newProject: Project, project: Project): F[Unit] =
     if (newProject.label != project.label || newProject.organizationLabel != project.organizationLabel)
-      ref ! ProjectChanges(newProject.uuid, newProject)
-    F.unit
-  }
+      F.delay(ref ! ProjectChanges(newProject.uuid, newProject))
+    else F.unit
 }
 
 object ProjectViewCoordinator {
