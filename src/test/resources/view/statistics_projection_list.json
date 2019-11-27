@@ -1,0 +1,28 @@
+{
+  "@context": [
+    "https://bluebrain.github.io/nexus/contexts/search.json",
+    "https://bluebrain.github.io/nexus/contexts/resource.json",
+    "https://bluebrain.github.io/nexus/contexts/statistics.json"
+  ],
+  "_total": 2,
+  "_results": [
+    {
+      "@id": "https://bluebrain.github.io/nexus/vocabulary/defaultSparqlIndex",
+      "discardedEvents": 2,
+      "evaluatedEvents": 7,
+      "failedEvents": 1,
+      "processedEvents": 10,
+      "remainingEvents": 10,
+      "totalEvents": 20
+    },
+    {
+      "@id": "https://bluebrain.github.io/nexus/vocabulary/defaultElasticSearchIndex",
+      "discardedEvents": 0,
+      "evaluatedEvents": 11,
+      "failedEvents": 1,
+      "processedEvents": 12,
+      "remainingEvents": 1,
+      "totalEvents": 13
+    }
+  ]
+}

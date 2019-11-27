@@ -312,6 +312,7 @@ object AppConfig {
     tagCtxUri         -> tagCtx,
     fileAttrCtxUri    -> fileAttrCtx,
     statisticsCtxUri  -> statisticsCtx,
+    progressCtxUri    -> progressCtx,
     resourceCtxUri    -> resourceCtx,
     shaclCtxUri       -> shaclCtx,
     resolverCtxUri    -> resolverCtx,

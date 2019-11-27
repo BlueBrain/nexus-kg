@@ -7,11 +7,26 @@
       "@id": "https://bluebrain.github.io/nexus/vocabulary/project",
       "@type": "@id"
     },
-    "_self": "https://bluebrain.github.io/nexus/vocabulary/self",
-    "_incoming": "https://bluebrain.github.io/nexus/vocabulary/incoming",
-    "_outgoing": "https://bluebrain.github.io/nexus/vocabulary/outgoing",
-    "_updatedBy": "https://bluebrain.github.io/nexus/vocabulary/updatedBy",
-    "_createdBy": "https://bluebrain.github.io/nexus/vocabulary/createdBy",
+    "_self": {
+      "@id": "https://bluebrain.github.io/nexus/vocabulary/self",
+      "@type": "@id"
+    },
+    "_incoming": {
+      "@id": "https://bluebrain.github.io/nexus/vocabulary/incoming",
+      "@type": "@id"
+    },
+    "_outgoing": {
+      "@id": "https://bluebrain.github.io/nexus/vocabulary/outgoing",
+      "@type": "@id"
+    },
+    "_updatedBy": {
+      "@id": "https://bluebrain.github.io/nexus/vocabulary/updatedBy",
+      "@type": "@id"
+    },
+    "_createdBy": {
+      "@id": "https://bluebrain.github.io/nexus/vocabulary/createdBy",
+      "@type": "@id"
+    },
     "_storage": {
       "@id": "https://bluebrain.github.io/nexus/vocabulary/storage",
       "@type": "@id"

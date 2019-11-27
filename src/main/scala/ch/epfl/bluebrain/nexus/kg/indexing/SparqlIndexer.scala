@@ -56,7 +56,7 @@ object SparqlIndexer {
 
     val initFetchProgressF: F[ProjectionProgress] =
       if (restartOffset)
-        projections.recordProgress(view.progressId, NoProgress) >> view.createIndex >> F.delay(NoProgress)
+        projections.recordProgress(view.progressId, NoProgress) >> view.createIndex >> F.pure(NoProgress)
       else view.createIndex >> projections.progress(view.progressId)
 
     val sourceF: F[Source[ProjectionProgress, _]] = initFetchProgressF.map { initial =>

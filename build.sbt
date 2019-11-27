@@ -26,7 +26,7 @@ scalafmt: {
 
 // Dependency versions
 val adminVersion                = "1.2.1+2-5e3ee05f"
-val commonsVersion              = "0.19.0"
+val commonsVersion              = "0.19.1"
 val storageVersion              = "1.2.2+2-f21a8d7c"
 val sourcingVersion             = "0.18.0"
 val akkaVersion                 = "2.6.0"
@@ -45,7 +45,7 @@ val monixVersion                = "3.1.0"
 val pureconfigVersion           = "0.12.1"
 val shapelessVersion            = "2.3.3"
 val scalaTestVersion            = "3.0.8"
-val kryoVersion                 = "1.0.0"
+val kryoVersion                 = "1.1.0"
 val s3mockVersion               = "0.2.5"
 val apacheCommonsVersion        = "3.9"
 

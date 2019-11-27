@@ -5,6 +5,7 @@ import java.time.{Instant, ZoneOffset}
 import java.util.UUID
 
 import akka.http.scaladsl.model.{ContentType, Uri}
+import akka.persistence.query.{NoOffset, Offset, Sequence, TimeBasedUUID}
 import ch.epfl.bluebrain.nexus.admin.client.types.Project
 import ch.epfl.bluebrain.nexus.commons.rdf.syntax._
 import ch.epfl.bluebrain.nexus.iam.client.types._
@@ -25,6 +26,21 @@ import javax.crypto.SecretKey
 import scala.util.{Success, Try}
 
 object syntax {
+  private val NUM_100NS_INTERVALS_SINCE_UUID_EPOCH = 0X01B21DD213814000L
+
+  implicit class OffsetSyntax(private val offset: Offset) extends AnyVal {
+
+    def asInstant: Option[Instant] = offset match {
+      case NoOffset | Sequence(_) => None
+      case tm: TimeBasedUUID      => Some(tm.asInstant)
+    }
+  }
+
+  implicit class TimeBasedUUIDSyntax(private val timeBased: TimeBasedUUID) extends AnyVal {
+
+    def asInstant: Instant =
+      Instant.ofEpochMilli((timeBased.value.timestamp - NUM_100NS_INTERVALS_SINCE_UUID_EPOCH) / 10000)
+  }
 
   implicit class ResIdSyntax(private val resId: ResId) extends AnyVal {
     def toGraphUri: Uri = (resId.value + "graph").toAkkaUri

@@ -48,7 +48,7 @@ class SchemaRoutes private[routes] (schemas: Schemas[Task], tags: Tags[Task])(
     concat(
       // Create schema when id is not provided on the Uri (POST)
       (post & noParameter('rev.as[Long]) & pathEndOrSingleSlash) {
-        operationName(s"/${config.http.prefix}/schemas/{}/{}") {
+        operationName(s"/${config.http.prefix}/schemas/{org}/{project}") {
           Kamon.currentSpan().tag("resource.operation", "create")
           (hasPermission(write) & projectNotDeprecated) {
             entity(as[Json]) { source =>
@@ -59,7 +59,7 @@ class SchemaRoutes private[routes] (schemas: Schemas[Task], tags: Tags[Task])(
       },
       // List schemas
       (get & paginated & searchParams(fixedSchema = shaclSchemaUri) & pathEndOrSingleSlash) { (page, params) =>
-        operationName(s"/${config.http.prefix}/schemas/{}/{}") {
+        operationName(s"/${config.http.prefix}/schemas/{org}/{project}") {
           extractUri { implicit uri =>
             hasPermission(read).apply {
               val listed = viewCache.getDefaultElasticSearch(project.ref).flatMap(schemas.list(_, params, page))
@@ -86,7 +86,7 @@ class SchemaRoutes private[routes] (schemas: Schemas[Task], tags: Tags[Task])(
     concat(
       // Create or update a schema (depending on rev query parameter)
       (put & pathEndOrSingleSlash) {
-        operationName(s"/${config.http.prefix}/schemas/{}/{}/{}") {
+        operationName(s"/${config.http.prefix}/schemas/{org}/{project}/{id}") {
           (hasPermission(write) & projectNotDeprecated) {
             entity(as[Json]) { source =>
               parameter('rev.as[Long].?) {
@@ -103,7 +103,7 @@ class SchemaRoutes private[routes] (schemas: Schemas[Task], tags: Tags[Task])(
       },
       // Deprecate schema
       (delete & parameter('rev.as[Long]) & pathEndOrSingleSlash) { rev =>
-        operationName(s"/${config.http.prefix}/schemas/{}/{}/{}") {
+        operationName(s"/${config.http.prefix}/schemas/{org}/{project}/{id}") {
           (hasPermission(write) & projectNotDeprecated) {
             complete(schemas.deprecate(Id(project.ref, id), rev).value.runWithStatus(OK))
           }
@@ -111,7 +111,7 @@ class SchemaRoutes private[routes] (schemas: Schemas[Task], tags: Tags[Task])(
       },
       // Fetch schema
       (get & pathEndOrSingleSlash) {
-        operationName(s"/${config.http.prefix}/schemas/{}/{}/{}") {
+        operationName(s"/${config.http.prefix}/schemas/{org}/{project}/{id}") {
           outputFormat(strict = false, Compacted) {
             case format: NonBinaryOutputFormat =>
               hasPermission(read).apply {
@@ -133,7 +133,7 @@ class SchemaRoutes private[routes] (schemas: Schemas[Task], tags: Tags[Task])(
       },
       // Fetch schema source
       (get & pathPrefix("source") & pathEndOrSingleSlash) {
-        operationName(s"/${config.http.prefix}/schemas/{}/{}/{}/source") {
+        operationName(s"/${config.http.prefix}/schemas/{org}/{project}/{id}/source") {
           hasPermission(read).apply {
             concat(
               (parameter('rev.as[Long]) & noParameter('tag)) { rev =>
@@ -151,7 +151,7 @@ class SchemaRoutes private[routes] (schemas: Schemas[Task], tags: Tags[Task])(
       },
       // Incoming links
       (get & pathPrefix("incoming") & pathEndOrSingleSlash) {
-        operationName(s"/${config.http.prefix}/schemas/{}/{}/{}/incoming") {
+        operationName(s"/${config.http.prefix}/schemas/{org}/{project}/{id}/incoming") {
           fromPaginated.apply { implicit page =>
             extractUri { implicit uri =>
               hasPermission(read).apply {
@@ -165,7 +165,7 @@ class SchemaRoutes private[routes] (schemas: Schemas[Task], tags: Tags[Task])(
       // Outgoing links
       (get & pathPrefix("outgoing") & parameter('includeExternalLinks.as[Boolean] ? true) & pathEndOrSingleSlash) {
         links =>
-          operationName(s"/${config.http.prefix}/schemas/{}/{}/{}/outgoing") {
+          operationName(s"/${config.http.prefix}/schemas/{org}/{project}/{id}/outgoing") {
             fromPaginated.apply { implicit page =>
               extractUri { implicit uri =>
                 hasPermission(read).apply {

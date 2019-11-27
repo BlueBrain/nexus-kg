@@ -50,7 +50,7 @@ class StorageRoutes private[routes] (storages: Storages[Task], tags: Tags[Task])
     concat(
       // Create storage when id is not provided on the Uri (POST)
       (post & noParameter('rev.as[Long]) & pathEndOrSingleSlash) {
-        operationName(s"/${config.http.prefix}/storages/{}/{}") {
+        operationName(s"/${config.http.prefix}/storages/{org}/{project}") {
           Kamon.currentSpan().tag("resource.operation", "create")
           (hasPermission(write) & projectNotDeprecated) {
             entity(as[Json]) { source =>
@@ -61,7 +61,7 @@ class StorageRoutes private[routes] (storages: Storages[Task], tags: Tags[Task])
       },
       // List storages
       (get & paginated & searchParams(fixedSchema = storageSchemaUri) & pathEndOrSingleSlash) { (page, params) =>
-        operationName(s"/${config.http.prefix}/storages/{}/{}") {
+        operationName(s"/${config.http.prefix}/storages/{org}/{project}") {
           extractUri { implicit uri =>
             hasPermission(read).apply {
               val listed = viewCache.getDefaultElasticSearch(project.ref).flatMap(storages.list(_, params, page))
@@ -88,7 +88,7 @@ class StorageRoutes private[routes] (storages: Storages[Task], tags: Tags[Task])
     concat(
       // Create or update a storage (depending on rev query parameter)
       (put & pathEndOrSingleSlash) {
-        operationName(s"/${config.http.prefix}/storages/{}/{}/{}") {
+        operationName(s"/${config.http.prefix}/storages/{org}/{project}/{id}") {
           (hasPermission(write) & projectNotDeprecated) {
             entity(as[Json]) { source =>
               parameter('rev.as[Long].?) {
@@ -105,7 +105,7 @@ class StorageRoutes private[routes] (storages: Storages[Task], tags: Tags[Task])
       },
       // Deprecate storage
       (delete & parameter('rev.as[Long]) & pathEndOrSingleSlash) { rev =>
-        operationName(s"/${config.http.prefix}/storages/{}/{}/{}") {
+        operationName(s"/${config.http.prefix}/storages/{org}/{project}/{id}") {
           (hasPermission(write) & projectNotDeprecated) {
             complete(storages.deprecate(Id(project.ref, id), rev).value.runWithStatus(OK))
           }
@@ -113,7 +113,7 @@ class StorageRoutes private[routes] (storages: Storages[Task], tags: Tags[Task])
       },
       // Fetch storage
       (get & pathEndOrSingleSlash) {
-        operationName(s"/${config.http.prefix}/storages/{}/{}/{}") {
+        operationName(s"/${config.http.prefix}/storages/{org}/{project}/{id}") {
           outputFormat(strict = false, Compacted) {
             case format: NonBinaryOutputFormat =>
               hasPermission(read).apply {
@@ -135,7 +135,7 @@ class StorageRoutes private[routes] (storages: Storages[Task], tags: Tags[Task])
       },
       // Fetch storage source
       (get & pathPrefix("source") & pathEndOrSingleSlash) {
-        operationName(s"/${config.http.prefix}/storages/{}/{}/{}/source") {
+        operationName(s"/${config.http.prefix}/storages/{org}/{project}/{id}/source") {
           hasPermission(read).apply {
             concat(
               (parameter('rev.as[Long]) & noParameter('tag)) { rev =>
@@ -153,7 +153,7 @@ class StorageRoutes private[routes] (storages: Storages[Task], tags: Tags[Task])
       },
       // Incoming links
       (get & pathPrefix("incoming") & pathEndOrSingleSlash) {
-        operationName(s"/${config.http.prefix}/storages/{}/{}/{}/incoming") {
+        operationName(s"/${config.http.prefix}/storages/{org}/{project}/{id}/incoming") {
           fromPaginated.apply { implicit page =>
             extractUri { implicit uri =>
               hasPermission(read).apply {
@@ -167,7 +167,7 @@ class StorageRoutes private[routes] (storages: Storages[Task], tags: Tags[Task])
       // Outgoing links
       (get & pathPrefix("outgoing") & parameter('includeExternalLinks.as[Boolean] ? true) & pathEndOrSingleSlash) {
         links =>
-          operationName(s"/${config.http.prefix}/storages/{}/{}/{}/outgoing") {
+          operationName(s"/${config.http.prefix}/storages/{org}/{project}/{id}/outgoing") {
             fromPaginated.apply { implicit page =>
               extractUri { implicit uri =>
                 hasPermission(read).apply {

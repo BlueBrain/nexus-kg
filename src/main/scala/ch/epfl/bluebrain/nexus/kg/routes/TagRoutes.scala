@@ -70,7 +70,7 @@ class TagRoutes private[routes] (resourceType: String, tags: Tags[Task], schema:
     Encoder.instance(tags => Json.obj(nxv.tags.prefix -> Json.arr(tags.map(_.asJson).toSeq: _*)).addContext(tagCtxUri))
 
   private def opName: String = resourceType match {
-    case "resources" => s"/${config.http.prefix}/resources/{}/{}/{}/{}/tags"
-    case _           => s"/${config.http.prefix}/$resourceType/{}/{}/{}/tags"
+    case "resources" => s"/${config.http.prefix}/resources/{org}/{project}/{schemaId}/{id}/tags"
+    case _           => s"/${config.http.prefix}/$resourceType/{org}/{project}/{id}/tags"
   }
 }

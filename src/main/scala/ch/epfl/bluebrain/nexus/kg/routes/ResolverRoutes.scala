@@ -48,7 +48,7 @@ class ResolverRoutes private[routes] (resolvers: Resolvers[Task], tags: Tags[Tas
     concat(
       // Create resolver when id is not provided on the Uri (POST)
       (post & noParameter('rev.as[Long]) & pathEndOrSingleSlash) {
-        operationName(s"/${config.http.prefix}/resolvers/{}/{}") {
+        operationName(s"/${config.http.prefix}/resolvers/{org}/{project}") {
           Kamon.currentSpan().tag("resource.operation", "create")
           (hasPermission(write) & projectNotDeprecated) {
             entity(as[Json]) { source =>
@@ -60,7 +60,7 @@ class ResolverRoutes private[routes] (resolvers: Resolvers[Task], tags: Tags[Tas
       // List resolvers
       (get & paginated & searchParams(fixedSchema = resolverSchemaUri) & pathEndOrSingleSlash) { (page, params) =>
         extractUri { implicit uri =>
-          operationName(s"/${config.http.prefix}/resolvers/{}/{}") {
+          operationName(s"/${config.http.prefix}/resolvers/{org}/{project}") {
             hasPermission(read).apply {
               val listed = viewCache.getDefaultElasticSearch(project.ref).flatMap(resolvers.list(_, params, page))
               complete(listed.runWithStatus(OK))
@@ -88,7 +88,7 @@ class ResolverRoutes private[routes] (resolvers: Resolvers[Task], tags: Tags[Tas
   def routesResourceResolution: Route =
     // Consume the resource id segment
     (get & pathPrefix(IdSegment) & pathEndOrSingleSlash) { id =>
-      operationName(s"/${config.http.prefix}/resolvers/{}/{}/_/{}") {
+      operationName(s"/${config.http.prefix}/resolvers/{org}/{project}/_/{resourceId}") {
         outputFormat(strict = false, Compacted) {
           case format: NonBinaryOutputFormat =>
             hasPermission(read).apply {
@@ -122,7 +122,7 @@ class ResolverRoutes private[routes] (resolvers: Resolvers[Task], tags: Tags[Tas
     val resolverId = Id(project.ref, id)
     // Consume the resource id segment
     (get & pathPrefix(IdSegment) & pathEndOrSingleSlash) { resourceId =>
-      operationName(s"/${config.http.prefix}/resolvers/{}/{}/{}/{}") {
+      operationName(s"/${config.http.prefix}/resolvers/{org}/{project}/{id}/{resourceId}") {
         outputFormat(strict = false, Compacted) {
           case format: NonBinaryOutputFormat =>
             hasPermission(read).apply {
@@ -157,7 +157,7 @@ class ResolverRoutes private[routes] (resolvers: Resolvers[Task], tags: Tags[Tas
     concat(
       // Create or update a resolver (depending on rev query parameter)
       (put & pathEndOrSingleSlash) {
-        operationName(s"/${config.http.prefix}/resolvers/{}/{}/{}") {
+        operationName(s"/${config.http.prefix}/resolvers/{org}/{project}/{id}") {
           (hasPermission(write) & projectNotDeprecated) {
             entity(as[Json]) { source =>
               parameter('rev.as[Long].?) {
@@ -174,7 +174,7 @@ class ResolverRoutes private[routes] (resolvers: Resolvers[Task], tags: Tags[Tas
       },
       // Deprecate resolver
       (delete & parameter('rev.as[Long]) & pathEndOrSingleSlash) { rev =>
-        operationName(s"/${config.http.prefix}/resolvers/{}/{}/{}") {
+        operationName(s"/${config.http.prefix}/resolvers/{org}/{project}/{id}") {
           (hasPermission(write) & projectNotDeprecated) {
             complete(resolvers.deprecate(Id(project.ref, id), rev).value.runWithStatus(OK))
           }
@@ -182,7 +182,7 @@ class ResolverRoutes private[routes] (resolvers: Resolvers[Task], tags: Tags[Tas
       },
       // Fetch resolver
       (get & pathEndOrSingleSlash) {
-        operationName(s"/${config.http.prefix}/resolvers/{}/{}/{}") {
+        operationName(s"/${config.http.prefix}/resolvers/{org}/{project}/{id}") {
           outputFormat(strict = false, Compacted) {
             case format: NonBinaryOutputFormat =>
               hasPermission(read).apply {
@@ -204,7 +204,7 @@ class ResolverRoutes private[routes] (resolvers: Resolvers[Task], tags: Tags[Tas
       },
       // Fetch resolver source
       (get & pathPrefix("source") & pathEndOrSingleSlash) {
-        operationName(s"/${config.http.prefix}/views/{}/{}/{}/source") {
+        operationName(s"/${config.http.prefix}/resolvers/{org}/{project}/{id}/source") {
           hasPermission(read).apply {
             concat(
               (parameter('rev.as[Long]) & noParameter('tag)) { rev =>
@@ -222,7 +222,7 @@ class ResolverRoutes private[routes] (resolvers: Resolvers[Task], tags: Tags[Tas
       },
       // Incoming links
       (get & pathPrefix("incoming") & pathEndOrSingleSlash) {
-        operationName(s"/${config.http.prefix}/resolvers/{}/{}/{}/incoming") {
+        operationName(s"/${config.http.prefix}/resolvers/{org}/{project}/{id}/incoming") {
           fromPaginated.apply { implicit page =>
             extractUri { implicit uri =>
               hasPermission(read).apply {
@@ -236,7 +236,7 @@ class ResolverRoutes private[routes] (resolvers: Resolvers[Task], tags: Tags[Tas
       // Outgoing links
       (get & pathPrefix("outgoing") & parameter('includeExternalLinks.as[Boolean] ? true) & pathEndOrSingleSlash) {
         links =>
-          operationName(s"/${config.http.prefix}/resolvers/{}/{}/{}/outgoing") {
+          operationName(s"/${config.http.prefix}/resolvers/{org}/{project}/{id}/outgoing") {
             fromPaginated.apply { implicit page =>
               extractUri { implicit uri =>
                 hasPermission(read).apply {

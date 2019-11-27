@@ -41,7 +41,7 @@ class ArchiveRoutes private[routes] (archives: Archives[Task])(
     concat(
       // Create an archive when id is not provided in the Uri (POST)
       (post & pathEndOrSingleSlash) {
-        operationName(s"/${config.http.prefix}/archives/{}/{}") {
+        operationName(s"/${config.http.prefix}/archives/{org}/{project}") {
           (hasPermission(write) & projectNotDeprecated) {
             entity(as[Json]) { source =>
               val created = archives.create(source)
@@ -69,7 +69,7 @@ class ArchiveRoutes private[routes] (archives: Archives[Task])(
     concat(
       // Create archive
       (put & pathEndOrSingleSlash) {
-        operationName(s"/${config.http.prefix}/archives/{}/{}/{}") {
+        operationName(s"/${config.http.prefix}/archives/{org}/{project}/{id}") {
           (hasPermission(write) & projectNotDeprecated) {
             entity(as[Json]) { source =>
               complete(archives.create(resId, source).value.runWithStatus(Created))
