@@ -15,16 +15,18 @@ import ch.epfl.bluebrain.nexus.kg.async.ProjectViewCoordinatorActor.Msg._
 import ch.epfl.bluebrain.nexus.kg.cache.Caches
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig
 import ch.epfl.bluebrain.nexus.kg.indexing.Statistics
-import ch.epfl.bluebrain.nexus.kg.indexing.View.{CompositeView, IndexedView, SingleView}
+import ch.epfl.bluebrain.nexus.kg.indexing.View.{CompositeView, IndexedView}
 import ch.epfl.bluebrain.nexus.kg.resources.syntax._
 import ch.epfl.bluebrain.nexus.kg.resources.{IdentifiedValue, OrganizationRef, ProjectRef, Resources}
 import ch.epfl.bluebrain.nexus.kg.routes.Clients
+import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import ch.epfl.bluebrain.nexus.sourcing.projections.Projections
 import journal.Logger
 import monix.eval.Task
 import monix.execution.Scheduler.Implicits.global
 
 import scala.concurrent.ExecutionContext
+import scala.reflect.ClassTag
 import scala.util.control.NonFatal
 
 /**
@@ -34,6 +36,7 @@ import scala.util.control.NonFatal
   * @param ref   the underlying actor reference
   * @tparam F the effect type
   */
+@SuppressWarnings(Array("ListSize"))
 class ProjectViewCoordinator[F[_]](cache: Caches[F], ref: ActorRef)(
     implicit config: AppConfig,
     F: Async[F],
@@ -47,79 +50,47 @@ class ProjectViewCoordinator[F[_]](cache: Caches[F], ref: ActorRef)(
   /**
     * Fetches view statistics for a given view.
     *
-    * @param view the view to fetch the statistics for
-    * @return [[Statistics]] wrapped in [[F]]
+    * @param viewId the view unique identifier on a project
+    * @return Some(statistics) if view exists, None otherwise wrapped in [[F]]
     */
-  def statistics(view: IndexedView)(implicit project: Project): F[Statistics] = {
-    lazy val label = project.show
-    IO.fromFuture(IO(ref ? FetchStatistics(project.uuid, view)))
-      .to[F]
-      .flatMap[Statistics] {
-        case value: Statistics => F.pure(value)
-        case other =>
-          val msg = s"Received unexpected reply from the project view coordinator actor: '$other' for project '$label'."
-          F.raiseError(KgError.InternalError(msg))
-      }
-      .recoverWith(logAndRaiseError(label, "statistics"))
+  def statistics(viewId: AbsoluteIri)(implicit project: Project): F[Option[Statistics]] = {
+    val msgF = IO.fromFuture(IO(ref ? FetchStatistics(project.uuid, viewId))).to[F]
+    parse[Statistics](msgF).recoverWith(logAndRaiseError(project.show, "statistics"))
   }
 
   /**
     * Fetches view statistics for a given projection.
     *
-    * @param view           the composite view where the projection belongs to
-    * @param projectionView the view to fetch the statistics for
-    * @return [[Statistics]] wrapped in [[F]]
+    * @param viewId       the view unique identifier on a project
+    * @param projectionId the projection unique identifier on the target view
+    * @return Some(statistics) if projection exists, None otherwise wrapped in [[F]]
     */
-  def statistics(view: CompositeView, projectionView: SingleView)(implicit project: Project): F[Statistics] = {
-    lazy val label = project.show
-    IO.fromFuture(IO(ref ? FetchProjectionStatistics(project.uuid, view, projectionView)))
-      .to[F]
-      .flatMap[Statistics] {
-        case value: Statistics => F.pure(value)
-        case other =>
-          val msg = s"Received unexpected reply from the project view coordinator actor: '$other' for project '$label'."
-          F.raiseError(KgError.InternalError(msg))
-      }
-      .recoverWith(logAndRaiseError(label, "statistics"))
+  def statistics(viewId: AbsoluteIri, projectionId: AbsoluteIri)(implicit project: Project): F[Option[Statistics]] = {
+    val msgF = IO.fromFuture(IO(ref ? FetchProjectionStatistics(project.uuid, viewId, projectionId))).to[F]
+    parse[Statistics](msgF).recoverWith(logAndRaiseError(project.show, "statistics"))
   }
 
   /**
     * Fetches view offset.
     *
-    * @param view the view to fetch the statistics for
-    * @return [[Offset]] wrapped in [[F]]
+    * @param viewId the view unique identifier on a project
+    * @return Some(offset) if view exists, None otherwise wrapped in [[F]]
     */
-  def offset(view: IndexedView)(implicit project: Project): F[Offset] = {
-    lazy val label = project.show
-    IO.fromFuture(IO(ref ? FetchOffset(project.uuid, view)))
-      .to[F]
-      .flatMap[Offset] {
-        case value: Offset => F.pure(value)
-        case other =>
-          val msg = s"Received unexpected reply from the project view coordinator actor: '$other' for project '$label'."
-          F.raiseError(KgError.InternalError(msg))
-      }
-      .recoverWith(logAndRaiseError(label, "progress"))
+  def offset(viewId: AbsoluteIri)(implicit project: Project): F[Option[Offset]] = {
+    val msgF = IO.fromFuture(IO(ref ? FetchOffset(project.uuid, viewId))).to[F]
+    parse[Offset](msgF).recoverWith(logAndRaiseError(project.show, "progress"))
   }
 
   /**
     * Fetches view offset for a given projection.
     *
-    * @param view           the composite view where the projection belongs to
-    * @param projectionView the view to fetch the offset for
-    * @return [[Offset]] wrapped in [[F]]
+    * @param viewId       the view unique identifier on a project
+    * @param projectionId the projection unique identifier on the target view
+    * @return Some(offset) if projection exists, None otherwise wrapped in [[F]]
     */
-  def offset(view: CompositeView, projectionView: SingleView)(implicit project: Project): F[Offset] = {
-    lazy val label = project.show
-    IO.fromFuture(IO(ref ? FetchProjectionOffset(project.uuid, view, projectionView)))
-      .to[F]
-      .flatMap[Offset] {
-        case value: Offset => F.pure(value)
-        case other =>
-          val msg = s"Received unexpected reply from the project view coordinator actor: '$other' for project '$label'."
-          F.raiseError(KgError.InternalError(msg))
-      }
-      .recoverWith(logAndRaiseError(label, "progress"))
+  def offset(viewId: AbsoluteIri, projectionId: AbsoluteIri)(implicit project: Project): F[Option[Offset]] = {
+    val msgF = IO.fromFuture(IO(ref ? FetchProjectionOffset(project.uuid, viewId, projectionId))).to[F]
+    parse[Offset](msgF).recoverWith(logAndRaiseError(project.show, "progress"))
   }
 
   /**
@@ -132,10 +103,12 @@ class ProjectViewCoordinator[F[_]](cache: Caches[F], ref: ActorRef)(
       view: CompositeView
   )(implicit project: Project): F[QueryResults[IdentifiedValue[Statistics]]] =
     view.projections.toList
-      .map(_.view)
-      .map(projectionView => statistics(view, projectionView).map(IdentifiedValue(projectionView.id, _)))
+      .map(projection => statistics(view.id, projection.view.id).map(IdentifiedValue(projection.view.id, _)))
       .sequence
-      .map(results => UnscoredQueryResults(results.size.toLong, results.map(UnscoredQueryResult.apply)))
+      .map { results =>
+        val collected = results.collect { case IdentifiedValue(id, Some(value)) => IdentifiedValue(id, value) }
+        UnscoredQueryResults(collected.size.toLong, collected.map(UnscoredQueryResult.apply))
+      }
 
   /**
     * Fetches progress for all projections inside a composite view.
@@ -145,22 +118,12 @@ class ProjectViewCoordinator[F[_]](cache: Caches[F], ref: ActorRef)(
     */
   def projectionsOffset(view: CompositeView)(implicit project: Project): F[QueryResults[IdentifiedValue[Offset]]] =
     view.projections.toList
-      .map(_.view)
-      .map(projectionView => offset(view, projectionView).map(IdentifiedValue(projectionView.id, _)))
+      .map(projection => offset(view.id, projection.view.id).map(IdentifiedValue(projection.view.id, _)))
       .sequence
-      .map(results => UnscoredQueryResults(results.size.toLong, results.map(UnscoredQueryResult.apply)))
-
-  private def logAndRaiseError[A](label: String, action: String): PartialFunction[Throwable, F[A]] = {
-    case _: AskTimeoutException =>
-      F.raiseError(
-        KgError
-          .OperationTimedOut(s"Timeout when asking for $action to project view coordinator for project '$label'")
-      )
-    case NonFatal(th) =>
-      val msg = s"Exception caught while exchanging messages with the project view coordinator for project '$label'"
-      log.error(msg, th)
-      F.raiseError(KgError.InternalError(msg))
-  }
+      .map { results =>
+        val collected = results.collect { case IdentifiedValue(id, Some(value)) => IdentifiedValue(id, value) }
+        UnscoredQueryResults(collected.size.toLong, collected.map(UnscoredQueryResult.apply))
+      }
 
   /**
     * Starts the project view coordinator for the provided project sending a Start message to the
@@ -195,31 +158,37 @@ class ProjectViewCoordinator[F[_]](cache: Caches[F], ref: ActorRef)(
   /**
     * Triggers restart of a view from the initial progress.
     *
-    * @param view the view to be restarted
+    * @param viewId the view unique identifier on a project
+    * @return Some(())) if view exists, None otherwise wrapped in [[F]]
     */
-  def restart(view: IndexedView)(implicit project: Project): F[Unit] =
-    F.delay(ref ! RestartView(project.uuid, view))
+  def restart(viewId: AbsoluteIri)(implicit project: Project): F[Option[Unit]] = {
+    val msgF = IO.fromFuture(IO(ref ? RestartView(project.uuid, viewId))).to[F]
+    parse[Ack](msgF).recoverWith(logAndRaiseError(project.show, "restart")).map(_.map(_ => ()))
+  }
 
   /**
     * Triggers restart of a composite view where the passed projection will start from the initial progress.
     *
-    * @param view              the view to be restarted
-    * @param restartOffsetView the projection view for which the offset is restarted
+    * @param viewId       the view unique identifier on a project
+    * @param projectionId the projection unique identifier on the target view
+    * @return Some(())) if projection exists, None otherwise wrapped in [[F]]
     */
-  def restart(view: CompositeView, restartOffsetView: SingleView)(implicit project: Project): F[Unit] =
-    restart(view, Set(restartOffsetView))
+  def restart(viewId: AbsoluteIri, projectionId: AbsoluteIri)(implicit project: Project): F[Option[Unit]] = {
+    val msgF = IO.fromFuture(IO(ref ? RestartProjection(project.uuid, viewId, projectionId))).to[F]
+    parse[Ack](msgF).recoverWith(logAndRaiseError(project.show, "restart")).map(_.map(_ => ()))
+  }
 
   /**
     * Triggers restart of a composite view where all the projection will start from the initial progress.
     *
     * @param project project to which the view belongs
-    * @param view    the view to be restarted
+    * @param viewId       the view unique identifier on a project
+    * @return Some(())) if view exists, None otherwise wrapped in [[F]]
     */
-  def restartProjections(view: CompositeView)(implicit project: Project): F[Unit] =
-    F.delay(ref ! RestartProjections(project.uuid, view, view.projections.map(_.view)))
-
-  private def restart(view: CompositeView, restartOffsetViews: Set[SingleView])(implicit project: Project): F[Unit] =
-    F.delay(ref ! RestartProjections(project.uuid, view, restartOffsetViews))
+  def restartProjections(viewId: AbsoluteIri)(implicit project: Project): F[Option[Unit]] = {
+    val msgF = IO.fromFuture(IO(ref ? RestartProjections(project.uuid, viewId))).to[F]
+    parse[Ack](msgF).recoverWith(logAndRaiseError(project.show, "restart")).map(_.map(_ => ()))
+  }
 
   /**
     * Notifies the underlying coordinator actor about a change occurring to the Project
@@ -232,6 +201,28 @@ class ProjectViewCoordinator[F[_]](cache: Caches[F], ref: ActorRef)(
     if (newProject.label != project.label || newProject.organizationLabel != project.organizationLabel)
       F.delay(ref ! ProjectChanges(newProject.uuid, newProject))
     else F.unit
+
+  private def parse[A](msgF: F[Any])(implicit A: ClassTag[A], project: Project): F[Option[A]] =
+    msgF.flatMap[Option[A]] {
+      case Some(A(value)) => F.pure(Some(value))
+      case None           => F.pure(None)
+      case other =>
+        val msg =
+          s"Received unexpected reply from the project view coordinator actor: '$other' for project '${project.show}'."
+        F.raiseError(KgError.InternalError(msg))
+    }
+
+  private def logAndRaiseError[A](label: String, action: String): PartialFunction[Throwable, F[A]] = {
+    case _: AskTimeoutException =>
+      F.raiseError(
+        KgError
+          .OperationTimedOut(s"Timeout when asking for $action to project view coordinator for project '$label'")
+      )
+    case NonFatal(th) =>
+      val msg = s"Exception caught while exchanging messages with the project view coordinator for project '$label'"
+      log.error(msg, th)
+      F.raiseError(KgError.InternalError(msg))
+  }
 }
 
 object ProjectViewCoordinator {

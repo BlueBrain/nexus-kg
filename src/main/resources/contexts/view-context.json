@@ -6,6 +6,7 @@
     "SparqlView": "nxv:SparqlView",
     "ElasticSearch": "nxv:ElasticSearch",
     "Sparql": "nxv:Sparql",
+    "Interval": "nxv:Interval",
     "projections": {
       "@id": "nxv:projections",
       "@container": "@set"
@@ -14,6 +15,8 @@
       "@id": "nxv:sources",
       "@container": "@set"
     },
+    "rebuildStrategy": "nxv:rebuildStrategy",
+    "value": "nxv:value",
     "context": "nxv:context",
     "query": "nxv:query",
     "ProjectEventStream": "nxv:ProjectEventStream",

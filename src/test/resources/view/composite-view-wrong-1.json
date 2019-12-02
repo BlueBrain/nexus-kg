@@ -4,6 +4,7 @@
     "View",
     "CompositeView"
   ],
+  "_uuid": "247d223b-1d38-4c6e-8fed-f9a8c2ccb4a1",
   "sources": [
     {
       "@type": "ProjectEventStream",
@@ -16,19 +17,15 @@
   ],
   "projections": [
     {
-      "@id" : "http://example.com/sparql",
+      "@id": "http://example/com/1",
+      "@type": "http://example.com/Other"
+    },
+    {
+      "@id": "http://example/com/2",
       "@type": "Sparql",
-      "query": "CONSTRUCT {{resource_id} ?p ?o} WHERE {?ss ?pp ?oo}",
+      "query": "CONSTRUCT {other} WHERE {...}",
       "includeDeprecated": true,
-      "includeMetadata": true,
-      "_uuid": "247d223b-1d38-4c6e-8fed-f9a8c2ccb4a3"
+      "includeMetadata": true
     }
-  ],
-  "rebuildStrategy": {
-    "@type": "Interval",
-    "value": "20 minutes"
-  },
-  "_deprecated" : false,
-  "_rev" : 1,
-  "_uuid": "247d223b-1d38-4c6e-8fed-f9a8c2ccb4a1"
+  ]
 }

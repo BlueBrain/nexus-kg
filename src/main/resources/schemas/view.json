@@ -61,6 +61,14 @@
           "node": "this:SourceShape"
         },
         {
+          "path": "nxv:rebuildStrategy",
+          "name": "rebuildStrategy",
+          "description": "The optional strategy to rebuild the projections.",
+          "minCount": 0,
+          "maxCount": 1,
+          "node": "this:RebuildIntervalShape"
+        },
+        {
           "path": "nxv:projections",
           "name": "Projections",
           "description": "The set of projections.",
@@ -118,6 +126,30 @@
           "name": "Include deprecated",
           "description": "flag to include or exclude deprecated resources on the indexed Document",
           "datatype": "xsd:boolean"
+        }
+      ]
+    },
+    {
+      "@id": "this:RebuildIntervalShape",
+      "@type": "sh:NodeShape",
+      "nodeKind": "BlankNodeOrIRI",
+      "sh:closed": true,
+      "property": [
+        {
+          "path": "rdf:type",
+          "name": "RDF type Interval",
+          "description": "The Interval projection RDF type.",
+          "nodeKind": "sh:IRI",
+          "sh:hasValue": {
+            "@id": "nxv:Interval"
+          }
+        },
+        {
+          "path": "nxv:value",
+          "name": "value",
+          "description": "The projections rebuild interval value.",
+          "datatype": "xsd:string",
+          "minCount": 1
         }
       ]
     },

@@ -8,7 +8,7 @@ import ch.epfl.bluebrain.nexus.kg.indexing.View._
 import ch.epfl.bluebrain.nexus.rdf.Graph.Triple
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import ch.epfl.bluebrain.nexus.rdf.Node._
-import ch.epfl.bluebrain.nexus.rdf.RootedGraph
+import ch.epfl.bluebrain.nexus.rdf.{Node, RootedGraph}
 import ch.epfl.bluebrain.nexus.rdf.Vocabulary._
 import ch.epfl.bluebrain.nexus.rdf.encoder.GraphEncoder.EncoderResult
 import ch.epfl.bluebrain.nexus.rdf.encoder.{GraphEncoder, RootNode}
@@ -51,12 +51,22 @@ object ViewEncoder {
       val triples = view.mainTriples(nxv.AggregateSparqlView) ++ view.triplesForView(refsString(view))
       RootedGraph(rootNode, triples)
 
-    case (rootNode, view @ CompositeView(source, projections, _, _, _, _, _)) =>
+    case (rootNode, view @ CompositeView(source, projections, rebuildStrategy, _, _, _, _, _)) =>
       val sourceBNode = blank
       val sourceTriples = Set[Triple](
         (rootNode, nxv.sources, sourceBNode),
         (sourceBNode, rdf.tpe, nxv.ProjectEventStream)
       ) ++ filterTriples(sourceBNode, source.filter) + metadataTriple(sourceBNode, source.includeMetadata)
+      val rebuildTriples = rebuildStrategy
+        .map { interval =>
+          val node = Node.blank
+          Set[Triple](
+            (rootNode, nxv.rebuildStrategy, node),
+            (node, rdf.tpe, nxv.Interval),
+            (node, nxv.value, interval.value.toString())
+          )
+        }
+        .getOrElse(Set.empty[Triple])
       val projectionsTriples = projections.flatMap {
         case Projection.ElasticSearchProjection(query, view, context) =>
           val node: IriNode = view.id
@@ -76,7 +86,10 @@ object ViewEncoder {
             (node, nxv.uuid, view.uuid.toString)
           ) ++ triples(node, view)
       }
-      RootedGraph(rootNode, view.mainTriples(nxv.CompositeView) ++ sourceTriples ++ projectionsTriples)
+      RootedGraph(
+        rootNode,
+        view.mainTriples(nxv.CompositeView) ++ sourceTriples ++ projectionsTriples ++ rebuildTriples
+      )
   }
 
   implicit val viewGraphEncoderEither: GraphEncoder[EncoderResult, View] = viewGraphEncoder.toEither

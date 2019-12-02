@@ -76,7 +76,7 @@ trait RoutesFixtures extends TestHelper with Resources {
   val defaultSparqlView = SparqlView.default(projectRef)
   val sparqlProjection = SparqlProjection("", defaultSparqlView)
   val elasticSearchProjection = ElasticSearchProjection("", defaultEsView, Json.obj())
-  val compositeView = CompositeView(Source(Filter(), includeMetadata = false), Set(sparqlProjection, elasticSearchProjection), projectRef, genIri, genUUID, 1L, deprecated = false)
+  val compositeView = CompositeView(Source(Filter(), includeMetadata = false), Set(sparqlProjection, elasticSearchProjection), None, projectRef, genIri, genUUID, 1L, deprecated = false)
   // format: on
 
   implicit val finalProject = projectMeta.copy(apiMappings = projectMeta.apiMappings ++ defaultPrefixMapping)

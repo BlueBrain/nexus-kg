@@ -717,13 +717,9 @@ class ViewRoutesSpec
     }
 
     "fetch view statistics" in new Context {
-
-      when(viewCache.getBy[View](Eq(projectRef), Eq(nxv.defaultSparqlIndex.value))(any[Typeable[View]]))
-        .thenReturn(Task.pure(Some(defaultSQLView)))
-
       val statistics = Statistics(10L, 1L, 2L, 12L, None, None)
 
-      coordinator.statistics(defaultSQLView) shouldReturn Task(statistics)
+      coordinator.statistics(nxv.defaultSparqlIndex.value) shouldReturn Task(Some(statistics))
 
       val endpoints = List(
         s"/v1/views/$organization/$project/graph/statistics",
@@ -738,19 +734,9 @@ class ViewRoutesSpec
     }
 
     "fetch composite view projection statistics" in new Context {
-      viewCache
-        .getViewAndProjectionBy[SingleView](
-          eqTo(projectRef),
-          eqTo(compositeView.id),
-          eqTo(nxv.defaultElasticSearchIndex.value)
-        )(
-          any[Typeable[SingleView]]
-        ) shouldReturn
-        Task.pure(Some(compositeView -> elasticSearchProjection.view))
-
       val viewId     = urlEncode(compositeView.id)
       val statistics = Statistics(10L, 1L, 2L, 12L, None, None)
-      coordinator.statistics(compositeView, elasticSearchProjection.view) shouldReturn Task(statistics)
+      coordinator.statistics(compositeView.id, nxv.defaultElasticSearchIndex.value) shouldReturn Task(Some(statistics))
 
       val endpoints = List(
         s"/v1/views/$organization/$project/$viewId/projections/documents/statistics",
@@ -767,10 +753,7 @@ class ViewRoutesSpec
 
     "fetch view progress" in new Context {
 
-      when(viewCache.getBy[View](Eq(projectRef), Eq(nxv.defaultSparqlIndex.value))(any[Typeable[View]]))
-        .thenReturn(Task.pure(Some(defaultSQLView)))
-
-      coordinator.offset(defaultSQLView) shouldReturn Task(Sequence(2L))
+      coordinator.offset(nxv.defaultSparqlIndex.value) shouldReturn Task(Some(Sequence(2L)))
 
       val endpoints = List(
         s"/v1/views/$organization/$project/graph/progress",
@@ -786,11 +769,7 @@ class ViewRoutesSpec
     }
 
     "delete view progress" in new Context {
-
-      when(viewCache.getBy[IndexedView](Eq(projectRef), Eq(nxv.defaultSparqlIndex.value))(any[Typeable[IndexedView]]))
-        .thenReturn(Task.pure(Some(defaultSQLView)))
-
-      coordinator.restart(defaultSQLView) shouldReturn Task.unit
+      coordinator.restart(nxv.defaultSparqlIndex.value) shouldReturn Task(Some(()))
 
       val endpoints = List(
         s"/v1/views/$organization/$project/graph/progress",
@@ -805,22 +784,12 @@ class ViewRoutesSpec
     }
 
     "fetch composite view projection progress" in new Context {
-      viewCache
-        .getViewAndProjectionBy[SingleView](
-          eqTo(projectRef),
-          eqTo(compositeView.id),
-          eqTo(nxv.defaultElasticSearchIndex.value)
-        )(
-          any[Typeable[SingleView]]
-        ) shouldReturn
-        Task.pure(Some(compositeView -> elasticSearchProjection.view))
 
       val viewId = urlEncode(compositeView.id)
       val uuid   = UUIDs.timeBased()
 
-      coordinator.offset(compositeView, elasticSearchProjection.view) shouldReturn Task(
-        TimeBasedUUID(uuid)
-      )
+      coordinator.offset(compositeView.id, nxv.defaultElasticSearchIndex.value) shouldReturn
+        Task(Some(TimeBasedUUID(uuid)))
 
       val endpoints = List(
         s"/v1/views/$organization/$project/$viewId/projections/documents/progress",
@@ -901,16 +870,10 @@ class ViewRoutesSpec
     }
 
     "delete projection progress" in new Context {
-      viewCache.getViewAndProjectionBy[SingleView](
-        eqTo(projectRef),
-        eqTo(compositeView.id),
-        eqTo(nxv.defaultElasticSearchIndex.value)
-      )(any[Typeable[SingleView]]) shouldReturn
-        Task.pure(Some(compositeView -> elasticSearchProjection.view))
 
       val viewId = urlEncode(compositeView.id)
 
-      coordinator.restart(compositeView, elasticSearchProjection.view) shouldReturn Task.unit
+      coordinator.restart(compositeView.id, nxv.defaultElasticSearchIndex.value) shouldReturn Task(Some(()))
 
       val endpoints = List(
         s"/v1/views/$organization/$project/$viewId/projections/documents/progress",

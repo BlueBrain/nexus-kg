@@ -19,7 +19,7 @@ import ch.epfl.bluebrain.nexus.kg.config.Contexts._
 import ch.epfl.bluebrain.nexus.kg.config.Settings
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary._
 import ch.epfl.bluebrain.nexus.kg.indexing.View.CompositeView.Projection.{ElasticSearchProjection, SparqlProjection}
-import ch.epfl.bluebrain.nexus.kg.indexing.View.CompositeView.{Projection, Source}
+import ch.epfl.bluebrain.nexus.kg.indexing.View.CompositeView.{Interval, Projection, Source}
 import ch.epfl.bluebrain.nexus.kg.indexing.View._
 import ch.epfl.bluebrain.nexus.kg.indexing.View.Filter
 import ch.epfl.bluebrain.nexus.kg.indexing.ViewEncoder._
@@ -31,6 +31,8 @@ import io.circe.Json
 import org.mockito.{ArgumentMatchersSugar, IdiomaticMockito}
 import org.mockito.Mockito.when
 import org.scalatest._
+
+import scala.concurrent.duration._
 
 class ViewSpec
     extends TestKit(ActorSystem("ViewSpec"))
@@ -84,7 +86,7 @@ class ViewSpec
 
     val source = Source(Filter(Set(nxv.Resource, nxv.Schema), Set(tpe1, tpe2), Some("one")), includeMetadata = true)
     val esProjection = ElasticSearchProjection(
-      "CONSTRUCT {something} WHERE {...}",
+      "CONSTRUCT {{resource_id} ?p ?o} WHERE {?s ?p ?o}",
       ElasticSearchView(
         mapping,
         Filter(Set(nxv.Schema), Set(tpe1), Some("two"), includeDeprecated = false),
@@ -100,7 +102,7 @@ class ViewSpec
     )
 
     val sparqlProjection = SparqlProjection(
-      "CONSTRUCT {other} WHERE {...}",
+      "CONSTRUCT {{resource_id} ?p ?o} WHERE {?ss ?pp ?oo}",
       SparqlView(
         Filter(includeDeprecated = true),
         includeMetadata = true,
@@ -120,6 +122,7 @@ class ViewSpec
           CompositeView(
             source,
             Set[Projection](esProjection, sparqlProjection),
+            Some(Interval(20 minutes)),
             projectRef,
             iri,
             UUID.fromString("247d223b-1d38-4c6e-8fed-f9a8c2ccb4a1"),
@@ -318,11 +321,9 @@ class ViewSpec
       }
 
       "fail on ElasticSearchView when invalid payload" in {
-        val wrong = List(
-          jsonContentOf("/view/elasticview-wrong-1.json").appendContextOf(viewCtx),
-          jsonContentOf("/view/elasticview-wrong-2.json").appendContextOf(viewCtx),
-          jsonContentOf("/view/elasticview-wrong-3.json").appendContextOf(viewCtx)
-        )
+        val wrong = List.tabulate(3) { i =>
+          jsonContentOf(s"/view/elasticview-wrong-${i + 1}.json").appendContextOf(viewCtx)
+        }
         forAll(wrong) { json =>
           val resource = simpleV(id, json, types = Set(nxv.View, nxv.ElasticSearchView))
           View(resource).left.value shouldBe a[InvalidResourceFormat]
@@ -330,9 +331,13 @@ class ViewSpec
       }
 
       "fail on CompositeView when invalid payload" in {
-        val json     = jsonContentOf("/view/composite-view-wrong.json").appendContextOf(viewCtx)
-        val resource = simpleV(id, json, types = Set(nxv.View, nxv.CompositeView))
-        View(resource).left.value shouldBe a[InvalidResourceFormat]
+        val wrong = List.tabulate(2) { i =>
+          jsonContentOf(s"/view/composite-view-wrong-${i + 1}.json").appendContextOf(viewCtx)
+        }
+        forAll(wrong) { json =>
+          val resource = simpleV(id, json, types = Set(nxv.View, nxv.CompositeView))
+          View(resource).left.value shouldBe a[InvalidResourceFormat]
+        }
       }
 
       "fail on SparqlView when types are wrong" in {
@@ -361,8 +366,8 @@ class ViewSpec
         // format: off
         val esAgg: View = AggregateElasticSearchView(views, projectRef, UUID.fromString("3aa14a1a-81e7-4147-8306-136d8270bb01"), iri, 1L, deprecated = false)
         val sparqlAgg: View = AggregateSparqlView(views, projectRef, UUID.fromString("3aa14a1a-81e7-4147-8306-136d8270bb01"), iri, 1L, deprecated = false)
-        val composite1: View = CompositeView(source, Set(esProjection), projectRef, iri, UUID.fromString("247d223b-1d38-4c6e-8fed-f9a8c2ccb4a1"), 1L, deprecated = false)
-        val composite2: View = CompositeView(source, Set(sparqlProjection), projectRef, iri, UUID.fromString("247d223b-1d38-4c6e-8fed-f9a8c2ccb4a1"), 1L, deprecated = false)
+        val composite1: View = CompositeView(source, Set(esProjection), None, projectRef, iri, UUID.fromString("247d223b-1d38-4c6e-8fed-f9a8c2ccb4a1"), 1L, deprecated = false)
+        val composite2: View = CompositeView(source, Set(sparqlProjection), Some(Interval(20 minutes)), projectRef, iri, UUID.fromString("247d223b-1d38-4c6e-8fed-f9a8c2ccb4a1"), 1L, deprecated = false)
         val es: View = ElasticSearchView(mapping, Filter(Set(nxv.Schema, nxv.Resource), Set.empty, Some("one")), false, true, projectRef, iri, UUID.fromString("3aa14a1a-81e7-4147-8306-136d8270bb01"), 1L, false)
         val sparql: View = SparqlView(Filter(), true, projectRef, iri, UUID.fromString("247d223b-1d38-4c6e-8fed-f9a8c2ccb4a1"), 1L, false)
         // format: on
