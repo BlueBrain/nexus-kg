@@ -27,19 +27,20 @@ import scala.concurrent.duration.FiniteDuration
 /**
   * Application configuration
   *
-  * @param description      service description
-  * @param http             http interface configuration
-  * @param cluster          akka cluster configuration
-  * @param persistence      persistence configuration
-  * @param storage          storages configuration
-  * @param admin            admin client configuration
-  * @param iam              IAM client configuration
-  * @param sparql           Sparql endpoint configuration
-  * @param elasticSearch    ElasticSearch endpoint configuration
-  * @param pagination       Pagination configuration
-  * @param keyValueStore    Distributed data configuration
-  * @param sourcing         Sourcing configuration
-  * @param archives         Archive collection cache configuration
+  * @param description   service description
+  * @param http          http interface configuration
+  * @param cluster       akka cluster configuration
+  * @param persistence   persistence configuration
+  * @param storage       storages configuration
+  * @param admin         admin client configuration
+  * @param iam           IAM client configuration
+  * @param sparql        Sparql endpoint configuration
+  * @param elasticSearch ElasticSearch endpoint configuration
+  * @param composite     Composite view configuration
+  * @param pagination    Pagination configuration
+  * @param keyValueStore Distributed data configuration
+  * @param sourcing      Sourcing configuration
+  * @param archives      Archive collection cache configuration
   */
 final case class AppConfig(
     description: Description,
@@ -51,6 +52,7 @@ final case class AppConfig(
     iam: IamConfig,
     sparql: SparqlConfig,
     elasticSearch: ElasticSearchConfig,
+    composite: CompositeViewConfig,
     pagination: PaginationConfig,
     keyValueStore: StoreConfig,
     sourcing: SourcingConfig,
@@ -299,6 +301,15 @@ object AppConfig {
   )
 
   /**
+    * Composite view configuration
+    *
+    * @param maxSources         the maximum number of sources allowed
+    * @param maxProjections     the maximum number of projections allowed
+    * @param minIntervalRebuild the minimum allowed value for interval rebuild
+    */
+  final case class CompositeViewConfig(maxSources: Int, maxProjections: Int, minIntervalRebuild: FiniteDuration)
+
+  /**
     * Pagination configuration
     *
     * @param defaultSize  the default number of results per page
@@ -366,19 +377,20 @@ object AppConfig {
     )
   )
 
-  implicit def toSparql(implicit appConfig: AppConfig): SparqlConfig               = appConfig.sparql
-  implicit def toElasticSearch(implicit appConfig: AppConfig): ElasticSearchConfig = appConfig.elasticSearch
-  implicit def toPersistence(implicit appConfig: AppConfig): PersistenceConfig     = appConfig.persistence
-  implicit def toPagination(implicit appConfig: AppConfig): PaginationConfig       = appConfig.pagination
-  implicit def toHttp(implicit appConfig: AppConfig): HttpConfig                   = appConfig.http
-  implicit def toIam(implicit appConfig: AppConfig): IamConfig                     = appConfig.iam
-  implicit def toIamClient(implicit appConfig: AppConfig): IamClientConfig         = appConfig.iam.iamClient
-  implicit def toAdmin(implicit appConfig: AppConfig): AdminClientConfig           = appConfig.admin
-  implicit def toSourcing(implicit appConfig: AppConfig): SourcingConfig           = appConfig.sourcing
-  implicit def toStore(implicit appConfig: AppConfig): StoreConfig                 = appConfig.keyValueStore
-  implicit def toKVS(implicit appConfig: AppConfig): KeyValueStoreConfig           = appConfig.keyValueStore.keyValueStoreConfig
-  implicit def toStorage(implicit appConfig: AppConfig): StorageConfig             = appConfig.storage
-  implicit def toSecretKey(implicit storageConfig: StorageConfig): SecretKey       = storageConfig.derivedKey
+  implicit def toSparql(implicit appConfig: AppConfig): SparqlConfig                 = appConfig.sparql
+  implicit def toElasticSearch(implicit appConfig: AppConfig): ElasticSearchConfig   = appConfig.elasticSearch
+  implicit def toPersistence(implicit appConfig: AppConfig): PersistenceConfig       = appConfig.persistence
+  implicit def toPagination(implicit appConfig: AppConfig): PaginationConfig         = appConfig.pagination
+  implicit def toHttp(implicit appConfig: AppConfig): HttpConfig                     = appConfig.http
+  implicit def toIam(implicit appConfig: AppConfig): IamConfig                       = appConfig.iam
+  implicit def toIamClient(implicit appConfig: AppConfig): IamClientConfig           = appConfig.iam.iamClient
+  implicit def toAdmin(implicit appConfig: AppConfig): AdminClientConfig             = appConfig.admin
+  implicit def toSourcing(implicit appConfig: AppConfig): SourcingConfig             = appConfig.sourcing
+  implicit def toStore(implicit appConfig: AppConfig): StoreConfig                   = appConfig.keyValueStore
+  implicit def toKVS(implicit appConfig: AppConfig): KeyValueStoreConfig             = appConfig.keyValueStore.keyValueStoreConfig
+  implicit def toStorage(implicit appConfig: AppConfig): StorageConfig               = appConfig.storage
+  implicit def toSecretKey(implicit storageConfig: StorageConfig): SecretKey         = storageConfig.derivedKey
+  implicit def toCompositeConfig(implicit appConfig: AppConfig): CompositeViewConfig = appConfig.composite
   implicit def toArchivesConfig(implicit appConfig: AppConfig): ArchivesConfig =
     appConfig.archives
 

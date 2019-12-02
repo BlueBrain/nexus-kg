@@ -78,6 +78,7 @@ object Vocabulary {
     // CompositeView
     val sources            = PrefixMapping.prefix("sources")
     val projections        = PrefixMapping.prefix("projections")
+    val rebuildStrategy    = PrefixMapping.prefix("rebuildStrategy")
     val context            = PrefixMapping.prefix("context")
     val query              = PrefixMapping.prefix("query")
     val ElasticSearch      = PrefixMapping.prefix("ElasticSearch")
@@ -179,6 +180,7 @@ object Vocabulary {
     val NoProgress                 = PrefixMapping.prefix("NoProgress")
     val Sequential                 = PrefixMapping.prefix("Sequential")
     val TimeBased                  = PrefixMapping.prefix("TimeBased")
+    val Interval                   = PrefixMapping.prefix("Interval")
   }
 
   /**

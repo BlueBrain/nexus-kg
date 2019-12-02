@@ -70,6 +70,7 @@ class ViewCacheSpec
   val compositeView = CompositeView(
     Source(Filter(), false),
     Set(ElasticSearchProjection("", esViewsProj1.head, Json.obj()), SparqlProjection("", sparqlViewsProj1.head)),
+    None,
     ref1,
     genIri,
     genUUID,

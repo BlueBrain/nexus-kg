@@ -16,10 +16,11 @@ import ch.epfl.bluebrain.nexus.commons.test.Resources._
 import ch.epfl.bluebrain.nexus.iam.client.types._
 import ch.epfl.bluebrain.nexus.kg.cache.{ProjectCache, ViewCache}
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig
+import ch.epfl.bluebrain.nexus.kg.config.AppConfig.CompositeViewConfig
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary.nxv
 import ch.epfl.bluebrain.nexus.kg.indexing.SparqlLink.{SparqlExternalLink, SparqlResourceLink}
 import ch.epfl.bluebrain.nexus.kg.indexing.View.CompositeView.Projection._
-import ch.epfl.bluebrain.nexus.kg.indexing.View.CompositeView.{Projection, Source}
+import ch.epfl.bluebrain.nexus.kg.indexing.View.CompositeView.{Interval, Projection, Source}
 import ch.epfl.bluebrain.nexus.kg.indexing.View.SparqlView._
 import ch.epfl.bluebrain.nexus.kg.indexing.View._
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection._
@@ -40,11 +41,13 @@ import ch.epfl.bluebrain.nexus.rdf.syntax._
 import ch.epfl.bluebrain.nexus.rdf.{Graph, RootedGraph}
 import io.circe.{parser, Json}
 import journal.Logger
+import org.apache.jena.query.QueryFactory
 import shapeless.Typeable.ValueTypeable
 import shapeless.{TypeCase, Typeable}
 
 import scala.collection.JavaConverters._
-import scala.util.Try
+import scala.concurrent.duration.FiniteDuration
+import scala.util.{Failure, Success, Try}
 
 /**
   * Enumeration of view types.
@@ -151,8 +154,9 @@ sealed trait View extends Product with Serializable {
 
 object View {
 
-  val query: Permission = Permission.unsafe("views/query")
-  val write: Permission = Permission.unsafe("views/write")
+  val query: Permission    = Permission.unsafe("views/query")
+  val write: Permission    = Permission.unsafe("views/write")
+  private val idTemplating = "{resource_id}"
 
   /**
     * @param resourceSchemas set of schemas iris used in the view. Indexing will be triggered only for resources validated against any of those schemas (when empty, all resources are indexed)
@@ -301,7 +305,7 @@ object View {
     * @param res a materialized resource
     * @return Right(view) if the resource is compatible with a View, Left(rejection) otherwise
     */
-  final def apply(res: ResourceV): Either[Rejection, View] = {
+  final def apply(res: ResourceV)(implicit config: CompositeViewConfig): Either[Rejection, View] = {
     val c = res.value.graph.cursor()
 
     def filter(c: GraphCursor): Either[Rejection, Filter] =
@@ -328,15 +332,35 @@ object View {
 
     def composite(): Either[Rejection, View] = {
 
-      def elasticSearchProjection(c: GraphCursor): Either[Rejection, Projection] = {
-        // TODO: Check if the query is a valid CONSTRUCT query && support external context
+      def validateSparqlQuery(id: AbsoluteIri, q: String): Either[Rejection, Unit] =
+        Try(QueryFactory.create(q.replaceAll(quote(idTemplating), s"<${res.id.value.asString}>"))) match {
+          case Success(_) if !q.contains(idTemplating) =>
+            val err = s"The provided SparQL does not target an id. The templating '$idTemplating' should be present."
+            Left(InvalidResourceFormat(id.ref, err))
+          case Success(query) if query.isConstructType =>
+            Right(())
+          case Success(_) =>
+            Left(InvalidResourceFormat(id.ref, "The provided SparQL query is not a CONSTRUCT query"))
+          case Failure(err) =>
+            Left(InvalidResourceFormat(id.ref, s"The provided SparQL query is invalid: Reason: '${err.getMessage}'"))
+        }
+
+      def validateRebuild(rebuildInterval: Option[FiniteDuration]): Either[Rejection, Unit] =
+        if (rebuildInterval.forall(_ >= config.minIntervalRebuild))
+          Right(())
+        else
+          Left(
+            InvalidResourceFormat(res.id.ref, s"Rebuild interval cannot be smaller than '${config.minIntervalRebuild}'")
+          )
+
+      def elasticSearchProjection(c: GraphCursor): Either[Rejection, Projection] =
         for {
           id      <- c.focus.as[AbsoluteIri].onError(res.id.ref, "@id")
           query   <- c.downField(nxv.query).focus.as[String].onError(res.id.ref, nxv.query.prefix)
+          _       <- validateSparqlQuery(id, query)
           view    <- elasticSearch(c)
           context <- c.downField(nxv.context).focus.as[String].flatMap(parse).onError(res.id.ref, nxv.context.prefix)
         } yield ElasticSearchProjection(query, view.copy(id = id), context)
-      }
 
       def checkNotAllowedSparql(id: AbsoluteIri): Either[Rejection, Unit] =
         if (id == nxv.defaultSparqlIndex.value)
@@ -349,33 +373,41 @@ object View {
           id    <- c.focus.as[AbsoluteIri].onError(res.id.ref, "@id")
           _     <- checkNotAllowedSparql(id)
           query <- c.downField(nxv.query).focus.as[String].onError(res.id.ref, nxv.query.prefix)
+          _     <- validateSparqlQuery(id, query)
           view  <- sparql(c)
         } yield SparqlProjection(query, view.copy(id = id))
 
       def projections(iter: Iterable[GraphCursor]): Either[Rejection, Set[Projection]] =
-        iter.toList
-          .foldM(List.empty[Projection]) { (acc, innerCursor) =>
-            innerCursor.downField(rdf.tpe).focus.as[AbsoluteIri].onError(res.id.ref, "@type").flatMap {
-              case tpe if tpe == nxv.ElasticSearch.value => elasticSearchProjection(innerCursor).map(_ :: acc)
-              case tpe if tpe == nxv.Sparql.value        => sparqlProjection(innerCursor).map(_ :: acc)
-              case tpe =>
-                Left(
-                  InvalidResourceFormat(res.id.ref, s"projection @type with value '$tpe' is not supported."): Rejection
-                )
+        if (iter.size > config.maxProjections)
+          Left(InvalidResourceFormat(res.id.ref, s"The number of projections cannot exceed ${config.maxProjections}"))
+        else
+          iter.toList
+            .foldM(List.empty[Projection]) { (acc, innerCursor) =>
+              innerCursor.downField(rdf.tpe).focus.as[AbsoluteIri].onError(res.id.ref, "@type").flatMap {
+                case tpe if tpe == nxv.ElasticSearch.value => elasticSearchProjection(innerCursor).map(_ :: acc)
+                case tpe if tpe == nxv.Sparql.value        => sparqlProjection(innerCursor).map(_ :: acc)
+                case tpe =>
+                  val err = s"projection @type with value '$tpe' is not supported."
+                  Left(InvalidResourceFormat(res.id.ref, err): Rejection)
+              }
             }
-          }
-          .map(_.toSet)
+            .map(_.toSet): Either[Rejection, Set[Projection]]
 
       // format: off
       val sourceC = c.downField(nxv.sources)
       for {
         uuid          <- c.downField(nxv.uuid).focus.as[UUID].onError(res.id.ref, nxv.uuid.prefix)
         sourceTpe     <- sourceC.downField(rdf.tpe).focus.as[AbsoluteIri].onError(res.id.ref, "@type")
-        _             <- if(sourceTpe == nxv.ProjectEventStream.value) Right(()) else Left(InvalidResourceFormat(res.id.ref, s"Invalid '@type' field '$sourceTpe'. Recognized types are '${nxv.ProjectEventStream.value}'."): Rejection)
+        _             <- if(sourceTpe == nxv.ProjectEventStream.value) Right(()) else Left(InvalidResourceFormat(res.id.ref, s"Invalid '@type' field '$sourceTpe'. Recognized types are '${nxv.ProjectEventStream.value}'."))
         filterSource  <- filter(sourceC)
         includeMeta   <- sourceC.downField(nxv.includeMetadata).focus.as[Boolean].orElse(false).onError(res.id.ref, nxv.includeMetadata.prefix)
         projs         <- projections(c.downField(nxv.projections).downSet)
-      } yield CompositeView (Source(filterSource, includeMeta), projs, res.id.parent, res.id.value, uuid, res.rev, res.deprecated)
+        rebuildCursor  = c.downField(nxv.rebuildStrategy)
+        rebuildTpe    <- rebuildCursor.downField(rdf.tpe).focus.as[AbsoluteIri].onError(res.id.ref, "@type")
+        _             <- if(rebuildTpe == nxv.Interval.value) Right(()) else Left(InvalidResourceFormat(res.id.ref, s"${nxv.rebuildStrategy.prefix} @type with value '$rebuildTpe' is not supported."))
+        interval      <- rebuildCursor.downField(nxv.value).focus.asOption[FiniteDuration].onError(res.id.ref, "value")
+        _             <- validateRebuild(interval)
+      } yield CompositeView (Source(filterSource, includeMeta), projs, interval.map(Interval), res.id.parent, res.id.value, uuid, res.rev, res.deprecated)
       // format: on
     }
 
@@ -667,17 +699,19 @@ object View {
   /**
     * Composite view. A source generates a temporary Sparql index which then is used to generate a set of indices
     *
-    * @param source      the source
-    * @param projections a set of indices created out of the temporary sparql index
-    * @param ref         a reference to the project that the view belongs to
-    * @param id          the user facing view id
-    * @param uuid        the underlying uuid generated for this view
-    * @param rev         the view revision
-    * @param deprecated  the deprecation state of the view
+    * @param source          the source
+    * @param projections     a set of indices created out of the temporary sparql index
+    * @param rebuildStrategy the optional strategy to rebuild the projections
+    * @param ref             a reference to the project that the view belongs to
+    * @param id              the user facing view id
+    * @param uuid            the underlying uuid generated for this view
+    * @param rev             the view revision
+    * @param deprecated      the deprecation state of the view
     */
   final case class CompositeView(
       source: Source,
       projections: Set[Projection],
+      rebuildStrategy: Option[Interval],
       ref: ProjectRef,
       id: AbsoluteIri,
       uuid: UUID,
@@ -697,11 +731,18 @@ object View {
       projections.collect { case tpe(projection) => projection }
     }
 
+    def projectionView(id: AbsoluteIri): Option[SingleView] = {
+      projections.collectFirst { case projection if projection.view.id == id => projection.view }
+    }
+
   }
 
   object CompositeView {
 
+    // TODO: This will be a sealed trait with different options: InProject, CrossProject and CrossDeployment
     final case class Source(filter: Filter, includeMetadata: Boolean)
+
+    final case class Interval(value: FiniteDuration)
 
     sealed trait Projection extends Product with Serializable {
       def query: String
@@ -721,7 +762,7 @@ object View {
         * @return a Sparql query results response
         */
       def runQuery[F[_]: Effect: Timer](res: ResourceV)(implicit client: BlazegraphClient[F]): F[SparqlResults] =
-        client.queryRaw(query.replaceAll(quote("{resource_id}"), s"<${res.id.value.asString}>"))
+        client.queryRaw(query.replaceAll(quote(idTemplating), s"<${res.id.value.asString}>"))
     }
 
     object Projection {

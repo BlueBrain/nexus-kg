@@ -67,7 +67,7 @@ class ViewCache[F[_]: Effect: Timer] private (projectToCache: ConcurrentHashMap[
     * Fetches a projection from a view of a specific type from the provided project and with the provided id
     *
     * @param ref          the project unique reference
-    * @param viewId       the composite view unique id in the provided project
+    * @param viewId       the view unique id in the provided project
     * @param projectionId the id of the projection
     * @tparam T the type of view to be returned
     */
@@ -75,29 +75,12 @@ class ViewCache[F[_]: Effect: Timer] private (projectToCache: ConcurrentHashMap[
       ref: ProjectRef,
       viewId: AbsoluteIri,
       projectionId: AbsoluteIri
-  ): F[Option[T]] =
-    getViewAndProjectionBy[T](ref, viewId, projectionId).map(_.map { case (_, value) => value })
-
-  /**
-    * Fetches a compositeView and a projection within it
-    *
-    * @param ref          the project unique reference
-    * @param viewId       the composite view unique id in the provided project
-    * @param projectionId the id of the projection
-    * @tparam T the type of view to be returned
-    */
-  def getViewAndProjectionBy[T <: View: Typeable](
-      ref: ProjectRef,
-      viewId: AbsoluteIri,
-      projectionId: AbsoluteIri
-  ): F[Option[(CompositeView, T)]] = {
-    val tpe = TypeCase[T]
+  ): F[Option[T]] = {
+    val T = TypeCase[T]
     getBy[CompositeView](ref, viewId).map { viewOpt =>
       viewOpt.flatMap { view =>
         val projections = view.projections.map(_.view) + view.defaultSparqlView
-        projections.collectFirst {
-          case tpe(v) if v.id == projectionId => view -> v
-        }
+        projections.collectFirst { case T(v) if v.id == projectionId => v }
       }
     }
   }

@@ -17,11 +17,9 @@
   ],
   "projections": [
     {
-      "@type": "http://example.com/Other"
-    },
-    {
+      "@id": "http://example/com/1",
       "@type": "Sparql",
-      "query": "CONSTRUCT {other} WHERE {...}",
+      "query": "CONSTRUCT {?s ?p ?o} WHERETYPO {?s ?p ?o}",
       "includeDeprecated": true,
       "includeMetadata": true
     }

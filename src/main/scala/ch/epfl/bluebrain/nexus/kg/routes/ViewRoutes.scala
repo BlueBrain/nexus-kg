@@ -4,9 +4,9 @@ import akka.http.scaladsl.model.StatusCodes.{Created, OK}
 import akka.http.scaladsl.model.{StatusCodes, Uri}
 import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.Route
-import cats.syntax.functor._
 import akka.http.scaladsl.unmarshalling.FromEntityUnmarshaller
 import akka.persistence.query.{NoOffset, Offset, Sequence, TimeBasedUUID}
+import cats.syntax.functor._
 import ch.epfl.bluebrain.nexus.admin.client.types.Project
 import ch.epfl.bluebrain.nexus.commons.search.QueryResults
 import ch.epfl.bluebrain.nexus.commons.search.QueryResults.UnscoredQueryResults
@@ -28,7 +28,8 @@ import ch.epfl.bluebrain.nexus.kg.indexing.View.CompositeView.Projection.{Elasti
 import ch.epfl.bluebrain.nexus.kg.indexing.View._
 import ch.epfl.bluebrain.nexus.kg.indexing.{Statistics, View}
 import ch.epfl.bluebrain.nexus.kg.marshallers.instances._
-import ch.epfl.bluebrain.nexus.kg.resources.Rejection.{NoStatsForAggregateView, NotFound}
+import ch.epfl.bluebrain.nexus.kg.resources.Rejection.NotFound
+import ch.epfl.bluebrain.nexus.kg.resources.Rejection.NotFound.notFound
 import ch.epfl.bluebrain.nexus.kg.resources._
 import ch.epfl.bluebrain.nexus.kg.resources.syntax._
 import ch.epfl.bluebrain.nexus.kg.routes.OutputFormat._
@@ -113,11 +114,7 @@ class ViewRoutes private[routes] (
       (get & pathPrefix("statistics") & pathEndOrSingleSlash) {
         operationName(s"/${config.http.prefix}/views/{org}/{project}/{id}/statistics") {
           hasPermission(read).apply {
-            val result: Task[Either[Rejection, Statistics]] = viewCache.getBy[View](project.ref, id).flatMap {
-              case Some(view: IndexedView) => coordinator.statistics(view).map(Right(_))
-              case Some(_)                 => Task.pure(Left(NoStatsForAggregateView))
-              case None                    => Task.pure(Left(NotFound(id.ref)))
-            }
+            val result = coordinator.statistics(id).map(_.toRight(notFound(id.ref)))
             complete(result.runWithStatus(StatusCodes.OK))
           }
         }
@@ -126,11 +123,7 @@ class ViewRoutes private[routes] (
       (get & pathPrefix("progress") & pathEndOrSingleSlash) {
         operationName(s"/${config.http.prefix}/views/{org}/{project}/{id}/progress") {
           hasPermission(read).apply {
-            val result: Task[Either[Rejection, ProgressWrapper]] = viewCache.getBy[View](project.ref, id).flatMap {
-              case Some(view: IndexedView) => coordinator.offset(view).map(off => Right(ProgressWrapper(off)))
-              case Some(_)                 => Task.pure(Left(NoStatsForAggregateView))
-              case None                    => Task.pure(Left(NotFound(id.ref)))
-            }
+            val result = coordinator.offset(id).map(_.map(ProgressWrapper.apply)).map(_.toRight(notFound(id.ref)))
             complete(result.runWithStatus(StatusCodes.OK))
           }
         }
@@ -139,11 +132,7 @@ class ViewRoutes private[routes] (
       (delete & pathPrefix("progress") & pathEndOrSingleSlash) {
         operationName(s"/${config.http.prefix}/views/{org}/{project}/{id}/progress") {
           hasPermission(write).apply {
-            val result: Task[Either[Rejection, ProgressWrapper]] =
-              viewCache.getBy[IndexedView](project.ref, id).flatMap {
-                case Some(view) => coordinator.restart(view) >> Task.pure(Right(ProgressWrapper.empty))
-                case None       => Task.pure(Left(NotFound(id.ref)))
-              }
+            val result = coordinator.restart(id).map(_.map(_ => ProgressWrapper.empty)).map(_.toRight(notFound(id.ref)))
             complete(result.runWithStatus(StatusCodes.OK))
           }
         }
@@ -333,11 +322,8 @@ class ViewRoutes private[routes] (
       (delete & pathPrefix("progress") & pathEndOrSingleSlash) {
         operationName(s"/${config.http.prefix}/views/{org}/{project}/{id}/projections/_/progress") {
           hasPermission(write).apply {
-            val result: Task[Either[Rejection, ProgressWrapper]] =
-              viewCache.getBy[CompositeView](project.ref, id).flatMap {
-                case Some(view) => coordinator.restartProjections(view) >> Task.pure(Right(ProgressWrapper.empty))
-                case None       => Task.pure(Left(NotFound(id.ref)))
-              }
+            val result =
+              coordinator.restartProjections(id).map(_.map(_ => ProgressWrapper.empty)).map(_.toRight(notFound(id.ref)))
             complete(result.runWithStatus(StatusCodes.OK))
           }
         }
@@ -373,11 +359,7 @@ class ViewRoutes private[routes] (
       (get & pathPrefix("statistics") & pathEndOrSingleSlash) {
         operationName(s"/${config.http.prefix}/views/{org}/{project}/{id}/projections/{projectionId}/statistics") {
           hasPermission(read).apply {
-            val result: Task[Either[Rejection, Statistics]] =
-              viewCache.getViewAndProjectionBy[SingleView](project.ref, id, projectionId).flatMap {
-                case Some((view, pView)) => coordinator.statistics(view, pView).map(Right(_))
-                case None                => Task.pure(Left(NotFound(id.ref)))
-              }
+            val result = coordinator.statistics(id, projectionId).map(_.toRight(notFound(id.ref)))
             complete(result.runWithStatus(StatusCodes.OK))
           }
         }
@@ -386,11 +368,8 @@ class ViewRoutes private[routes] (
       (get & pathPrefix("progress") & pathEndOrSingleSlash) {
         operationName(s"/${config.http.prefix}/views/{org}/{project}/{id}/projections/{projectionId}/progress") {
           hasPermission(read).apply {
-            val result: Task[Either[Rejection, ProgressWrapper]] =
-              viewCache.getViewAndProjectionBy[SingleView](project.ref, id, projectionId).flatMap {
-                case Some((view, pView)) => coordinator.offset(view, pView).map(off => Right(ProgressWrapper(off)))
-                case None                => Task.pure(Left(NotFound(id.ref)))
-              }
+            val result =
+              coordinator.offset(id, projectionId).map(_.map(ProgressWrapper.apply)).map(_.toRight(notFound(id.ref)))
             complete(result.runWithStatus(StatusCodes.OK))
           }
         }
@@ -399,12 +378,9 @@ class ViewRoutes private[routes] (
       (delete & pathPrefix("progress") & pathEndOrSingleSlash) {
         operationName(s"/${config.http.prefix}/views/{org}/{project}/{id}/projections/{projectionId}/progress") {
           hasPermission(write).apply {
-            val result: Task[Either[Rejection, ProgressWrapper]] =
-              viewCache.getViewAndProjectionBy[SingleView](project.ref, id, projectionId).flatMap {
-                case Some((view, pView)) => coordinator.restart(view, pView) >> Task.pure(Right(ProgressWrapper.empty))
-                case None                => Task.pure(Left(NotFound(id.ref)))
-              }
-            complete(result.runWithStatus(StatusCodes.OK))
+            val resultOption = coordinator.restart(id, projectionId).map(_.map(_ => ProgressWrapper.empty))
+            val resultEither = resultOption.map(_.toRight(notFound(id.ref)))
+            complete(resultEither.runWithStatus(StatusCodes.OK))
           }
         }
       }
