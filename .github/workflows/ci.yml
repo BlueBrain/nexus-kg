@@ -20,9 +20,9 @@ jobs:
         with:
           java-version: adopt@1.11
       - name: StaticAnalysis
-        run: sbt clean scalafmtCheck test:scalafmtCheck scalafmtSbtCheck scapegoat
+        run: sbt -Dsbt.color=always -Dsbt.supershell=false clean scalafmtCheck test:scalafmtCheck scalafmtSbtCheck scapegoat
       - name: Tests
-        run: sbt clean coverage test coverageReport coverageAggregate
+        run: sbt -Dsbt.color=always -Dsbt.supershell=false clean coverage test coverageReport coverageAggregate
   publish:
     if: github.event_name == 'push'
     runs-on: ubuntu-latest
@@ -40,14 +40,14 @@ jobs:
         with:
           java-version: adopt@1.11
       - name: PublishToBintray
-        run: sbt releaseEarly
+        run: sbt -Dsbt.color=always -Dsbt.supershell=false releaseEarly
       - name: PublishToDockerHub
         run: |
-          sbt docker:publishLocal
+          sbt -Dsbt.color=always -Dsbt.supershell=false docker:publishLocal
           echo ${{ secrets.DOCKER_PASS }} | docker login --username ${{ secrets.DOCKER_USER }} --password-stdin
           docker push bluebrain/nexus-kg:latest
       - name: RecordCoverage
-        run: sbt clean coverage test coverageReport coverageAggregate
+        run: sbt -Dsbt.color=always -Dsbt.supershell=false clean coverage test coverageReport coverageAggregate
       - name: PublishCoverage
         uses: codecov/codecov-action@v1
         with:
@@ -71,14 +71,14 @@ jobs:
       - name: SetVersion
         run: echo ::set-env name=VERSION::$(echo ${GITHUB_REF:11})
       - name: PublishToBintray
-        run: sbt releaseEarly
+        run: sbt -Dsbt.color=always -Dsbt.supershell=false releaseEarly
       - name: PublishToDockerHub
         run: |
-          sbt ";set Docker/version := \"${{ env.VERSION }}\"; docker:publishLocal"
+          sbt -Dsbt.color=always -Dsbt.supershell=false ";set Docker/version := \"${{ env.VERSION }}\"; docker:publishLocal"
           echo ${{ secrets.DOCKER_PASS }} | docker login --username ${{ secrets.DOCKER_USER }} --password-stdin
           docker push bluebrain/nexus-kg:${{ env.VERSION }}
       - name: RecordCoverage
-        run: sbt clean coverage test coverageReport coverageAggregate
+        run: sbt -Dsbt.color=always -Dsbt.supershell=false clean coverage test coverageReport coverageAggregate
       - name: PublishCoverage
         uses: codecov/codecov-action@v1
         with:
