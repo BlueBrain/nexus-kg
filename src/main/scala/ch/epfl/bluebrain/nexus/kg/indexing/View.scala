@@ -1,5 +1,6 @@
 package ch.epfl.bluebrain.nexus.kg.indexing
 
+import java.time.Instant
 import java.util.regex.Pattern.quote
 import java.util.{Properties, UUID}
 
@@ -734,6 +735,9 @@ object View {
     def projectionView(id: AbsoluteIri): Option[SingleView] = {
       projections.collectFirst { case projection if projection.view.id == id => projection.view }
     }
+
+    def nextRestart(previous: Option[Instant]): Option[Instant] =
+      (previous, rebuildStrategy).mapN { case (p, Interval(v)) => p.plusMillis(v.toMillis) }
 
   }
 

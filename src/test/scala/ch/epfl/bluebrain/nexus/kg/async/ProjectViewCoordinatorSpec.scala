@@ -93,7 +93,8 @@ class ProjectViewCoordinatorSpec
         override def startCoordinator(
             v: View.IndexedView,
             proj: Project,
-            restartOffset: Boolean
+            restart: Boolean,
+            prevRestart: Option[Instant]
         ): ViewCoordinator = {
           counterStart.incrementAndGet()
           if (v == view && proj == project) ViewCoordinator(coordinator1)
@@ -101,7 +102,7 @@ class ProjectViewCoordinatorSpec
           else if (v == view2Updated && proj == project) ViewCoordinator(coordinator2Updated)
           else if (v == view3 && proj == project2) ViewCoordinator(coordinator3)
           else if (v == view3.copy(rev = 2L) && proj == project2) ViewCoordinator(coordinator3)
-          else if (v == view3.copy(rev = 2L) && proj == project2Updated && restartOffset)
+          else if (v == view3.copy(rev = 2L) && proj == project2Updated && restart)
             ViewCoordinator(coordinator3Updated)
           else if (v == view4 && proj == project) ViewCoordinator(coordinator4)
           else throw new RuntimeException()
@@ -110,9 +111,10 @@ class ProjectViewCoordinatorSpec
         override def startCoordinator(
             view: CompositeView,
             proj: Project,
-            restartOffsetViews: Set[SingleView]
+            restartViews: Set[SingleView],
+            prevRestart: Option[Instant]
         ): ViewCoordinator =
-          if (view == view4 && proj == project && restartOffsetViews == view4.projections.map(_.view)) {
+          if (view == view4 && proj == project && restartViews == view4.projections.map(_.view)) {
             counterStartProjections.incrementAndGet()
             ViewCoordinator(coordinator4)
           } else throw new RuntimeException()
