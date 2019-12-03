@@ -20,6 +20,7 @@ import io.circe.generic.extras.semiauto.deriveConfiguredEncoder
   * @param lastEventDateTime          datetime of the last event in the project
   * @param lastProcessedEventDateTime time of the last processed event in the project
   * @param delayInSeconds             indexing delay
+  * @param nextRestart                next time when a restart is going to be triggered
   */
 final case class Statistics(
     processedEvents: Long,
@@ -30,7 +31,8 @@ final case class Statistics(
     totalEvents: Long,
     lastEventDateTime: Option[Instant],
     lastProcessedEventDateTime: Option[Instant],
-    delayInSeconds: Option[Long]
+    delayInSeconds: Option[Long],
+    nextRestart: Option[Instant]
 )
 
 object Statistics {
@@ -44,6 +46,7 @@ object Statistics {
     * @param totalEvents                total number of events for the project
     * @param lastEventDateTime          datetime of the last event in the project
     * @param lastProcessedEventDateTime time of the last processed event in the project
+    * @param nextRestart                next time when a restart is going to be triggered
     */
   def apply(
       processedEvents: Long,
@@ -51,7 +54,8 @@ object Statistics {
       failedEvents: Long,
       totalEvents: Long,
       lastEventDateTime: Option[Instant],
-      lastProcessedEventDateTime: Option[Instant]
+      lastProcessedEventDateTime: Option[Instant],
+      nextRestart: Option[Instant] = None
   ): Statistics =
     Statistics(
       processedEvents = processedEvents,
@@ -62,6 +66,7 @@ object Statistics {
       evaluatedEvents = processedEvents - discardedEvents - failedEvents,
       lastEventDateTime = lastEventDateTime,
       lastProcessedEventDateTime = lastProcessedEventDateTime,
+      nextRestart = nextRestart,
       delayInSeconds = for {
         lastEvent          <- lastEventDateTime
         lastProcessedEvent <- lastProcessedEventDateTime
