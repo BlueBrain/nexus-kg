@@ -9,9 +9,10 @@ import akka.stream.scaladsl.FileIO
 import ch.epfl.bluebrain.nexus.kg.resources.ProjectRef
 import ch.epfl.bluebrain.nexus.kg.resources.file.File.Digest
 import org.scalatest.concurrent.ScalaFutures
-import org.scalatest.{FlatSpec, Matchers}
+import org.scalatest.flatspec.AnyFlatSpecLike
+import org.scalatest.matchers.should.Matchers
 
-class PackageObjectSpec extends FlatSpec with Matchers with ScalaFutures {
+class PackageObjectSpec extends AnyFlatSpecLike with Matchers with ScalaFutures {
 
   "uriToPath" should "convert an Akka Uri that represents a valid file path to a Java Path" in {
     uriToPath("file:///some/path/my%20file.txt") shouldEqual Some(Paths.get("/some/path/my file.txt"))

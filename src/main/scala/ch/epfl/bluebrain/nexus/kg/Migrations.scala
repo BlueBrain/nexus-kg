@@ -22,7 +22,7 @@ import com.datastax.driver.core.TypeCodec
 import io.circe.Json
 import io.circe.parser.parse
 import io.circe.syntax._
-import journal.Logger
+import com.typesafe.scalalogging.Logger
 import monix.eval.Task
 import monix.execution.Scheduler
 import monix.execution.schedulers.CanBlock

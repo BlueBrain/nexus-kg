@@ -12,13 +12,15 @@ import ch.epfl.bluebrain.nexus.kg.resources.{Id, ProjectRef}
 import ch.epfl.bluebrain.nexus.kg.{KgError, TestHelper}
 import ch.epfl.bluebrain.nexus.sourcing.akka.SourcingConfig.RetryStrategyConfig
 import org.mockito.IdiomaticMockito
-import org.scalatest.{BeforeAndAfter, Matchers, OptionValues, WordSpecLike}
+import org.scalatest.{BeforeAndAfter, OptionValues}
+import org.scalatest.matchers.should.Matchers
+import org.scalatest.wordspec.AnyWordSpecLike
 
 import scala.concurrent.duration._
 
 class DiskStorageOperationsSpec
     extends ActorSystemFixture("DiskStorageOperationsSpec")
-    with WordSpecLike
+    with AnyWordSpecLike
     with Matchers
     with BeforeAndAfter
     with IdiomaticMockito
@@ -33,7 +35,7 @@ class DiskStorageOperationsSpec
     S3StorageConfig("MD5", read, write, true, 1024L),
     "password",
     "salt",
-    RetryStrategyConfig("linear", 300 millis, 5 minutes, 100, 1 second)
+    RetryStrategyConfig("linear", 300.millis, 5.minutes, 100, 1.second)
   )
 
   private val project  = ProjectRef(genUUID)

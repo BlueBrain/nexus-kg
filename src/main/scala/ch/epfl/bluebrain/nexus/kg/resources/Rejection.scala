@@ -14,6 +14,7 @@ import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import ch.epfl.bluebrain.nexus.rdf.MarshallingError
 import ch.epfl.bluebrain.nexus.rdf.MarshallingError.{ConversionError, RootNodeNotFound}
 import ch.epfl.bluebrain.nexus.rdf.syntax._
+import com.github.ghik.silencer.silent
 import io.circe.generic.extras.Configuration
 import io.circe.generic.extras.semiauto.deriveConfiguredEncoder
 import io.circe.parser.parse
@@ -193,7 +194,9 @@ object Rejection {
     * @param refs the import value stack
     */
   final case class IllegalContextValue(refs: List[Ref])
-      extends Rejection(s"Resource '${refs.reverseMap(_.show).mkString(" -> ")}' has an illegal context value.")
+      extends Rejection(
+        s"Resource '${refs.reverseIterator.map(_.show).to(List).mkString(" -> ")}' has an illegal context value."
+      )
 
   /**
     * Signals that the system is unable to select a primary node from a resource graph.
@@ -233,6 +236,7 @@ object Rejection {
         F.raiseError(KgError.InternalError(s"Unexpected MarshallingError with message '$message'"))
     }
 
+  @silent // private implicits in automatic derivation are not recognized as used
   implicit val rejectionEncoder: Encoder[Rejection] = {
     implicit val rejectionConfig: Configuration = Configuration.default.withDiscriminator("@type")
     val enc                                     = deriveConfiguredEncoder[Rejection].mapJson(_ addContext errorCtxUri)

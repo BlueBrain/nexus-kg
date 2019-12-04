@@ -30,13 +30,15 @@ import ch.epfl.bluebrain.nexus.rdf.syntax._
 import io.circe.Json
 import org.mockito.{ArgumentMatchersSugar, IdiomaticMockito}
 import org.mockito.Mockito.when
-import org.scalatest._
+import org.scalatest.{BeforeAndAfter, Inspectors, OptionValues}
+import org.scalatest.matchers.should.Matchers
+import org.scalatest.wordspec.AnyWordSpecLike
 
 import scala.concurrent.duration._
 
 class ViewSpec
     extends TestKit(ActorSystem("ViewSpec"))
-    with WordSpecLike
+    with AnyWordSpecLike
     with Matchers
     with OptionValues
     with Resources
@@ -118,11 +120,11 @@ class ViewSpec
 
       "return a CompositeView" in {
         val resource = simpleV(id, compositeview(), types = Set(nxv.View, nxv.CompositeView))
-        View(resource).right.value shouldEqual
+        View(resource).rightValue shouldEqual
           CompositeView(
             source,
             Set[Projection](esProjection, sparqlProjection),
-            Some(Interval(20 minutes)),
+            Some(Interval(20.minutes)),
             projectRef,
             iri,
             UUID.fromString("247d223b-1d38-4c6e-8fed-f9a8c2ccb4a1"),
@@ -133,7 +135,7 @@ class ViewSpec
 
       "return an ElasticSearchView" in {
         val resource = simpleV(id, elasticSearchview, types = Set(nxv.View, nxv.ElasticSearchView))
-        View(resource).right.value shouldEqual ElasticSearchView(
+        View(resource).rightValue shouldEqual ElasticSearchView(
           mapping,
           Filter(Set(nxv.Schema, nxv.Resource), Set(tpe1, tpe2), Some("one")),
           false,
@@ -148,7 +150,7 @@ class ViewSpec
 
       "return an SparqlView" in {
         val resource = simpleV(id, sparqlview, types = Set(nxv.View, nxv.SparqlView))
-        View(resource).right.value shouldEqual SparqlView(
+        View(resource).rightValue shouldEqual SparqlView(
           Filter(),
           false,
           projectRef,
@@ -162,7 +164,7 @@ class ViewSpec
 
       "return an SparqlView with tag, schema and types" in {
         val resource = simpleV(id, sparqlview2, types = Set(nxv.View, nxv.SparqlView))
-        View(resource).right.value shouldEqual SparqlView(
+        View(resource).rightValue shouldEqual SparqlView(
           Filter(Set(nxv.Schema, nxv.Resource), Set(tpe1, tpe2), Some("one"), includeDeprecated = false),
           true,
           projectRef,
@@ -181,7 +183,7 @@ class ViewSpec
           ViewRef(ProjectLabel("account1", "project1"), url"http://example.com/id2".value),
           ViewRef(ProjectLabel("account1", "project2"), url"http://example.com/id3".value)
         )
-        View(resource).right.value shouldEqual AggregateElasticSearchView(
+        View(resource).rightValue shouldEqual AggregateElasticSearchView(
           views,
           projectRef,
           UUID.fromString("3aa14a1a-81e7-4147-8306-136d8270bb01"),
@@ -198,7 +200,7 @@ class ViewSpec
           ViewRef(ProjectLabel("account1", "project1"), url"http://example.com/id2".value),
           ViewRef(ProjectLabel("account1", "project2"), url"http://example.com/id3".value)
         )
-        View(resource).right.value shouldEqual AggregateSparqlView(
+        View(resource).rightValue shouldEqual AggregateSparqlView(
           views,
           projectRef,
           UUID.fromString("3aa14a1a-81e7-4147-8306-136d8270bb01"),
@@ -223,7 +225,7 @@ class ViewSpec
             url"http://example.com/id3".value
           )
         )
-        View(resource).right.value shouldEqual AggregateElasticSearchView(
+        View(resource).rightValue shouldEqual AggregateElasticSearchView(
           views,
           projectRef,
           UUID.fromString("3aa14a1a-81e7-4147-8306-136d8270bb01"),
@@ -288,12 +290,12 @@ class ViewSpec
 
       "fail on AggregateElasticSearchView when types are wrong" in {
         val resource = simpleV(id, aggElasticSearchView, types = Set(nxv.View))
-        View(resource).left.value shouldBe a[InvalidResourceFormat]
+        View(resource).leftValue shouldBe a[InvalidResourceFormat]
       }
 
       "fail on AggregateSparqlView when types are wrong" in {
         val resource = simpleV(id, aggSparqlView, types = Set(nxv.View))
-        View(resource).left.value shouldBe a[InvalidResourceFormat]
+        View(resource).leftValue shouldBe a[InvalidResourceFormat]
       }
 
       "fail on AggregateElasticSearchView when ViewRef collection are wrong" in {
@@ -301,23 +303,23 @@ class ViewSpec
 
         val resource =
           simpleV(id, wrongAggElasticSearchView, types = Set(nxv.View, nxv.AggregateElasticSearchView))
-        View(resource).left.value shouldBe a[InvalidResourceFormat]
+        View(resource).leftValue shouldBe a[InvalidResourceFormat]
       }
 
       "fail on ElasticSearchView when types are wrong" in {
         val resource = simpleV(id, elasticSearchview, types = Set(nxv.View))
-        View(resource).left.value shouldBe a[InvalidResourceFormat]
+        View(resource).leftValue shouldBe a[InvalidResourceFormat]
       }
 
       "fail on CompositeView when types are wrong" in {
         val resource = simpleV(id, compositeview(), types = Set(nxv.View))
-        View(resource).left.value shouldBe a[InvalidResourceFormat]
+        View(resource).leftValue shouldBe a[InvalidResourceFormat]
       }
 
       "fail on CompositeView when duplicated projection @id" in {
         val resource =
           simpleV(id, compositeview(genIri, nxv.defaultSparqlIndex), types = Set(nxv.View, nxv.CompositeView))
-        View(resource).left.value shouldBe a[InvalidResourceFormat]
+        View(resource).leftValue shouldBe a[InvalidResourceFormat]
       }
 
       "fail on ElasticSearchView when invalid payload" in {
@@ -326,7 +328,7 @@ class ViewSpec
         }
         forAll(wrong) { json =>
           val resource = simpleV(id, json, types = Set(nxv.View, nxv.ElasticSearchView))
-          View(resource).left.value shouldBe a[InvalidResourceFormat]
+          View(resource).leftValue shouldBe a[InvalidResourceFormat]
         }
       }
 
@@ -336,13 +338,13 @@ class ViewSpec
         }
         forAll(wrong) { json =>
           val resource = simpleV(id, json, types = Set(nxv.View, nxv.CompositeView))
-          View(resource).left.value shouldBe a[InvalidResourceFormat]
+          View(resource).leftValue shouldBe a[InvalidResourceFormat]
         }
       }
 
       "fail on SparqlView when types are wrong" in {
         val resource = simpleV(id, sparqlview, types = Set(nxv.Schema))
-        View(resource).left.value shouldBe a[InvalidResourceFormat]
+        View(resource).leftValue shouldBe a[InvalidResourceFormat]
       }
 
       "fail on SparqlView when invalid payload" in {
@@ -352,7 +354,7 @@ class ViewSpec
             jsonContentOf("/view/sparqlview-wrong.json").appendContextOf(viewCtx),
             types = Set(nxv.View, nxv.ElasticSearchView)
           )
-        View(resource).left.value shouldBe a[InvalidResourceFormat]
+        View(resource).leftValue shouldBe a[InvalidResourceFormat]
       }
     }
 
@@ -367,7 +369,7 @@ class ViewSpec
         val esAgg: View = AggregateElasticSearchView(views, projectRef, UUID.fromString("3aa14a1a-81e7-4147-8306-136d8270bb01"), iri, 1L, deprecated = false)
         val sparqlAgg: View = AggregateSparqlView(views, projectRef, UUID.fromString("3aa14a1a-81e7-4147-8306-136d8270bb01"), iri, 1L, deprecated = false)
         val composite1: View = CompositeView(source, Set(esProjection), None, projectRef, iri, UUID.fromString("247d223b-1d38-4c6e-8fed-f9a8c2ccb4a1"), 1L, deprecated = false)
-        val composite2: View = CompositeView(source, Set(sparqlProjection), Some(Interval(20 minutes)), projectRef, iri, UUID.fromString("247d223b-1d38-4c6e-8fed-f9a8c2ccb4a1"), 1L, deprecated = false)
+        val composite2: View = CompositeView(source, Set(sparqlProjection), Some(Interval(20.minutes)), projectRef, iri, UUID.fromString("247d223b-1d38-4c6e-8fed-f9a8c2ccb4a1"), 1L, deprecated = false)
         val es: View = ElasticSearchView(mapping, Filter(Set(nxv.Schema, nxv.Resource), Set.empty, Some("one")), false, true, projectRef, iri, UUID.fromString("3aa14a1a-81e7-4147-8306-136d8270bb01"), 1L, false)
         val sparql: View = SparqlView(Filter(), true, projectRef, iri, UUID.fromString("247d223b-1d38-4c6e-8fed-f9a8c2ccb4a1"), 1L, false)
         // format: on
@@ -383,7 +385,7 @@ class ViewSpec
 
         forAll(results) {
           case (view, expectedJson) =>
-            val json = view.as[Json](viewCtx.appendContextOf(resourceCtx)).right.value.removeKeys("@context")
+            val json = view.as[Json](viewCtx.appendContextOf(resourceCtx)).rightValue.removeKeys("@context")
             json should equalIgnoreArrayOrder(expectedJson.removeKeys("@context"))
 
         }

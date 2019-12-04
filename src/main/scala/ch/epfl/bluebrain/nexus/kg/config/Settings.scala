@@ -7,6 +7,7 @@ import akka.http.scaladsl.model.Uri
 import ch.epfl.bluebrain.nexus.iam.client.types.{AuthToken, Permission}
 import ch.epfl.bluebrain.nexus.rdf.syntax.node.unsafe._
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
+import com.github.ghik.silencer.silent
 import com.typesafe.config.Config
 import pureconfig.generic.auto._
 import pureconfig.ConvertHelpers._
@@ -19,6 +20,7 @@ import pureconfig._
   * @param config the configuration instance to read
   */
 @SuppressWarnings(Array("LooksLikeInterpolatedString", "OptionGet"))
+@silent // private implicits in automatic derivation are not recognized as used
 class Settings(config: Config) extends Extension {
 
   private implicit val uriConverter: ConfigConvert[Uri] =

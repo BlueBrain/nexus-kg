@@ -5,7 +5,7 @@ import java.time.{Clock, Instant, ZoneId}
 import akka.http.scaladsl.model.ContentTypes._
 import akka.http.scaladsl.model.Uri
 import cats.effect.{ContextShift, IO, Timer}
-import ch.epfl.bluebrain.nexus.commons.test.ActorSystemFixture
+import ch.epfl.bluebrain.nexus.commons.test.{ActorSystemFixture, EitherValues}
 import ch.epfl.bluebrain.nexus.commons.test.io.{IOEitherValues, IOOptionValues}
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity.{Anonymous, Subject}
 import ch.epfl.bluebrain.nexus.kg.TestHelper
@@ -21,7 +21,9 @@ import ch.epfl.bluebrain.nexus.kg.storage.Storage.{LinkFile, SaveFile}
 import ch.epfl.bluebrain.nexus.rdf.Iri
 import io.circe.Json
 import org.mockito.{IdiomaticMockito, Mockito}
-import org.scalatest._
+import org.scalatest.{BeforeAndAfter, OptionValues}
+import org.scalatest.matchers.should.Matchers
+import org.scalatest.wordspec.AnyWordSpecLike
 
 import scala.concurrent.ExecutionContext
 import scala.concurrent.duration._
@@ -29,7 +31,7 @@ import scala.concurrent.duration._
 //noinspection RedundantDefaultArgument
 class RepoSpec
     extends ActorSystemFixture("RepoSpec", true)
-    with WordSpecLike
+    with AnyWordSpecLike
     with IOEitherValues
     with IOOptionValues
     with Matchers
@@ -39,7 +41,7 @@ class RepoSpec
     with BeforeAndAfter
     with TestHelper {
 
-  override implicit def patienceConfig: PatienceConfig = PatienceConfig(3 second, 15 milliseconds)
+  override implicit def patienceConfig: PatienceConfig = PatienceConfig(3.second, 15.milliseconds)
 
   private implicit val appConfig: AppConfig  = Settings(system).appConfig
   private implicit val clock: Clock          = Clock.fixed(Instant.ofEpochSecond(3600), ZoneId.systemDefault())
@@ -51,7 +53,7 @@ class RepoSpec
   private val linkFile = mock[LinkFile[IO]]
 
   private def randomJson() = Json.obj("key" -> Json.fromInt(genInt()))
-  private def randomIri()  = Iri.absolute(s"http://example.com/$genUUID").right.value
+  private def randomIri()  = Iri.absolute(s"http://example.com/$genUUID").rightValue
 
   before {
     Mockito.reset(saveFile)
@@ -64,7 +66,7 @@ class RepoSpec
     val iri                       = randomIri()
     val id                        = Id(projectRef, iri)
     val value                     = randomJson()
-    val schema                    = Iri.absolute("http://example.com/schema").right.value
+    val schema                    = Iri.absolute("http://example.com/schema").rightValue
     implicit val subject: Subject = Anonymous
   }
 

@@ -6,6 +6,7 @@ import ch.epfl.bluebrain.nexus.rdf.Iri.{AbsoluteIri, Query, Url, Urn}
 import ch.epfl.bluebrain.nexus.rdf.instances.absoluteIriEncoder
 import io.circe.Encoder
 
+import scala.collection.SortedMap
 import scala.util.Try
 
 /**
@@ -29,10 +30,10 @@ object Ref {
     */
   final def apply(iri: AbsoluteIri): Ref = {
     def extractTagRev(q: Query): (Query, Option[Either[String, Long]]) = {
-      val map = q.value
+      val map = Map.from(q.value)
       def rev = map.get("rev").flatMap(_.headOption).flatMap(s => Try(s.toLong).filter(_ > 0).toOption)
       def tag = map.get("tag").flatMap(_.headOption).filter(_.nonEmpty)
-      (Query(map - "tag" - "rev"), rev.map(Right.apply) orElse tag.map(Left.apply))
+      (Query(SortedMap.from(map - "tag" - "rev")), rev.map(Right.apply) orElse tag.map(Left.apply))
     }
     def refOf(id: AbsoluteIri, opt: Option[Either[String, Long]]): Ref = opt match {
       case Some(Left(tag))  => Tag(id, tag)

@@ -6,7 +6,7 @@ import cats.effect.{ContextShift, IO, Timer}
 import ch.epfl.bluebrain.nexus.admin.client.types.Project
 import ch.epfl.bluebrain.nexus.commons.test
 import ch.epfl.bluebrain.nexus.commons.test.io.{IOEitherValues, IOOptionValues}
-import ch.epfl.bluebrain.nexus.commons.test.{ActorSystemFixture, Randomness}
+import ch.epfl.bluebrain.nexus.commons.test.{ActorSystemFixture, EitherValues, Randomness}
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity._
 import ch.epfl.bluebrain.nexus.iam.client.types._
 import ch.epfl.bluebrain.nexus.kg.TestHelper
@@ -22,7 +22,9 @@ import ch.epfl.bluebrain.nexus.rdf.Iri
 import io.circe.Json
 import org.mockito.ArgumentMatchers.any
 import org.mockito.IdiomaticMockito
-import org.scalatest._
+import org.scalatest.{Inspectors, OptionValues}
+import org.scalatest.matchers.should.Matchers
+import org.scalatest.wordspec.AnyWordSpecLike
 
 import scala.concurrent.ExecutionContext
 import scala.concurrent.duration._
@@ -32,7 +34,7 @@ class SchemasSpec
     extends ActorSystemFixture("SchemasSpec", true)
     with IOEitherValues
     with IOOptionValues
-    with WordSpecLike
+    with AnyWordSpecLike
     with IdiomaticMockito
     with Matchers
     with OptionValues
@@ -42,7 +44,7 @@ class SchemasSpec
     with TestHelper
     with Inspectors {
 
-  override implicit def patienceConfig: PatienceConfig = PatienceConfig(7 seconds, 15 milliseconds)
+  override implicit def patienceConfig: PatienceConfig = PatienceConfig(7.seconds, 15.milliseconds)
 
   private implicit val appConfig             = Settings(system).appConfig
   private implicit val clock: Clock          = Clock.fixed(Instant.ofEpochSecond(3600), ZoneId.systemDefault())
@@ -64,10 +66,10 @@ class SchemasSpec
   trait Base {
     implicit val subject: Subject = Anonymous
     val projectRef                = ProjectRef(genUUID)
-    val base                      = Iri.absolute(s"http://example.com/base/").right.value
-    val id                        = Iri.absolute(s"http://example.com/$genUUID").right.value
+    val base                      = Iri.absolute(s"http://example.com/base/").rightValue
+    val id                        = Iri.absolute(s"http://example.com/$genUUID").rightValue
     lazy val resId                = Id(projectRef, id)
-    val voc                       = Iri.absolute(s"http://example.com/voc/").right.value
+    val voc                       = Iri.absolute(s"http://example.com/voc/").rightValue
     implicit lazy val project = Project(
       resId.value,
       "proj",

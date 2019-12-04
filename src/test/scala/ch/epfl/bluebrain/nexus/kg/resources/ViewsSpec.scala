@@ -16,7 +16,7 @@ import ch.epfl.bluebrain.nexus.commons.search.QueryResults
 import ch.epfl.bluebrain.nexus.commons.sparql.client.BlazegraphClient
 import ch.epfl.bluebrain.nexus.commons.test
 import ch.epfl.bluebrain.nexus.commons.test.io.{IOEitherValues, IOOptionValues}
-import ch.epfl.bluebrain.nexus.commons.test.{ActorSystemFixture, CirceEq}
+import ch.epfl.bluebrain.nexus.commons.test.{ActorSystemFixture, CirceEq, EitherValues}
 import ch.epfl.bluebrain.nexus.iam.client.IamClient
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity._
 import ch.epfl.bluebrain.nexus.iam.client.types._
@@ -46,7 +46,9 @@ import io.circe.parser.parse
 import monix.eval.Task
 import org.mockito.matchers.MacroBasedMatchers
 import org.mockito.{ArgumentMatchersSugar, IdiomaticMockito, Mockito}
-import org.scalatest._
+import org.scalatest.{BeforeAndAfter, Inspectors, OptionValues}
+import org.scalatest.matchers.should.Matchers
+import org.scalatest.wordspec.AnyWordSpecLike
 
 import scala.concurrent.ExecutionContext
 import scala.concurrent.duration._
@@ -54,9 +56,9 @@ import scala.concurrent.duration._
 //noinspection TypeAnnotation
 class ViewsSpec
     extends ActorSystemFixture("ViewsSpec", true)
+    with AnyWordSpecLike
     with IOEitherValues
     with IOOptionValues
-    with WordSpecLike
     with IdiomaticMockito
     with ArgumentMatchersSugar
     with MacroBasedMatchers
@@ -69,7 +71,7 @@ class ViewsSpec
     with Inspectors
     with CirceEq {
 
-  override implicit def patienceConfig: PatienceConfig = PatienceConfig(3 second, 15 milliseconds)
+  override implicit def patienceConfig: PatienceConfig = PatienceConfig(3.second, 15.milliseconds)
 
   private implicit val appConfig             = Settings(system).appConfig
   private implicit val clock: Clock          = Clock.fixed(Instant.ofEpochSecond(3600), ZoneId.systemDefault())
@@ -125,10 +127,10 @@ class ViewsSpec
 
     implicit val caller = Caller(Anonymous, Set(Anonymous, Authenticated("realm")))
     val projectRef      = ProjectRef(genUUID)
-    val base            = Iri.absolute(s"http://example.com/base/").right.value
-    val id              = Iri.absolute(s"http://example.com/$genUUID").right.value
+    val base            = Iri.absolute(s"http://example.com/base/").rightValue
+    val id              = Iri.absolute(s"http://example.com/$genUUID").rightValue
     val resId           = Id(projectRef, id)
-    val voc             = Iri.absolute(s"http://example.com/voc/").right.value
+    val voc             = Iri.absolute(s"http://example.com/voc/").rightValue
     // format: off
     implicit val project = Project(resId.value, genString(), genString(), None, base, voc, Map.empty, projectRef.id, genUUID, 1L, deprecated = false, Instant.EPOCH, caller.subject.id, Instant.EPOCH, caller.subject.id)
     // format: on
@@ -167,8 +169,7 @@ class ViewsSpec
       val graph = (json deepMerge Json.obj("@id" -> Json.fromString(id.asString)))
         .replaceContext(viewCtx)
         .asGraph(resId.value)
-        .right
-        .value
+        .rightValue
 
       val resourceV =
         ResourceF.simpleV(resId, Value(json, viewCtx.contextValue, graph), rev, schema = viewRef, types = types)
@@ -180,7 +181,7 @@ class ViewsSpec
   }
 
   trait EsViewMocked extends EsView {
-    val mapping = esView.hcursor.get[String]("mapping").flatMap(parse).right.value
+    val mapping = esView.hcursor.get[String]("mapping").flatMap(parse).rightValue
     // format: off
     val esViewModel = ElasticSearchView(mapping, Filter(Set(nxv.Schema.value, nxv.Resource.value), Set(nxv.withSuffix("MyType").value, nxv.withSuffix("MyType2").value), Some("one")), includeMetadata = false, sourceAsText = true, project.ref, id, UUID.randomUUID(), 1L, deprecated = false)
     // format: on
@@ -222,11 +223,10 @@ class ViewsSpec
         val defaultId  = Id(projectRef, nxv.defaultElasticSearchIndex)
         val json = view
           .as[Json](viewCtx.appendContextOf(resourceCtx))
-          .right
-          .value
+          .rightValue
           .removeKeys(nxv.rev.prefix, nxv.deprecated.prefix)
           .replaceContext(viewCtxUri)
-        val mapping = json.hcursor.get[String]("mapping").flatMap(parse).right.value
+        val mapping = json.hcursor.get[String]("mapping").flatMap(parse).rightValue
 
         esClient.updateMapping(any[String], eqTo(mapping), any[Throwable => Boolean]) shouldReturn IO(true)
         aclsCache.list shouldReturn IO.pure(acls)
@@ -328,7 +328,7 @@ class ViewsSpec
 
     "performing read operations" should {
 
-      def uuid(resource: ResourceV) = resource.value.source.hcursor.get[String]("_uuid").right.value
+      def uuid(resource: ResourceV) = resource.value.source.hcursor.get[String]("_uuid").rightValue
 
       "return a view" in new EsViewMocked {
         viewCache.put(argThat(matchesIgnoreId(esViewModel), "")) shouldReturn IO(())

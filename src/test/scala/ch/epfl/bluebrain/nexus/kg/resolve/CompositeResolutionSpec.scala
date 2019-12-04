@@ -11,11 +11,13 @@ import ch.epfl.bluebrain.nexus.kg.resources.Ref
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import ch.epfl.bluebrain.nexus.rdf.Vocabulary._
 import ch.epfl.bluebrain.nexus.rdf.syntax.node.unsafe._
-import org.scalatest.{Matchers, OptionValues, TryValues, WordSpecLike}
+import org.scalatest.matchers.should.Matchers
+import org.scalatest.wordspec.AnyWordSpecLike
+import org.scalatest.{OptionValues, TryValues}
 
 import scala.util.Try
 
-class CompositeResolutionSpec extends WordSpecLike with Resources with Matchers with TryValues with OptionValues {
+class CompositeResolutionSpec extends AnyWordSpecLike with Resources with Matchers with TryValues with OptionValues {
 
   "CompositeResolution" should {
 

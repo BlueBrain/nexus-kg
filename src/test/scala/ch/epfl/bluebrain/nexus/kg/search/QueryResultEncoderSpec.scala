@@ -17,9 +17,10 @@ import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import ch.epfl.bluebrain.nexus.rdf.syntax._
 import io.circe.Json
 import io.circe.syntax._
-import org.scalatest.{Matchers, WordSpecLike}
+import org.scalatest.matchers.should.Matchers
+import org.scalatest.wordspec.AnyWordSpecLike
 
-class QueryResultEncoderSpec extends WordSpecLike with Matchers with Resources with Randomness {
+class QueryResultEncoderSpec extends AnyWordSpecLike with Matchers with Resources with Randomness {
 
   implicit val orderedKeys = AppConfig.orderedKeys
   val org                  = genString()

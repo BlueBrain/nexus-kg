@@ -15,7 +15,7 @@ import ch.epfl.bluebrain.nexus.kg.resources.syntax._
 import ch.epfl.bluebrain.nexus.kg.resources.{Files, OrganizationRef, ProjectRef}
 import ch.epfl.bluebrain.nexus.kg.storage.Storage.StorageOperations.FetchAttributes
 import ch.epfl.bluebrain.nexus.sourcing.projections.Projections
-import journal.Logger
+import com.typesafe.scalalogging.Logger
 import monix.eval.Task
 
 import scala.concurrent.ExecutionContext

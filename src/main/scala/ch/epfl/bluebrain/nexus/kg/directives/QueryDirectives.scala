@@ -19,7 +19,7 @@ import ch.epfl.bluebrain.nexus.kg.storage.Storage
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import io.circe.Json
 import io.circe.parser.parse
-import journal.Logger
+import com.typesafe.scalalogging.Logger
 import monix.eval.Task
 import monix.execution.Scheduler.Implicits.global
 
@@ -39,7 +39,7 @@ object QueryDirectives {
     * @return the extracted storage from the request query parameters or default from the storage cache.
     */
   def storage(implicit cache: StorageCache[Task], project: Project): Directive1[Storage] =
-    parameter('storage.as[AbsoluteIri].?)
+    parameter("storage".as[AbsoluteIri].?)
       .map {
         case Some(storageId) => cache.get(project.ref, storageId)
         case None            => cache.getDefault(project.ref)
@@ -62,7 +62,7 @@ object QueryDirectives {
     * @return the extracted pagination from the request query parameters or defaults to the preconfigured values.
     */
   def paginated(implicit config: PaginationConfig): Directive1[Pagination] =
-    (parameter(from.as[Int] ?) & parameter(size.as[Int] ? config.defaultSize) & parameter(after.as[Json] ?))
+    (parameter(from.as[Int].?) & parameter(size.as[Int] ? config.defaultSize) & parameter(after.as[Json].?))
       .tflatMap {
         case (None, size, Some(sa))                     => provide(Pagination(sa, size.max(1).min(config.sizeLimit)))
         case (Some(f), _, None) if f > config.fromLimit => reject(fromMalformed)
@@ -76,7 +76,7 @@ object QueryDirectives {
     * @return the extracted pagination from the request query parameters or defaults to the preconfigured values.
     */
   def fromPaginated(implicit config: PaginationConfig): Directive1[FromPagination] =
-    (parameter(from.as[Int] ?) & parameter(size.as[Int] ? config.defaultSize)).tflatMap {
+    (parameter(from.as[Int].?) & parameter(size.as[Int] ? config.defaultSize)).tflatMap {
       case (Some(f), _) if f > config.fromLimit => reject(fromMalformed)
       case (Some(f), size)                      => provide(FromPagination(f.max(0), size.max(1).min(config.sizeLimit)))
       case (None, size)                         => provide(FromPagination(0, size.max(1).min(config.sizeLimit)))
@@ -88,7 +88,7 @@ object QueryDirectives {
     *         If the output format does not exist, it fails with [[InvalidOutputFormat]] exception.
     */
   private def jsonLDFormat(default: JsonLDOutputFormat = Compacted): Directive1[OutputFormat] =
-    parameter('format.as[String] ? default.name).flatMap { outputName =>
+    parameter("format".as[String] ? default.name).flatMap { outputName =>
       OutputFormat(outputName) match {
         case Some(output) => provide(output)
         case _            => failWith(InvalidOutputFormat(outputName))
@@ -149,7 +149,7 @@ object QueryDirectives {
     * @return the extracted search parameters from the request query parameters.
     */
   def searchParams(fixedSchema: AbsoluteIri)(implicit project: Project): Directive1[SearchParams] =
-    parameter('schema.as[AbsoluteIri] ? fixedSchema).flatMap {
+    parameter("schema".as[AbsoluteIri] ? fixedSchema).flatMap {
       case `fixedSchema` =>
         searchParams.map(_.copy(schema = Some(fixedSchema)))
       case _ =>
@@ -160,14 +160,14 @@ object QueryDirectives {
     * @return the extracted search parameters from the request query parameters.
     */
   def searchParams(implicit project: Project): Directive1[SearchParams] =
-    (parameter('deprecated.as[Boolean].?) &
-      parameter('rev.as[Long].?) &
-      parameter('schema.as[AbsoluteIri].?) &
-      parameter('createdBy.as[AbsoluteIri].?) &
-      parameter('updatedBy.as[AbsoluteIri].?) &
-      parameter('type.as[VocabAbsoluteIri].*) &
-      parameter('id.as[AbsoluteIri].?) &
-      parameter('q.as[String].?)).tmap {
+    (parameter("deprecated".as[Boolean].?) &
+      parameter("rev".as[Long].?) &
+      parameter("schema".as[AbsoluteIri].?) &
+      parameter("createdBy".as[AbsoluteIri].?) &
+      parameter("updatedBy".as[AbsoluteIri].?) &
+      parameter("type".as[VocabAbsoluteIri].*) &
+      parameter("id".as[AbsoluteIri].?) &
+      parameter("q".as[String].?)).tmap {
       case (deprecated, rev, schema, createdBy, updatedBy, tpe, id, q) =>
         val qCleaned = q.filter(_.trim.nonEmpty).map(_.toLowerCase())
         SearchParams(deprecated, rev, schema, createdBy, updatedBy, tpe.map(_.value).toList, id, qCleaned)

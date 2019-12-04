@@ -16,6 +16,7 @@ import cats.instances.either._
 import ch.epfl.bluebrain.nexus.admin.client.types.Project
 import ch.epfl.bluebrain.nexus.commons.http.RdfMediaTypes._
 import ch.epfl.bluebrain.nexus.commons.search.{FromPagination, Pagination, SearchAfterPagination}
+import ch.epfl.bluebrain.nexus.commons.test.EitherValues
 import ch.epfl.bluebrain.nexus.kg.TestHelper
 import ch.epfl.bluebrain.nexus.kg.cache.StorageCache
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig._
@@ -37,20 +38,21 @@ import ch.epfl.bluebrain.nexus.sourcing.akka.SourcingConfig.RetryStrategyConfig
 import io.circe.Json
 import io.circe.generic.auto._
 import monix.eval.Task
-import org.mockito.Mockito
+import org.mockito.{IdiomaticMockito, Mockito}
 import org.mockito.Mockito._
-import org.scalatestplus.mockito.MockitoSugar
-import org.scalatest.{BeforeAndAfter, EitherValues, Matchers, WordSpecLike}
+import org.scalatest.wordspec.AnyWordSpecLike
+import org.scalatest.BeforeAndAfter
+import org.scalatest.matchers.should.Matchers
 
 import scala.concurrent.duration._
 
 class QueryDirectivesSpec
-    extends WordSpecLike
+    extends AnyWordSpecLike
     with Matchers
     with ScalatestRouteTest
     with EitherValues
     with TestHelper
-    with MockitoSugar
+    with IdiomaticMockito
     with BeforeAndAfter {
 
   private implicit val storageCache: StorageCache[Task] = mock[StorageCache[Task]]
@@ -68,7 +70,7 @@ class QueryDirectivesSpec
         S3StorageConfig("MD5", read, write, true, 1024L),
         "password",
         "salt",
-        RetryStrategyConfig("linear", 300 millis, 5 minutes, 100, 1 second)
+        RetryStrategyConfig("linear", 300.millis, 5.minutes, 100, 1.second)
       )
 
     implicit def paginationMarshaller(
@@ -114,7 +116,7 @@ class QueryDirectivesSpec
       handleExceptions(exceptionHandler) {
         handleRejections(rejectionHandler) {
           (get & storage) { st =>
-            complete(StatusCodes.OK -> st.as[Json]().right.value)
+            complete(StatusCodes.OK -> st.as[Json]().rightValue)
           }
         }
       }
@@ -231,7 +233,7 @@ class QueryDirectivesSpec
         val storage: Storage = DiskStorage.default(project.ref)
         when(storageCache.get(project.ref, nxv.withSuffix("mystorage").value)).thenReturn(Task(Some(storage)))
         Get("/some?storage=nxv:mystorage") ~> routeStorage ~> check {
-          responseAs[Json] shouldEqual storage.as[Json]().right.value
+          responseAs[Json] shouldEqual storage.as[Json]().rightValue
         }
       }
 
@@ -240,7 +242,7 @@ class QueryDirectivesSpec
         val storage: Storage = DiskStorage.default(project.ref)
         when(storageCache.getDefault(project.ref)).thenReturn(Task(Some(storage)))
         Get("/some") ~> routeStorage ~> check {
-          responseAs[Json] shouldEqual storage.as[Json]().right.value
+          responseAs[Json] shouldEqual storage.as[Json]().rightValue
         }
       }
 

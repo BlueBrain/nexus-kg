@@ -10,11 +10,13 @@ import ch.epfl.bluebrain.nexus.sourcing.akka.SourcingConfig.RetryStrategyConfig
 import ch.epfl.bluebrain.nexus.sourcing.projections.IndexingConfig
 import ch.epfl.bluebrain.nexus.sourcing.projections.IndexingConfig.PersistProgressConfig
 import com.typesafe.config.ConfigFactory
-import org.scalatest.{Matchers, OptionValues, WordSpecLike}
+import org.scalatest.matchers.should.Matchers
+import org.scalatest.wordspec.AnyWordSpecLike
+import org.scalatest.OptionValues
 
 import scala.concurrent.duration._
 
-class AppConfigSpec extends WordSpecLike with Matchers with OptionValues with TestHelper {
+class AppConfigSpec extends AnyWordSpecLike with Matchers with OptionValues with TestHelper {
 
   "An AppConfig" should {
     val valid = ConfigFactory.parseResources("app.conf").resolve()
@@ -24,7 +26,7 @@ class AppConfigSpec extends WordSpecLike with Matchers with OptionValues with Te
 
       appConfig.description shouldEqual Description("kg")
       appConfig.http shouldEqual HttpConfig("127.0.0.1", 8080, "v1", "http://127.0.0.1:8080")
-      appConfig.cluster shouldEqual ClusterConfig(2.seconds, 5 seconds, 30, None)
+      appConfig.cluster shouldEqual ClusterConfig(2.seconds, 5.seconds, 30, None)
       appConfig.persistence shouldEqual PersistenceConfig(
         "cassandra-journal",
         "cassandra-snapshot-store",
@@ -36,24 +38,24 @@ class AppConfigSpec extends WordSpecLike with Matchers with OptionValues with Te
         S3StorageConfig("SHA-256", read, write, true, 10737418240L),
         "changeme",
         "salt",
-        RetryStrategyConfig("exponential", 300 millis, 10 seconds, 1000, 1 second)
+        RetryStrategyConfig("exponential", 300.millis, 10.seconds, 1000, 1.second)
       )
       appConfig.iam shouldEqual IamConfig(
         url"http://localhost:8080".value,
         url"http://localhost:8080".value,
         "v1",
         None,
-        1 second
+        1.second
       )
-      val retryIndex = RetryStrategyConfig("exponential", 100 millis, 3 minutes, 30, 500 millis)
-      val retryQuery = RetryStrategyConfig("exponential", 100 millis, 1 minute, 4, 500 millis)
+      val retryIndex = RetryStrategyConfig("exponential", 100.millis, 3.minutes, 30, 500.millis)
+      val retryQuery = RetryStrategyConfig("exponential", 100.millis, 1.minute, 4, 500.millis)
       appConfig.sparql shouldEqual SparqlConfig(
         "http://localhost:9999/bigdata",
         "kg",
         None,
         None,
         "kg",
-        IndexingConfig(10, 300 millis, retryIndex, PersistProgressConfig(5000, 2 minutes)),
+        IndexingConfig(10, 300.millis, retryIndex, PersistProgressConfig(5000, 2.minutes)),
         retryQuery
       )
       appConfig.sparql
@@ -64,7 +66,7 @@ class AppConfigSpec extends WordSpecLike with Matchers with OptionValues with Te
         "http://localhost:9200",
         "kg",
         "kg_default",
-        IndexingConfig(30, 300 millis, retryIndex, PersistProgressConfig(5000, 2 minutes)),
+        IndexingConfig(30, 300.millis, retryIndex, PersistProgressConfig(5000, 2.minutes)),
         retryQuery
       )
       appConfig.pagination shouldEqual PaginationConfig(20, 100, 10000)
@@ -75,14 +77,14 @@ class AppConfigSpec extends WordSpecLike with Matchers with OptionValues with Te
         None,
         None,
         "kg",
-        IndexingConfig(10, 300 millis, retryIndex, PersistProgressConfig(5000, 2 minutes)),
+        IndexingConfig(10, 300.millis, retryIndex, PersistProgressConfig(5000, 2.minutes)),
         retryQuery
       )
       implicitly[ElasticSearchConfig] shouldEqual ElasticSearchConfig(
         "http://localhost:9200",
         "kg",
         "kg_default",
-        IndexingConfig(30, 300 millis, retryIndex, PersistProgressConfig(5000, 2 minutes)),
+        IndexingConfig(30, 300.millis, retryIndex, PersistProgressConfig(5000, 2.minutes)),
         retryQuery
       )
       implicitly[PaginationConfig] shouldEqual PaginationConfig(20, 100, 10000)

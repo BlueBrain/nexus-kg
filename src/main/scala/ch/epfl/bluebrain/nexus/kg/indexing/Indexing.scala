@@ -12,7 +12,7 @@ import ch.epfl.bluebrain.nexus.kg.cache.Caches._
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig._
 import ch.epfl.bluebrain.nexus.kg.resources._
-import journal.Logger
+import com.typesafe.scalalogging.Logger
 import monix.eval.Task
 import monix.execution.Scheduler.Implicits.global
 

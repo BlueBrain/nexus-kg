@@ -12,9 +12,10 @@ import ch.epfl.bluebrain.nexus.rdf.Iri.Path._
 import ch.epfl.bluebrain.nexus.rdf.syntax.node.unsafe._
 import monix.eval.Task
 import monix.execution.Scheduler.Implicits.global
+import org.mockito.IdiomaticMockito
+import org.scalatest.Inspectors
 import org.scalatest.concurrent.ScalaFutures
-import org.scalatest.{Inspectors, Matchers}
-import org.scalatestplus.mockito.MockitoSugar
+import org.scalatest.matchers.should.Matchers
 
 import scala.concurrent.duration._
 
@@ -24,13 +25,13 @@ class AclCacheSpec
     with Inspectors
     with ScalaFutures
     with TestHelper
-    with MockitoSugar {
+    with IdiomaticMockito {
 
   override implicit def patienceConfig: PatienceConfig = PatienceConfig(3.seconds.dilated, 5.milliseconds)
 
   private val client: IamClient[Task] = mock[IamClient[Task]]
   private implicit val iamConfig: IamConfig =
-    IamConfig(url"http://base.com".value, url"http://base.com".value, "v1", None, 1 second)
+    IamConfig(url"http://base.com".value, url"http://base.com".value, "v1", None, 1.second)
   private implicit val appConfig = Settings(system).appConfig.copy(iam = iamConfig)
 
   override val write = Permission.unsafe("resources/write")

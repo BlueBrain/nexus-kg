@@ -19,12 +19,14 @@ import ch.epfl.bluebrain.nexus.kg.storage.StorageEncoder._
 import ch.epfl.bluebrain.nexus.rdf.syntax._
 import ch.epfl.bluebrain.nexus.sourcing.akka.SourcingConfig.RetryStrategyConfig
 import io.circe.Json
-import org.scalatest.{Inspectors, Matchers, OptionValues, WordSpecLike}
+import org.scalatest.matchers.should.Matchers
+import org.scalatest.wordspec.AnyWordSpecLike
+import org.scalatest.{Inspectors, OptionValues}
 
 import scala.concurrent.duration._
 
 class StorageSpec
-    extends WordSpecLike
+    extends AnyWordSpecLike
     with Matchers
     with OptionValues
     with Resources
@@ -52,7 +54,7 @@ class StorageSpec
       S3StorageConfig("MD5", readS3, writeS3, true, 3000L),
       "password",
       "salt",
-      RetryStrategyConfig("linear", 300 millis, 5 minutes, 100, 1 second)
+      RetryStrategyConfig("linear", 300.millis, 5.minutes, 100, 1.second)
     )
   "A Storage" when {
     val iri        = url"http://example.com/id".value
@@ -83,7 +85,7 @@ class StorageSpec
 
       "return a DiskStorage" in {
         val resource = simpleV(id, diskStorage, types = Set(nxv.Storage, nxv.DiskStorage))
-        Storage(resource).right.value shouldEqual
+        Storage(resource).rightValue shouldEqual
           DiskStorage(projectRef, iri, 1L, false, false, "SHA-256", Paths.get("/tmp"), readDisk, writeDisk, 1000L)
       }
 
@@ -91,7 +93,7 @@ class StorageSpec
         val resource      = simpleV(id, diskStoragePerms, types = Set(nxv.Storage, nxv.DiskStorage))
         val expectedRead  = Permission.unsafe("myRead")
         val expectedWrite = Permission.unsafe("myWrite")
-        Storage(resource).right.value shouldEqual
+        Storage(resource).rightValue shouldEqual
           DiskStorage(
             projectRef,
             iri,
@@ -108,7 +110,7 @@ class StorageSpec
 
       "return a default RemoteDiskStorage" in {
         val resource = simpleV(id, remoteDiskStorageDefault, types = Set(nxv.Storage, nxv.RemoteDiskStorage))
-        Storage(resource).right.value shouldEqual
+        Storage(resource).rightValue shouldEqual
           RemoteDiskStorage(
             projectRef,
             iri,
@@ -129,7 +131,7 @@ class StorageSpec
         val resource      = simpleV(id, remoteDiskStorage, types = Set(nxv.Storage, nxv.RemoteDiskStorage))
         val expectedRead  = Permission.unsafe("myRead")
         val expectedWrite = Permission.unsafe("myWrite")
-        Storage(resource).right.value shouldEqual
+        Storage(resource).rightValue shouldEqual
           RemoteDiskStorage(
             projectRef,
             iri,
@@ -150,7 +152,7 @@ class StorageSpec
         val resource      = simpleV(id, remoteDiskStorage, types = Set(nxv.Storage, nxv.RemoteDiskStorage))
         val expectedRead  = Permission.unsafe("myRead")
         val expectedWrite = Permission.unsafe("myWrite")
-        Storage(resource).right.value.encrypt shouldEqual
+        Storage(resource).rightValue.encrypt shouldEqual
           RemoteDiskStorage(
             projectRef,
             iri,
@@ -170,7 +172,7 @@ class StorageSpec
       "return an S3Storage" in {
         val resource = simpleV(id, s3Minimal, types = Set(nxv.Storage, nxv.S3Storage))
 
-        Storage(resource).right.value shouldEqual
+        Storage(resource).rightValue shouldEqual
           S3Storage(
             projectRef,
             iri,
@@ -191,7 +193,7 @@ class StorageSpec
         val settings      = S3Settings(Some(S3Credentials("access", "secret")), Some("endpoint"), Some("region"))
         val expectedRead  = Permission.unsafe("my/read")
         val expectedWrite = Permission.unsafe("my/write")
-        Storage(resource).right.value shouldEqual
+        Storage(resource).rightValue shouldEqual
           S3Storage(projectRef, iri, 1L, false, true, "MD5", "bucket", settings, expectedRead, expectedWrite, 3000L)
       }
 
@@ -204,33 +206,33 @@ class StorageSpec
         )
         val expectedRead  = Permission.unsafe("my/read")
         val expectedWrite = Permission.unsafe("my/write")
-        Storage(resource).right.value.encrypt shouldEqual
+        Storage(resource).rightValue.encrypt shouldEqual
           S3Storage(projectRef, iri, 1L, false, true, "MD5", "bucket", settings, expectedRead, expectedWrite, 3000L)
       }
 
       "fail on DiskStorage when types are wrong" in {
         val resource = simpleV(id, diskStorage, types = Set(nxv.Storage))
-        Storage(resource).left.value shouldBe a[InvalidResourceFormat]
+        Storage(resource).leftValue shouldBe a[InvalidResourceFormat]
       }
 
       "fail on RemoteDiskStorage when types are wrong" in {
         val resource = simpleV(id, remoteDiskStorage, types = Set(nxv.Storage))
-        Storage(resource).left.value shouldBe a[InvalidResourceFormat]
+        Storage(resource).leftValue shouldBe a[InvalidResourceFormat]
       }
 
       "fail on S3Storage when types are wrong" in {
         val resource = simpleV(id, s3Storage, types = Set(nxv.S3Storage))
-        Storage(resource).left.value shouldBe a[InvalidResourceFormat]
+        Storage(resource).leftValue shouldBe a[InvalidResourceFormat]
       }
 
       "fail on DiskStorage when required parameters are not present" in {
         val resource = simpleV(id, diskStorage.removeKeys("volume"), types = Set(nxv.Storage, nxv.DiskStorage))
-        Storage(resource).left.value shouldBe a[InvalidResourceFormat]
+        Storage(resource).leftValue shouldBe a[InvalidResourceFormat]
       }
 
       "fail on S3Storage when required parameters are not present" in {
         val resource = simpleV(id, s3Storage.removeKeys("default"), types = Set(nxv.Storage, nxv.S3Storage))
-        Storage(resource).left.value shouldBe a[InvalidResourceFormat]
+        Storage(resource).leftValue shouldBe a[InvalidResourceFormat]
       }
     }
 
@@ -253,7 +255,7 @@ class StorageSpec
           )
         ) {
           case (storage, expectedJson) =>
-            val json = storage.as[Json](storageCtx.appendContextOf(resourceCtx)).right.value.removeKeys("@context")
+            val json = storage.as[Json](storageCtx.appendContextOf(resourceCtx)).rightValue.removeKeys("@context")
             json should equalIgnoreArrayOrder(expectedJson.removeKeys("@context"))
         }
       }

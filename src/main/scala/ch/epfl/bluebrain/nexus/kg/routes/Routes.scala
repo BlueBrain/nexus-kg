@@ -40,7 +40,7 @@ import ch.megard.akka.http.cors.scaladsl.CorsDirectives.{cors, corsRejectionHand
 import ch.megard.akka.http.cors.scaladsl.settings.CorsSettings
 import io.circe.Json
 import io.circe.parser.parse
-import journal.Logger
+import com.typesafe.scalalogging.Logger
 import kamon.instrumentation.akka.http.TracingDirectives.operationName
 import monix.eval.Task
 import monix.execution.Scheduler.Implicits.global
@@ -215,7 +215,7 @@ object Routes {
       }
 
     def createDefault(implicit acls: AccessControlLists, caller: Caller, project: Project): Route =
-      (post & noParameter('rev.as[Long]) & pathEndOrSingleSlash) {
+      (post & noParameter("rev".as[Long]) & pathEndOrSingleSlash) {
         operationName(s"/${config.http.prefix}/resources/{org}/{project}") {
           (hasPermission(ResourceRoutes.write) & projectNotDeprecated) {
             entity(as[Json]) { source =>

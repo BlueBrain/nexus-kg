@@ -21,7 +21,7 @@ import ch.epfl.bluebrain.nexus.kg.resources.{IdentifiedValue, OrganizationRef, P
 import ch.epfl.bluebrain.nexus.kg.routes.Clients
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import ch.epfl.bluebrain.nexus.sourcing.projections.Projections
-import journal.Logger
+import com.typesafe.scalalogging.Logger
 import monix.eval.Task
 import monix.execution.Scheduler.Implicits.global
 

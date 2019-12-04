@@ -6,7 +6,7 @@ import akka.actor.ActorSystem
 import akka.testkit.TestKit
 import cats.data.EitherT
 import ch.epfl.bluebrain.nexus.admin.client.types.Project
-import ch.epfl.bluebrain.nexus.commons.test.{Resources => TestResources}
+import ch.epfl.bluebrain.nexus.commons.test.{CirceEq, Resources => TestResources}
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity.{Subject, User}
 import ch.epfl.bluebrain.nexus.iam.client.types.{AccessControlLists, Caller}
 import ch.epfl.bluebrain.nexus.kg.TestHelper
@@ -24,17 +24,20 @@ import io.circe.Json
 import monix.eval.Task
 import monix.execution.Scheduler.Implicits.global
 import org.mockito.{ArgumentMatchersSugar, IdiomaticMockito}
+import org.scalactic.Equality
 import org.scalatest.concurrent.ScalaFutures
-import org.scalatest.{Matchers, WordSpecLike}
+import org.scalatest.matchers.should.Matchers
+import org.scalatest.wordspec.AnyWordSpecLike
 
 class ProjectInitializerSpec
     extends TestKit(ActorSystem("ProjectInitializerSpec"))
-    with WordSpecLike
+    with AnyWordSpecLike
     with Matchers
     with ArgumentMatchersSugar
     with IdiomaticMockito
     with TestHelper
     with ScalaFutures
+    with CirceEq
     with TestResources {
 
   private implicit val appConfig                                      = Settings(system).appConfig
@@ -63,6 +66,11 @@ class ProjectInitializerSpec
   private val defaultStorage: Json              = jsonContentOf("/storage/disk-default.json")
   private implicit val acls: AccessControlLists = AccessControlLists.empty
 
+  implicit val jsonEq: Equality[Json] = new Equality[Json] {
+    override def areEqual(a: Json, b: Any): Boolean =
+      b.isInstanceOf[Json] && equalIgnoreArrayOrder(a)(b.asInstanceOf[Json]).matches
+  }
+
   trait Ctx {
     // format: off
     implicit val project = Project(genIri, genString(), genString(), None, nxv.projects, genIri, Map.empty, genUUID, genUUID, 1L, false, Instant.EPOCH, genIri, Instant.EPOCH, genIri)
@@ -83,7 +91,7 @@ class ProjectInitializerSpec
       fileAttrCoordinator.start(project) shouldReturn Task.unit
       resolvers.create(Id(project.ref, nxv.defaultResolver.value), defaultResolver) shouldReturn
         EitherT.rightT(resource)
-      views.create(Id(project.ref, nxv.defaultElasticSearchIndex.value), defaultEsView, extractUuid = true) shouldReturn
+      views.create(eqTo(Id(project.ref, nxv.defaultElasticSearchIndex.value)), eqTo(defaultEsView), eqTo(true)) shouldReturn
         EitherT.rightT(resource)
       views.create(Id(project.ref, nxv.defaultSparqlIndex.value), defaultSparqlView, extractUuid = true) shouldReturn
         EitherT.rightT(resource)
@@ -92,7 +100,7 @@ class ProjectInitializerSpec
         any[Verify[Task]],
         eqTo(project)
       ) shouldReturn EitherT.rightT(resource)
-      initializer(project, subject).runToFuture.futureValue shouldEqual (())
+      initializer(project, subject).runToFuture.futureValue shouldEqual ()
     }
 
     "skip caching resolver and sparql view which already exists" in new Ctx {
@@ -102,7 +110,7 @@ class ProjectInitializerSpec
       fileAttrCoordinator.start(project) shouldReturn Task.unit
       resolvers.create(Id(project.ref, nxv.defaultResolver.value), defaultResolver) shouldReturn
         EitherT.leftT(ResourceAlreadyExists(genIri.ref): Rejection)
-      views.create(Id(project.ref, nxv.defaultElasticSearchIndex.value), defaultEsView, extractUuid = true) shouldReturn
+      views.create(eqTo(Id(project.ref, nxv.defaultElasticSearchIndex.value)), any[Json], eqTo(true)) shouldReturn
         EitherT.rightT(resource)
       views.create(Id(project.ref, nxv.defaultSparqlIndex.value), defaultSparqlView, extractUuid = true) shouldReturn
         EitherT.leftT(ResourceAlreadyExists(genIri.ref): Rejection)

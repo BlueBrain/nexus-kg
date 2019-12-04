@@ -9,7 +9,7 @@ import ch.epfl.bluebrain.nexus.iam.client.types._
 import ch.epfl.bluebrain.nexus.iam.client.{IamClient, IamClientError}
 import ch.epfl.bluebrain.nexus.kg.KgError.{AuthenticationFailed, AuthorizationFailed, InternalError}
 import ch.epfl.bluebrain.nexus.kg.resources.syntax._
-import journal.Logger
+import com.typesafe.scalalogging.Logger
 import monix.eval.Task
 import monix.execution.Scheduler.Implicits.global
 

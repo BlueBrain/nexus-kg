@@ -17,7 +17,7 @@ import ch.epfl.bluebrain.nexus.storage.client.types.{ServiceDescription => Stora
 import io.circe.generic.auto._
 import io.circe.syntax._
 import io.circe.{Encoder, Json}
-import journal.Logger
+import com.typesafe.scalalogging.Logger
 import kamon.instrumentation.akka.http.TracingDirectives.operationName
 import monix.eval.Task
 import monix.execution.Scheduler.Implicits.global

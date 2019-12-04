@@ -15,7 +15,7 @@ import ch.epfl.bluebrain.nexus.commons.search.QueryResults.UnscoredQueryResults
 import ch.epfl.bluebrain.nexus.commons.search.{Pagination, QueryResults}
 import ch.epfl.bluebrain.nexus.commons.sparql.client.BlazegraphClient
 import ch.epfl.bluebrain.nexus.commons.test
-import ch.epfl.bluebrain.nexus.commons.test.CirceEq
+import ch.epfl.bluebrain.nexus.commons.test.{CirceEq, EitherValues}
 import ch.epfl.bluebrain.nexus.iam.client.IamClient
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity._
 import ch.epfl.bluebrain.nexus.iam.client.types._
@@ -42,14 +42,16 @@ import io.circe.generic.auto._
 import monix.eval.Task
 import org.mockito.IdiomaticMockito
 import org.mockito.matchers.MacroBasedMatchers
-import org.scalatest._
+import org.scalatest.{BeforeAndAfter, Inspectors, OptionValues}
 import org.scalatest.concurrent.{Eventually, ScalaFutures}
+import org.scalatest.matchers.should.Matchers
+import org.scalatest.wordspec.AnyWordSpecLike
 
 import scala.concurrent.duration._
 
 //noinspection TypeAnnotation
 class ResolverRoutesSpec
-    extends WordSpecLike
+    extends AnyWordSpecLike
     with Matchers
     with EitherValues
     with OptionValues
@@ -68,7 +70,7 @@ class ResolverRoutesSpec
   override def testConfig: Config =
     ConfigFactory.load("test-no-inmemory.conf").withFallback(ConfigFactory.load()).resolve()
 
-  override implicit def patienceConfig: PatienceConfig = PatienceConfig(3 second, 15 milliseconds)
+  override implicit def patienceConfig: PatienceConfig = PatienceConfig(3.second, 15.milliseconds)
 
   private implicit val appConfig = Settings(system).appConfig
   private implicit val clock     = Clock.fixed(Instant.EPOCH, ZoneId.systemDefault())
@@ -134,7 +136,7 @@ class ResolverRoutesSpec
       ResourceF.simpleF(id, resolver, created = user, updated = user, schema = resolverRef, types = types)
 
     // format: off
-    val resourceValue = Value(resolver, resolverCtx.contextValue, resolver.replaceContext(resolverCtx).deepMerge(Json.obj("@id" -> Json.fromString(id.value.asString))).asGraph(id.value).right.value)
+    val resourceValue = Value(resolver, resolverCtx.contextValue, resolver.replaceContext(resolverCtx).deepMerge(Json.obj("@id" -> Json.fromString(id.value.asString))).asGraph(id.value).rightValue)
     // format: on
 
     val resourceV =
@@ -217,7 +219,7 @@ class ResolverRoutesSpec
 
     "fetch latest revision of a resolver" in new Context {
       resolvers.fetch(id) shouldReturn EitherT.rightT[Task, Rejection](resourceV)
-      val expected = resourceValue.graph.as[Json](resolverCtx).right.value.removeKeys("@context")
+      val expected = resourceValue.graph.as[Json](resolverCtx).rightValue.removeKeys("@context")
       forAll(endpoints()) { endpoint =>
         Get(endpoint) ~> addCredentials(oauthToken) ~> Accept(MediaRanges.`*/*`) ~> routes ~> check {
           status shouldEqual StatusCodes.OK
@@ -228,7 +230,7 @@ class ResolverRoutesSpec
 
     "fetch specific revision of a resolver" in new Context {
       resolvers.fetch(id, 1L) shouldReturn EitherT.rightT[Task, Rejection](resourceV)
-      val expected = resourceValue.graph.as[Json](resolverCtx).right.value.removeKeys("@context")
+      val expected = resourceValue.graph.as[Json](resolverCtx).rightValue.removeKeys("@context")
       forAll(endpoints(rev = Some(1L))) { endpoint =>
         Get(endpoint) ~> addCredentials(oauthToken) ~> Accept(MediaRanges.`*/*`) ~> routes ~> check {
           status shouldEqual StatusCodes.OK
@@ -239,7 +241,7 @@ class ResolverRoutesSpec
 
     "fetch specific tag of a resolver" in new Context {
       resolvers.fetch(id, "some") shouldReturn EitherT.rightT[Task, Rejection](resourceV)
-      val expected = resourceValue.graph.as[Json](resolverCtx).right.value.removeKeys("@context")
+      val expected = resourceValue.graph.as[Json](resolverCtx).rightValue.removeKeys("@context")
       forAll(endpoints(tag = Some("some"))) { endpoint =>
         Get(endpoint) ~> addCredentials(oauthToken) ~> Accept(MediaRanges.`*/*`) ~> routes ~> check {
           status shouldEqual StatusCodes.OK
@@ -284,7 +286,7 @@ class ResolverRoutesSpec
     "fetch resolved resource for a concrete resolver" in new Context {
       val resourceId = genIri
       resolvers.resolve(id, resourceId) shouldReturn EitherT.rightT[Task, Rejection](resourceV)
-      val expected = resourceValue.graph.as[Json](resolverCtx).right.value.removeKeys("@context")
+      val expected = resourceValue.graph.as[Json](resolverCtx).rightValue.removeKeys("@context")
       forAll(endpoints()) { endpoint =>
         Get(s"$endpoint/${urlEncode(resourceId)}") ~> addCredentials(oauthToken) ~> Accept(MediaRanges.`*/*`) ~> routes ~> check {
           status shouldEqual StatusCodes.OK
@@ -296,7 +298,7 @@ class ResolverRoutesSpec
     "fetch resolved resource" in new Context {
       val resourceId = genIri
       resolvers.resolve(resourceId, 1L) shouldReturn EitherT.rightT[Task, Rejection](resourceV)
-      val expected = resourceValue.graph.as[Json](resolverCtx).right.value.removeKeys("@context")
+      val expected = resourceValue.graph.as[Json](resolverCtx).rightValue.removeKeys("@context")
 
       Get(s"/v1/resolvers/$organization/$project/_/${urlEncode(resourceId)}?rev=1") ~> addCredentials(oauthToken) ~> Accept(
         MediaRanges.`*/*`

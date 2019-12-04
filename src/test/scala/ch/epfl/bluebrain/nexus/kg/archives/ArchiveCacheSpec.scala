@@ -14,23 +14,24 @@ import ch.epfl.bluebrain.nexus.kg.config.Settings
 import ch.epfl.bluebrain.nexus.kg.resources.Id
 import ch.epfl.bluebrain.nexus.kg.resources.syntax._
 import org.scalatest.concurrent.Eventually
-import org.scalatest.{Matchers, WordSpecLike}
+import org.scalatest.matchers.should.Matchers
+import org.scalatest.wordspec.AnyWordSpecLike
 
 import scala.concurrent.duration._
 
 class ArchiveCacheSpec
     extends ActorSystemFixture("ArchiveCacheSpec", true)
     with TestHelper
-    with WordSpecLike
+    with AnyWordSpecLike
     with Matchers
     with IOOptionValues
     with Eventually {
 
-  override implicit def patienceConfig: PatienceConfig = PatienceConfig(10 second, 50 milliseconds)
+  override implicit def patienceConfig: PatienceConfig = PatienceConfig(10.second, 50.milliseconds)
 
   private val appConfig = Settings(system).appConfig
   private implicit val config =
-    appConfig.copy(archives = ArchivesConfig(3 second, 500 millis, 100))
+    appConfig.copy(archives = ArchivesConfig(3.second, 500.millis, 100))
 
   private val cache: ArchiveCache[IO] = ArchiveCache[IO]()
   private implicit val clock          = Clock.fixed(Instant.EPOCH, ZoneId.systemDefault())

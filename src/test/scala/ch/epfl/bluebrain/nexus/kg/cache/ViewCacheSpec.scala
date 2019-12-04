@@ -17,7 +17,8 @@ import io.circe.Json
 import monix.eval.Task
 import monix.execution.Scheduler.Implicits.global
 import org.scalatest.concurrent.{Eventually, ScalaFutures}
-import org.scalatest.{Inspectors, Matchers, TryValues}
+import org.scalatest.matchers.should.Matchers
+import org.scalatest.{Inspectors, TryValues}
 
 import scala.concurrent.duration._
 

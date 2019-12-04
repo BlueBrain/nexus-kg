@@ -9,9 +9,11 @@ import ch.epfl.bluebrain.nexus.kg.indexing.SparqlLink.{SparqlExternalLink, Sparq
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import ch.epfl.bluebrain.nexus.rdf.Vocabulary._
 import ch.epfl.bluebrain.nexus.rdf.syntax._
-import org.scalatest.{Matchers, OptionValues, WordSpecLike}
+import org.scalatest.wordspec.AnyWordSpecLike
+import org.scalatest.OptionValues
+import org.scalatest.matchers.should.Matchers
 
-class SparqlLinkSpec extends WordSpecLike with Matchers with OptionValues {
+class SparqlLinkSpec extends AnyWordSpecLike with Matchers with OptionValues {
 
   "A SparqlLink" should {
 

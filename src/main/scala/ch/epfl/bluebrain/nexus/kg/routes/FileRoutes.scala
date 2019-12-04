@@ -120,7 +120,7 @@ class FileRoutes private[routes] (files: Files[Task], resources: Resources[Task]
               (withSizeLimit(storage.maxFileSize) & fileUpload("file")) {
                 case (metadata, byteSource) =>
                   val description = FileDescription(metadata.fileName, metadata.contentType)
-                  parameter('rev.as[Long].?) {
+                  parameter("rev".as[Long].?) {
                     case None =>
                       Kamon.currentSpan().tag("file.operation", "upload").tag("resource.operation", "create")
                       complete(files.create(resId, storage, description, byteSource).value.runWithStatus(Created))
@@ -132,7 +132,7 @@ class FileRoutes private[routes] (files: Files[Task], resources: Resources[Task]
               // Linking a file from the storage service
               entity(as[Json]) {
                 source =>
-                  parameter('rev.as[Long].?) {
+                  parameter("rev".as[Long].?) {
                     case None =>
                       Kamon.currentSpan().tag("file.operation", "link").tag("resource.operation", "create")
                       complete(files.createLink(resId, storage, source).value.runWithStatus(Created))
@@ -146,7 +146,7 @@ class FileRoutes private[routes] (files: Files[Task], resources: Resources[Task]
         }
       },
       // Updating file attributes manually
-      (patch & pathEndOrSingleSlash & storage & parameter('rev.as[Long])) { (storage, rev) =>
+      (patch & pathEndOrSingleSlash & storage & parameter("rev".as[Long])) { (storage, rev) =>
         operationName(s"/${config.http.prefix}/files/{org}/{project}/{id}") {
           (hasPermission(storage.writePermission) & projectNotDeprecated) {
             entity(as[Json]) { source =>
@@ -156,7 +156,7 @@ class FileRoutes private[routes] (files: Files[Task], resources: Resources[Task]
         }
       },
       // Deprecate file
-      (delete & parameter('rev.as[Long]) & pathEndOrSingleSlash) { rev =>
+      (delete & parameter("rev".as[Long]) & pathEndOrSingleSlash) { rev =>
         operationName(s"/${config.http.prefix}/files/{org}/{project}/{id}") {
           (hasPermission(write) & projectNotDeprecated) {
             complete(files.deprecate(Id(project.ref, id), rev).value.runWithStatus(OK))
@@ -174,13 +174,13 @@ class FileRoutes private[routes] (files: Files[Task], resources: Resources[Task]
         operationName(s"/${config.http.prefix}/files/{org}/{project}/{id}/source") {
           hasPermission(read).apply {
             concat(
-              (parameter('rev.as[Long]) & noParameter('tag)) { rev =>
+              (parameter("rev".as[Long]) & noParameter("tag")) { rev =>
                 complete(resources.fetchSource(Id(project.ref, id), rev, fileRef).value.runWithStatus(OK))
               },
-              (parameter('tag) & noParameter('rev)) { tag =>
+              (parameter("tag") & noParameter("rev")) { tag =>
                 complete(resources.fetchSource(Id(project.ref, id), tag, fileRef).value.runWithStatus(OK))
               },
-              (noParameter('tag) & noParameter('rev)) {
+              (noParameter("tag") & noParameter("rev")) {
                 complete(resources.fetchSource(Id(project.ref, id), fileRef).value.runWithStatus(OK))
               }
             )
@@ -201,7 +201,7 @@ class FileRoutes private[routes] (files: Files[Task], resources: Resources[Task]
         }
       },
       // Outgoing links
-      (get & pathPrefix("outgoing") & parameter('includeExternalLinks.as[Boolean] ? true) & pathEndOrSingleSlash) {
+      (get & pathPrefix("outgoing") & parameter("includeExternalLinks".as[Boolean] ? true) & pathEndOrSingleSlash) {
         links =>
           fromPaginated.apply { implicit page =>
             extractUri { implicit uri =>
@@ -222,13 +222,13 @@ class FileRoutes private[routes] (files: Files[Task], resources: Resources[Task]
       Kamon.currentSpan().tag("file.operation", "read")
       hasPermission(read).apply {
         concat(
-          (parameter('rev.as[Long]) & noParameter('tag)) { rev =>
+          (parameter("rev".as[Long]) & noParameter("tag")) { rev =>
             completeWithFormat(resources.fetch(Id(project.ref, id), rev, fileRef).value.runWithStatus(OK))
           },
-          (parameter('tag) & noParameter('rev)) { tag =>
+          (parameter("tag") & noParameter("rev")) { tag =>
             completeWithFormat(resources.fetch(Id(project.ref, id), tag, fileRef).value.runWithStatus(OK))
           },
-          (noParameter('tag) & noParameter('rev)) {
+          (noParameter("tag") & noParameter("rev")) {
             completeWithFormat(resources.fetch(Id(project.ref, id), fileRef).value.runWithStatus(OK))
           }
         )
@@ -240,13 +240,13 @@ class FileRoutes private[routes] (files: Files[Task], resources: Resources[Task]
       Kamon.currentSpan().tag("file.operation", "download")
       // permission checks are in completeFile
       concat(
-        (parameter('rev.as[Long]) & noParameter('tag)) { rev =>
+        (parameter("rev".as[Long]) & noParameter("tag")) { rev =>
           completeFile(files.fetch(Id(project.ref, id), rev).value.runToFuture)
         },
-        (parameter('tag) & noParameter('rev)) { tag =>
+        (parameter("tag") & noParameter("rev")) { tag =>
           completeFile(files.fetch(Id(project.ref, id), tag).value.runToFuture)
         },
-        (noParameter('tag) & noParameter('rev)) {
+        (noParameter("tag") & noParameter("rev")) {
           completeFile(files.fetch(Id(project.ref, id)).value.runToFuture)
         }
       )

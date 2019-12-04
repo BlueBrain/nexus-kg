@@ -7,7 +7,7 @@ import akka.http.scaladsl.model.ContentTypes._
 import akka.http.scaladsl.model.Uri
 import akka.http.scaladsl.testkit.ScalatestRouteTest
 import ch.epfl.bluebrain.nexus.admin.client.types.{Organization, Project}
-import ch.epfl.bluebrain.nexus.commons.test.Resources
+import ch.epfl.bluebrain.nexus.commons.test.{EitherValues, Resources}
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity.User
 import ch.epfl.bluebrain.nexus.iam.client.types._
 import ch.epfl.bluebrain.nexus.kg.config.Settings
@@ -23,13 +23,15 @@ import com.typesafe.config.{Config, ConfigFactory}
 import io.circe.Json
 import org.mockito.IdiomaticMockito
 import org.mockito.matchers.MacroBasedMatchers
-import org.scalatest._
+import org.scalatest.{BeforeAndAfter, Inspectors, OptionValues}
 import org.scalatest.concurrent.ScalaFutures
+import org.scalatest.matchers.should.Matchers
+import org.scalatest.wordspec.AnyWordSpecLike
 
 import scala.concurrent.duration._
 
 class EventsSpecBase
-    extends WordSpecLike
+    extends AnyWordSpecLike
     with Matchers
     with ScalatestRouteTest
     with BeforeAndAfter
@@ -41,7 +43,7 @@ class EventsSpecBase
     with Inspectors
     with IdiomaticMockito {
 
-  override implicit def patienceConfig: PatienceConfig = PatienceConfig(3 second, 100 milliseconds)
+  override implicit def patienceConfig: PatienceConfig = PatienceConfig(3.second, 100.milliseconds)
 
   override def testConfig: Config = ConfigFactory.load("test.conf")
 
@@ -184,7 +186,7 @@ class EventsSpecBase
       .map {
         case (json, idx) =>
           val data  = json.noSpaces
-          val event = json.hcursor.get[String]("@type").right.value
+          val event = json.hcursor.get[String]("@type").rightValue
           val id    = idx
           s"""data:$data
              |event:$event

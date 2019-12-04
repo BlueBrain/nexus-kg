@@ -26,7 +26,7 @@ import ch.epfl.bluebrain.nexus.kg.storage.Storage.DiskStorage
 import ch.epfl.bluebrain.nexus.kg.storage.StorageEncoder._
 import ch.epfl.bluebrain.nexus.rdf.syntax._
 import io.circe.Json
-import journal.Logger
+import com.typesafe.scalalogging.Logger
 import retry.CatsEffect._
 import retry._
 import retry.syntax.all._

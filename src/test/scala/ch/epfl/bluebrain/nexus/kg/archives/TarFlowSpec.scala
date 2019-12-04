@@ -9,13 +9,14 @@ import akka.testkit.TestKit
 import ch.epfl.bluebrain.nexus.kg.TestHelper
 import ch.epfl.bluebrain.nexus.kg.storage.digestSink
 import org.scalatest.concurrent.ScalaFutures
-import org.scalatest.{Matchers, WordSpecLike}
+import org.scalatest.matchers.should.Matchers
+import org.scalatest.wordspec.AnyWordSpecLike
 
 import scala.concurrent.duration._
 
 class TarFlowSpec
     extends TestKit(ActorSystem("TarFlowSpec"))
-    with WordSpecLike
+    with AnyWordSpecLike
     with Matchers
     with TestHelper
     with ScalaFutures {
@@ -23,7 +24,7 @@ class TarFlowSpec
   private implicit val ec    = system.dispatcher
   private implicit val clock = Clock.fixed(Instant.EPOCH, ZoneId.systemDefault())
 
-  override implicit def patienceConfig: PatienceConfig = PatienceConfig(55 second, 150 milliseconds)
+  override implicit def patienceConfig: PatienceConfig = PatienceConfig(55.second, 150.milliseconds)
 
   "A TarFlow" should {
 

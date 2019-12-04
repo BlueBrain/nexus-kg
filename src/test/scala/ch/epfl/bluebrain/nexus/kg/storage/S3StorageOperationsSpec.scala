@@ -22,14 +22,16 @@ import com.amazonaws.auth.{AWSStaticCredentialsProvider, AnonymousAWSCredentials
 import com.amazonaws.client.builder.AwsClientBuilder.EndpointConfiguration
 import com.amazonaws.services.s3.{AmazonS3, AmazonS3ClientBuilder}
 import io.findify.s3mock.S3Mock
-import org.scalatest._
+import org.scalatest.BeforeAndAfterAll
+import org.scalatest.matchers.should.Matchers
+import org.scalatest.wordspec.AnyWordSpecLike
 
-import scala.collection.JavaConverters._
+import scala.jdk.CollectionConverters._
 import scala.collection.mutable
 
 class S3StorageOperationsSpec
     extends ActorSystemFixture("S3StorageOperationsSpec")
-    with WordSpecLike
+    with AnyWordSpecLike
     with Matchers
     with BeforeAndAfterAll
     with IOValues
@@ -51,7 +53,7 @@ class S3StorageOperationsSpec
 
   protected override def beforeAll(): Unit = {
     // saving the current system properties so that we can restore them later
-    props ++= System.getProperties.asScala.toMap.filterKeys(keys.contains)
+    props ++= System.getProperties.asScala.toMap.view.filterKeys(keys.contains)
     keys.foreach(System.clearProperty)
     // S3 client needs to be created after we clear the system proxy settings
     client = AmazonS3ClientBuilder.standard

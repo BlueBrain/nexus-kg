@@ -8,6 +8,7 @@ import akka.util.Timeout
 import cats.data.OptionT
 import cats.effect.{IO, Timer}
 import ch.epfl.bluebrain.nexus.admin.client.types.Project
+import ch.epfl.bluebrain.nexus.commons.test.EitherValues
 import ch.epfl.bluebrain.nexus.commons.test.io.IOOptionValues
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity.{Group, User}
 import ch.epfl.bluebrain.nexus.iam.client.types._
@@ -24,13 +25,15 @@ import ch.epfl.bluebrain.nexus.rdf.Iri.Path._
 import io.circe.Json
 import org.mockito.Mockito._
 import org.mockito.{IdiomaticMockito, Mockito}
-import org.scalatest._
+import org.scalatest.{BeforeAndAfter, BeforeAndAfterAll, OptionValues}
+import org.scalatest.matchers.should.Matchers
+import org.scalatest.wordspec.AnyWordSpecLike
 
 import scala.concurrent.duration._
 
 class MultiProjectResolutionSpec
     extends TestKit(ActorSystem("MultiProjectResolutionSpec"))
-    with WordSpecLike
+    with AnyWordSpecLike
     with Matchers
     with IdiomaticMockito
     with BeforeAndAfter
@@ -40,7 +43,7 @@ class MultiProjectResolutionSpec
     with BeforeAndAfterAll
     with IOOptionValues {
 
-  override implicit val patienceConfig: PatienceConfig = PatienceConfig(6 seconds, 100 millis)
+  override implicit val patienceConfig: PatienceConfig = PatienceConfig(6.seconds, 100.millis)
 
   private def genProjectLabel = ProjectLabel(genString(), genString())
   private def genJson: Json   = Json.obj("key" -> Json.fromString(genString()))
@@ -60,7 +63,7 @@ class MultiProjectResolutionSpec
   private val types                 = Set(nxv.Schema.value, nxv.Resource.value)
   private val group                 = Group("bbp-ou-neuroinformatics", "ldap2")
   private val identities            = List[Identity](group, User("dmontero", "ldap"))
-  implicit val timeout              = Timeout(1 second)
+  implicit val timeout              = Timeout(1.second)
   implicit val ec                   = system.dispatcher
   implicit val timer: Timer[IO]     = IO.timer(system.dispatcher)
 

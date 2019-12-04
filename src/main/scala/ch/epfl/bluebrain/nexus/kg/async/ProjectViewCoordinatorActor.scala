@@ -197,7 +197,7 @@ private abstract class ProjectViewCoordinatorActor(viewCache: ViewCache[Task])(
         }
 
       case ViewsRemoved(_, views) =>
-        children.filterKeys(v => views.exists(_.id == v.id)).foreach {
+        children.view.filterKeys(v => views.exists(_.id == v.id)).foreach {
           case (v, coordinator) =>
             logStop(v, "removed from the cache")
             stopView(v, coordinator)
@@ -310,8 +310,8 @@ object ProjectViewCoordinatorActor {
   }
 
   private[async] def shardExtractor(shards: Int): ExtractShardId = {
-    case msg: Msg                    => math.abs(msg.uuid.hashCode) % shards toString
-    case ShardRegion.StartEntity(id) => (id.hashCode                % shards) toString
+    case msg: Msg                    => (math.abs(msg.uuid.hashCode) % shards).toString
+    case ShardRegion.StartEntity(id) => (id.hashCode                 % shards).toString
   }
 
   private[async] val entityExtractor: ExtractEntityId = {

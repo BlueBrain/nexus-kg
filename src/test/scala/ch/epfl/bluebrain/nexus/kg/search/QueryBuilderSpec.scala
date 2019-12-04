@@ -5,9 +5,10 @@ import ch.epfl.bluebrain.nexus.kg.config.Vocabulary._
 import ch.epfl.bluebrain.nexus.kg.routes.SearchParams
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import ch.epfl.bluebrain.nexus.rdf.syntax.node.unsafe._
-import org.scalatest.{Matchers, WordSpecLike}
+import org.scalatest.matchers.should.Matchers
+import org.scalatest.wordspec.AnyWordSpecLike
 
-class QueryBuilderSpec extends WordSpecLike with Matchers with Resources {
+class QueryBuilderSpec extends AnyWordSpecLike with Matchers with Resources {
 
   "QueryBuilder" should {
     val schema: AbsoluteIri = url"http://nexus.example.com/testSchema".value

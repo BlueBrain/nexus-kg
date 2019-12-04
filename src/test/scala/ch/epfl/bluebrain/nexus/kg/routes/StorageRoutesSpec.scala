@@ -15,7 +15,7 @@ import ch.epfl.bluebrain.nexus.commons.search.QueryResults.UnscoredQueryResults
 import ch.epfl.bluebrain.nexus.commons.search.{Pagination, QueryResults}
 import ch.epfl.bluebrain.nexus.commons.sparql.client.BlazegraphClient
 import ch.epfl.bluebrain.nexus.commons.test
-import ch.epfl.bluebrain.nexus.commons.test.CirceEq
+import ch.epfl.bluebrain.nexus.commons.test.{CirceEq, EitherValues}
 import ch.epfl.bluebrain.nexus.iam.client.IamClient
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity._
 import ch.epfl.bluebrain.nexus.iam.client.types._
@@ -41,14 +41,16 @@ import io.circe.Json
 import io.circe.generic.auto._
 import monix.eval.Task
 import org.mockito.{ArgumentMatchersSugar, IdiomaticMockito, Mockito}
-import org.scalatest._
+import org.scalatest.{BeforeAndAfter, Inspectors, OptionValues}
 import org.scalatest.concurrent.{Eventually, ScalaFutures}
+import org.scalatest.matchers.should.Matchers
+import org.scalatest.wordspec.AnyWordSpecLike
 
 import scala.concurrent.duration._
 
 //noinspection TypeAnnotation
 class StorageRoutesSpec
-    extends WordSpecLike
+    extends AnyWordSpecLike
     with Matchers
     with EitherValues
     with OptionValues
@@ -67,7 +69,7 @@ class StorageRoutesSpec
   override def testConfig: Config =
     ConfigFactory.load("test-no-inmemory.conf").withFallback(ConfigFactory.load()).resolve()
 
-  override implicit def patienceConfig: PatienceConfig = PatienceConfig(3 second, 15 milliseconds)
+  override implicit def patienceConfig: PatienceConfig = PatienceConfig(3.second, 15.milliseconds)
 
   private implicit val appConfig = Settings(system).appConfig
   private implicit val clock     = Clock.fixed(Instant.EPOCH, ZoneId.systemDefault())
@@ -137,7 +139,7 @@ class StorageRoutesSpec
       ResourceF.simpleF(id, storage, created = user, updated = user, schema = storageRef, types = types)
 
     // format: off
-    val resourceValue = Value(storage, storageCtx.contextValue, storage.replaceContext(storageCtx).deepMerge(Json.obj("@id" -> Json.fromString(id.value.asString))).asGraph(id.value).right.value)
+    val resourceValue = Value(storage, storageCtx.contextValue, storage.replaceContext(storageCtx).deepMerge(Json.obj("@id" -> Json.fromString(id.value.asString))).asGraph(id.value).rightValue)
     // format: on
 
     val resourceV =
@@ -223,7 +225,7 @@ class StorageRoutesSpec
 
     "fetch latest revision of a storage" in new Context {
       storages.fetch(id) shouldReturn EitherT.rightT[Task, Rejection](resourceV)
-      val expected = resourceValue.graph.as[Json](storageCtx).right.value.removeKeys("@context")
+      val expected = resourceValue.graph.as[Json](storageCtx).rightValue.removeKeys("@context")
       forAll(endpoints()) { endpoint =>
         Get(endpoint) ~> addCredentials(oauthToken) ~> Accept(MediaRanges.`*/*`) ~> routes ~> check {
           status shouldEqual StatusCodes.OK
@@ -234,7 +236,7 @@ class StorageRoutesSpec
 
     "fetch specific revision of a storage" in new Context {
       storages.fetch(id, 1L) shouldReturn EitherT.rightT[Task, Rejection](resourceV)
-      val expected = resourceValue.graph.as[Json](storageCtx).right.value.removeKeys("@context")
+      val expected = resourceValue.graph.as[Json](storageCtx).rightValue.removeKeys("@context")
       forAll(endpoints(rev = Some(1L))) { endpoint =>
         Get(endpoint) ~> addCredentials(oauthToken) ~> Accept(MediaRanges.`*/*`) ~> routes ~> check {
           status shouldEqual StatusCodes.OK
@@ -245,7 +247,7 @@ class StorageRoutesSpec
 
     "fetch specific tag of a storage" in new Context {
       storages.fetch(id, "some") shouldReturn EitherT.rightT[Task, Rejection](resourceV)
-      val expected = resourceValue.graph.as[Json](storageCtx).right.value.removeKeys("@context")
+      val expected = resourceValue.graph.as[Json](storageCtx).rightValue.removeKeys("@context")
       forAll(endpoints(tag = Some("some"))) { endpoint =>
         Get(endpoint) ~> addCredentials(oauthToken) ~> Accept(MediaRanges.`*/*`) ~> routes ~> check {
           status shouldEqual StatusCodes.OK

@@ -28,8 +28,10 @@ import io.circe.Json
 import monix.eval.Task
 import monix.execution.Scheduler.Implicits.global
 import org.mockito.{ArgumentMatchersSugar, IdiomaticMockito}
+import org.scalatest.{Inspectors, OptionValues}
 import org.scalatest.concurrent.{Eventually, ScalaFutures}
-import org.scalatest.{Inspectors, Matchers, OptionValues, WordSpecLike}
+import org.scalatest.matchers.should.Matchers
+import org.scalatest.wordspec.AnyWordSpecLike
 
 import scala.concurrent.duration._
 
@@ -37,7 +39,7 @@ class ProjectViewCoordinatorSpec
     extends ActorSystemFixture("ProjectViewCoordinatorSpec", true)
     with TestHelper
     with DefaultTimeout
-    with WordSpecLike
+    with AnyWordSpecLike
     with Matchers
     with Eventually
     with ScalaFutures
@@ -46,7 +48,7 @@ class ProjectViewCoordinatorSpec
     with Inspectors
     with OptionValues {
 
-  override implicit def patienceConfig: PatienceConfig = PatienceConfig(15 second, 150 milliseconds)
+  override implicit def patienceConfig: PatienceConfig = PatienceConfig(15.second, 150.milliseconds)
 
   private implicit val appConfig = Settings(system).appConfig
   private val projectCache       = ProjectCache[Task]

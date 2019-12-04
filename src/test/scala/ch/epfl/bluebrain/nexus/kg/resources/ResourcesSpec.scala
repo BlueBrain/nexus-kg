@@ -11,7 +11,7 @@ import ch.epfl.bluebrain.nexus.commons.search.QueryResult.UnscoredQueryResult
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlResults.{Binding, Bindings, Head}
 import ch.epfl.bluebrain.nexus.commons.sparql.client.{BlazegraphClient, SparqlResults}
 import ch.epfl.bluebrain.nexus.commons.test
-import ch.epfl.bluebrain.nexus.commons.test.ActorSystemFixture
+import ch.epfl.bluebrain.nexus.commons.test.{ActorSystemFixture, EitherValues}
 import ch.epfl.bluebrain.nexus.commons.test.io.{IOEitherValues, IOOptionValues}
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity._
 import ch.epfl.bluebrain.nexus.iam.client.types._
@@ -38,7 +38,9 @@ import ch.epfl.bluebrain.nexus.rdf.{Iri, RootedGraph}
 import io.circe.Json
 import org.mockito.{ArgumentMatchersSugar, IdiomaticMockito}
 import org.mockito.Mockito.when
-import org.scalatest._
+import org.scalatest.{Inspectors, OptionValues}
+import org.scalatest.matchers.should.Matchers
+import org.scalatest.wordspec.AnyWordSpecLike
 
 import scala.concurrent.ExecutionContext
 import scala.concurrent.duration._
@@ -48,7 +50,7 @@ class ResourcesSpec
     extends ActorSystemFixture("ResourcesSpec", true)
     with IOEitherValues
     with IOOptionValues
-    with WordSpecLike
+    with AnyWordSpecLike
     with IdiomaticMockito
     with ArgumentMatchersSugar
     with Matchers
@@ -58,7 +60,7 @@ class ResourcesSpec
     with TestHelper
     with Inspectors {
 
-  override implicit def patienceConfig: PatienceConfig = PatienceConfig(3 second, 15 milliseconds)
+  override implicit def patienceConfig: PatienceConfig = PatienceConfig(3.second, 15.milliseconds)
 
   private implicit val client: BlazegraphClient[IO] = mock[BlazegraphClient[IO]]
 
@@ -82,10 +84,10 @@ class ResourcesSpec
   trait Base {
     implicit val subject: Subject = Anonymous
     val projectRef                = ProjectRef(genUUID)
-    val base                      = Iri.absolute(s"http://example.com/base/").right.value
-    val id                        = Iri.absolute(s"http://example.com/$genUUID").right.value
+    val base                      = Iri.absolute(s"http://example.com/base/").rightValue
+    val id                        = Iri.absolute(s"http://example.com/$genUUID").rightValue
     val resId                     = Id(projectRef, id)
-    val voc                       = Iri.absolute(s"http://example.com/voc/").right.value
+    val voc                       = Iri.absolute(s"http://example.com/voc/").rightValue
     implicit val project = Project(
       resId.value,
       "proj",
@@ -114,8 +116,7 @@ class ResourcesSpec
       val defaultCtxValue = defaultCtx.contextValue deepMerge resourceCtx.contextValue
       val graph = (json deepMerge Json.obj("@context" -> defaultCtxValue, "@id" -> Json.fromString(id.asString)))
         .asGraph(resId.value)
-        .right
-        .value
+        .rightValue
       val resourceV = ResourceF.simpleV(resId, Value(json, defaultCtxValue, graph), rev, schema = schemaRef)
       resourceV.copy(
         value = resourceV.value.copy(graph = RootedGraph(resId.value, graph.triples ++ resourceV.metadata()))
@@ -364,7 +365,7 @@ class ResourcesSpec
       "prevent updating context to create circular dependency" in new Base {
         when(resolverCache.get(any[ProjectRef])).thenReturn(IO.pure(List(InProjectResolver.default(projectRef))))
 
-        val id2    = Iri.absolute(s"http://example.com/$genUUID").right.value
+        val id2    = Iri.absolute(s"http://example.com/$genUUID").rightValue
         val resId2 = Id(projectRef, id2)
 
         val context1 = Json.obj(
@@ -389,11 +390,11 @@ class ResourcesSpec
       "allow context resolution when referenced from several places" in new Base {
         when(resolverCache.get(any[ProjectRef])).thenReturn(IO.pure(List(InProjectResolver.default(projectRef))))
 
-        val id2    = Iri.absolute(s"http://example.com/$genUUID").right.value
+        val id2    = Iri.absolute(s"http://example.com/$genUUID").rightValue
         val resId2 = Id(projectRef, id2)
-        val id3    = Iri.absolute(s"http://example.com/$genUUID").right.value
+        val id3    = Iri.absolute(s"http://example.com/$genUUID").rightValue
         val resId3 = Id(projectRef, id3)
-        val id4    = Iri.absolute(s"http://example.com/$genUUID").right.value
+        val id4    = Iri.absolute(s"http://example.com/$genUUID").rightValue
         val resId4 = Id(projectRef, id4)
 
         val context1 = Json.obj(
