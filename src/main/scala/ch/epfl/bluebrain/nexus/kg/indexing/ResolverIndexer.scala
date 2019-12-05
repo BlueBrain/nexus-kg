@@ -20,7 +20,7 @@ import scala.concurrent.ExecutionContext
 // $COVERAGE-OFF$
 object ResolverIndexer {
 
-  private implicit val log = Logger[StorageIndexer.type]
+  private implicit val log = Logger[ResolverIndexer.type]
 
   /**
     * Starts the index process for resolvers across all projects in the system.

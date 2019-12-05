@@ -19,7 +19,7 @@ import scala.concurrent.ExecutionContext
 // $COVERAGE-OFF$
 object ViewIndexer {
 
-  private implicit val log = Logger[StorageIndexer.type]
+  private implicit val log = Logger[ViewIndexer.type]
 
   def start[F[_]: Timer](views: Views[F], viewCache: ViewCache[F])(
       implicit projectCache: ProjectCache[F],

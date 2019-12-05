@@ -12,7 +12,7 @@ import ch.epfl.bluebrain.nexus.commons.es.client.ElasticSearchClient
 import ch.epfl.bluebrain.nexus.commons.http.HttpClient._
 import ch.epfl.bluebrain.nexus.commons.search.QueryResult.UnscoredQueryResult
 import ch.epfl.bluebrain.nexus.commons.search.QueryResults.UnscoredQueryResults
-import ch.epfl.bluebrain.nexus.commons.search.{Pagination, QueryResults}
+import ch.epfl.bluebrain.nexus.commons.search.{Pagination, QueryResults, Sort, SortList}
 import ch.epfl.bluebrain.nexus.commons.sparql.client.BlazegraphClient
 import ch.epfl.bluebrain.nexus.commons.test
 import ch.epfl.bluebrain.nexus.commons.test.{CirceEq, EitherValues}
@@ -95,6 +95,7 @@ class SchemaRoutesSpec
   private implicit val elasticSearch = mock[ElasticSearchClient[Task]]
   private implicit val storageClient = mock[StorageClient[Task]]
   private implicit val clients       = Clients()
+  private val sortList               = SortList(List(Sort(nxv.createdAt.prefix), Sort("@id")))
 
   before {
     Mockito.reset(schemas)
@@ -224,39 +225,39 @@ class SchemaRoutesSpec
 
     "fetch latest revision of a schema" in new Context {
       schemas.fetch(id) shouldReturn EitherT.rightT[Task, Rejection](resourceV)
-      val expected = resourceValue.graph.as[Json](shaclCtx).rightValue.removeKeys("@context") deepMerge Json.obj(
+      val expected = resourceValue.graph.as[Json](shaclCtx).rightValue.removeNestedKeys("@context") deepMerge Json.obj(
         "@type" -> Json.fromString("Schema")
       )
       forAll(endpoints()) { endpoint =>
         Get(endpoint) ~> addCredentials(oauthToken) ~> Accept(MediaRanges.`*/*`) ~> routes ~> check {
           status shouldEqual StatusCodes.OK
-          responseAs[Json].removeKeys("@context") should equalIgnoreArrayOrder(expected)
+          responseAs[Json].removeNestedKeys("@context") should equalIgnoreArrayOrder(expected)
         }
       }
     }
 
     "fetch specific revision of a schema" in new Context {
       schemas.fetch(id, 1L) shouldReturn EitherT.rightT[Task, Rejection](resourceV)
-      val expected = resourceValue.graph.as[Json](shaclCtx).rightValue.removeKeys("@context") deepMerge Json.obj(
+      val expected = resourceValue.graph.as[Json](shaclCtx).rightValue.removeNestedKeys("@context") deepMerge Json.obj(
         "@type" -> Json.fromString("Schema")
       )
       forAll(endpoints(rev = Some(1L))) { endpoint =>
         Get(endpoint) ~> addCredentials(oauthToken) ~> Accept(MediaRanges.`*/*`) ~> routes ~> check {
           status shouldEqual StatusCodes.OK
-          responseAs[Json].removeKeys("@context") should equalIgnoreArrayOrder(expected)
+          responseAs[Json].removeNestedKeys("@context") should equalIgnoreArrayOrder(expected)
         }
       }
     }
 
     "fetch specific tag of a schema" in new Context {
       schemas.fetch(id, "some") shouldReturn EitherT.rightT[Task, Rejection](resourceV)
-      val expected = resourceValue.graph.as[Json](shaclCtx).rightValue.removeKeys("@context") deepMerge Json.obj(
+      val expected = resourceValue.graph.as[Json](shaclCtx).rightValue.removeNestedKeys("@context") deepMerge Json.obj(
         "@type" -> Json.fromString("Schema")
       )
       forAll(endpoints(tag = Some("some"))) { endpoint =>
         Get(endpoint) ~> addCredentials(oauthToken) ~> Accept(MediaRanges.`*/*`) ~> routes ~> check {
           status shouldEqual StatusCodes.OK
-          responseAs[Json].removeKeys("@context") should equalIgnoreArrayOrder(expected)
+          responseAs[Json].removeNestedKeys("@context") should equalIgnoreArrayOrder(expected)
         }
       }
     }
@@ -301,7 +302,7 @@ class SchemaRoutesSpec
       val expectedList: JsonResults =
         UnscoredQueryResults(1L, List(UnscoredQueryResult(resultElem)), Some(sort.noSpaces))
       viewCache.getDefaultElasticSearch(projectRef) shouldReturn Task(Some(defaultEsView))
-      val params     = SearchParams(schema = Some(shaclSchemaUri), deprecated = Some(false))
+      val params     = SearchParams(schema = Some(shaclSchemaUri), deprecated = Some(false), sort = sortList)
       val pagination = Pagination(20)
       schemas.list(Some(defaultEsView), params, pagination) shouldReturn Task(expectedList)
 
@@ -311,7 +312,7 @@ class SchemaRoutesSpec
         MediaRanges.`*/*`
       ) ~> routes ~> check {
         status shouldEqual StatusCodes.OK
-        responseAs[Json].removeKeys("@context") shouldEqual expected.deepMerge(
+        responseAs[Json].removeNestedKeys("@context") shouldEqual expected.deepMerge(
           Json.obj(
             "_next" -> Json.fromString(
               s"http://127.0.0.1:8080/v1/schemas/$organization/$project?deprecated=false&after=%5B%22two%22%5D"
@@ -324,7 +325,7 @@ class SchemaRoutesSpec
         MediaRanges.`*/*`
       ) ~> routes ~> check {
         status shouldEqual StatusCodes.OK
-        responseAs[Json].removeKeys("@context") shouldEqual expected.deepMerge(
+        responseAs[Json].removeNestedKeys("@context") shouldEqual expected.deepMerge(
           Json.obj(
             "_next" -> Json.fromString(
               s"http://127.0.0.1:8080/v1/resources/$organization/$project/schema?deprecated=false&after=%5B%22two%22%5D"
@@ -342,7 +343,7 @@ class SchemaRoutesSpec
       val expectedList: JsonResults =
         UnscoredQueryResults(1L, List(UnscoredQueryResult(resultElem)), Some(sort.noSpaces))
       viewCache.getDefaultElasticSearch(projectRef) shouldReturn Task(Some(defaultEsView))
-      val params     = SearchParams(schema = Some(shaclSchemaUri), deprecated = Some(false))
+      val params     = SearchParams(schema = Some(shaclSchemaUri), deprecated = Some(false), sort = sortList)
       val pagination = Pagination(after, 20)
       schemas.list(Some(defaultEsView), params, pagination) shouldReturn Task(expectedList)
 
@@ -352,7 +353,7 @@ class SchemaRoutesSpec
         MediaRanges.`*/*`
       ) ~> routes ~> check {
         status shouldEqual StatusCodes.OK
-        responseAs[Json].removeKeys("@context") shouldEqual expected.deepMerge(
+        responseAs[Json].removeNestedKeys("@context") shouldEqual expected.deepMerge(
           Json.obj(
             "_next" -> Json.fromString(
               s"http://127.0.0.1:8080/v1/schemas/$organization/$project?deprecated=false&after=%5B%22two%22%5D"
@@ -365,7 +366,7 @@ class SchemaRoutesSpec
         oauthToken
       ) ~> Accept(MediaRanges.`*/*`) ~> routes ~> check {
         status shouldEqual StatusCodes.OK
-        responseAs[Json].removeKeys("@context") shouldEqual expected.deepMerge(
+        responseAs[Json].removeNestedKeys("@context") shouldEqual expected.deepMerge(
           Json.obj(
             "_next" -> Json.fromString(
               s"http://127.0.0.1:8080/v1/resources/$organization/$project/schema?deprecated=false&after=%5B%22two%22%5D"

@@ -15,7 +15,8 @@ import akka.http.scaladsl.testkit.ScalatestRouteTest
 import cats.instances.either._
 import ch.epfl.bluebrain.nexus.admin.client.types.Project
 import ch.epfl.bluebrain.nexus.commons.http.RdfMediaTypes._
-import ch.epfl.bluebrain.nexus.commons.search.{FromPagination, Pagination, SearchAfterPagination}
+import ch.epfl.bluebrain.nexus.commons.search.Sort.OrderType._
+import ch.epfl.bluebrain.nexus.commons.search.{FromPagination, Pagination, SearchAfterPagination, Sort, SortList}
 import ch.epfl.bluebrain.nexus.commons.test.EitherValues
 import ch.epfl.bluebrain.nexus.kg.TestHelper
 import ch.epfl.bluebrain.nexus.kg.cache.StorageCache
@@ -84,23 +85,10 @@ class QueryDirectivesSpec
         }
       }
 
-    def genProject = Project(
-      genIri,
-      "project",
-      "organization",
-      None,
-      url"${nxv.projects.value.asString}/".value,
-      url"${genIri}/".value,
-      Map("nxv" -> nxv.base),
-      genUUID,
-      genUUID,
-      1L,
-      false,
-      Instant.EPOCH,
-      genIri,
-      Instant.EPOCH,
-      genIri
-    )
+    // format: off
+    def genProject() =
+      Project(genIri, "project", "organization", None, url"${nxv.projects.value.asString}/".value, url"${genIri}/".value, Map("nxv" -> nxv.base), genUUID, genUUID, 1L, false, Instant.EPOCH, genIri, Instant.EPOCH, genIri)
+    // format: on
 
     def routePagination(): Route =
       (get & paginated) { page =>
@@ -229,7 +217,7 @@ class QueryDirectivesSpec
     "dealing with storages" should {
 
       "return the storage when specified as a query parameter" in {
-        implicit val project = genProject
+        implicit val project = genProject()
         val storage: Storage = DiskStorage.default(project.ref)
         when(storageCache.get(project.ref, nxv.withSuffix("mystorage").value)).thenReturn(Task(Some(storage)))
         Get("/some?storage=nxv:mystorage") ~> routeStorage ~> check {
@@ -238,7 +226,7 @@ class QueryDirectivesSpec
       }
 
       "return the default storage" in {
-        implicit val project = genProject
+        implicit val project = genProject()
         val storage: Storage = DiskStorage.default(project.ref)
         when(storageCache.getDefault(project.ref)).thenReturn(Task(Some(storage)))
         Get("/some") ~> routeStorage ~> check {
@@ -247,7 +235,7 @@ class QueryDirectivesSpec
       }
 
       "return no storage when does not exists on the cache" in {
-        implicit val project = genProject
+        implicit val project = genProject()
         when(storageCache.getDefault(project.ref)).thenReturn(Task(None))
         Get("/some") ~> routeStorage ~> check {
           status shouldEqual StatusCodes.NotFound
@@ -258,7 +246,7 @@ class QueryDirectivesSpec
     "dealing with search parameters" should {
 
       "return a SearchParams" in {
-        implicit val project    = genProject
+        implicit val project    = genProject()
         val schema: AbsoluteIri = Schemas.resolverSchemaUri
         Get(
           s"/some?deprecated=true&rev=2&createdBy=nxv:user&updatedBy=batman&type=A&type=B&schema=${schema.asString}&q=Some%20text"
@@ -270,11 +258,25 @@ class QueryDirectivesSpec
             createdBy = Some(nxv.withSuffix("user").value),
             updatedBy = Some(project.base + "batman"),
             types = List(project.vocab + "A", project.vocab + "B"),
+            sort = SortList(List(Sort(nxv.createdAt.prefix), Sort("@id"))),
             q = Some("some text")
           )
           val expected2 = expected.copy(types = List(project.vocab + "B", project.vocab + "A"))
 
           responseAs[SearchParams] should (be(expected) or be(expected2))
+        }
+      }
+
+      "return a SearchParam with custom sorting" in {
+        implicit val project = genProject()
+        Get(s"/some?sort=_createdBy&sort=-_updatedBy&sort=@id&sort=-@type") ~> routeSearchParams ~> check {
+          val expected = SearchParams(
+            sort = SortList(
+              List(Sort(nxv.createdBy.prefix), Sort(Desc, nxv.updatedBy.prefix), Sort("@id"), Sort(Desc, "@type"))
+            )
+          )
+
+          responseAs[SearchParams] shouldEqual expected
         }
       }
     }

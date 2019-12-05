@@ -255,8 +255,8 @@ class StorageSpec
           )
         ) {
           case (storage, expectedJson) =>
-            val json = storage.as[Json](storageCtx.appendContextOf(resourceCtx)).rightValue.removeKeys("@context")
-            json should equalIgnoreArrayOrder(expectedJson.removeKeys("@context"))
+            val json = storage.as[Json](storageCtx.appendContextOf(resourceCtx)).rightValue.removeNestedKeys("@context")
+            json should equalIgnoreArrayOrder(expectedJson.removeNestedKeys("@context"))
         }
       }
     }

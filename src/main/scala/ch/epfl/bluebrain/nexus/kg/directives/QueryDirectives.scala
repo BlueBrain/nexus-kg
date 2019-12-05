@@ -8,18 +8,19 @@ import akka.http.scaladsl.server.directives.ParameterDirectives.ParamDefAux
 import akka.http.scaladsl.server.{Directive0, Directive1, MalformedQueryParamRejection}
 import akka.http.scaladsl.unmarshalling.{FromStringUnmarshaller, Unmarshaller}
 import ch.epfl.bluebrain.nexus.admin.client.types.Project
-import ch.epfl.bluebrain.nexus.commons.search.{FromPagination, Pagination}
+import ch.epfl.bluebrain.nexus.commons.search.{FromPagination, Pagination, Sort, SortList}
 import ch.epfl.bluebrain.nexus.kg.KgError.{InternalError, InvalidOutputFormat, NotFound}
 import ch.epfl.bluebrain.nexus.kg.cache.StorageCache
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig.PaginationConfig
+import ch.epfl.bluebrain.nexus.kg.config.Vocabulary.nxv
 import ch.epfl.bluebrain.nexus.kg.resources.syntax._
 import ch.epfl.bluebrain.nexus.kg.routes.OutputFormat._
 import ch.epfl.bluebrain.nexus.kg.routes.{JsonLDOutputFormat, OutputFormat, SearchParams}
 import ch.epfl.bluebrain.nexus.kg.storage.Storage
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
+import com.typesafe.scalalogging.Logger
 import io.circe.Json
 import io.circe.parser.parse
-import com.typesafe.scalalogging.Logger
 import monix.eval.Task
 import monix.execution.Scheduler.Implicits.global
 
@@ -156,6 +157,8 @@ object QueryDirectives {
         reject(MalformedQueryParamRejection("schema", "The provided schema does not match the schema on the Uri"))
     }
 
+  private val defaultSort = SortList(List(Sort(nxv.createdAt.prefix), Sort("@id")))
+
   /**
     * @return the extracted search parameters from the request query parameters.
     */
@@ -166,10 +169,12 @@ object QueryDirectives {
       parameter("createdBy".as[AbsoluteIri].?) &
       parameter("updatedBy".as[AbsoluteIri].?) &
       parameter("type".as[VocabAbsoluteIri].*) &
+      parameter("sort".as[Sort].*) &
       parameter("id".as[AbsoluteIri].?) &
       parameter("q".as[String].?)).tmap {
-      case (deprecated, rev, schema, createdBy, updatedBy, tpe, id, q) =>
+      case (deprecated, rev, schema, createdBy, updatedBy, tpe, sort, id, q) =>
         val qCleaned = q.filter(_.trim.nonEmpty).map(_.toLowerCase())
-        SearchParams(deprecated, rev, schema, createdBy, updatedBy, tpe.map(_.value).toList, id, qCleaned)
+        val sortList = if (sort.isEmpty) defaultSort else SortList(sort.toList.reverse)
+        SearchParams(deprecated, rev, schema, createdBy, updatedBy, tpe.map(_.value).toList, sortList, id, qCleaned)
     }
 }

@@ -10,14 +10,7 @@ import ch.epfl.bluebrain.nexus.kg.indexing.View.ElasticSearchView._
 object QueryBuilder {
 
   private def baseQuery(filterTerms: List[Json]): Json =
-    Json.obj(
-      "sort" -> Json.arr(Json.fromString(nxv.createdAt.prefix), Json.fromString("@id")),
-      "query" -> Json.obj(
-        "bool" -> Json.obj(
-          "filter" -> Json.arr(filterTerms: _*)
-        )
-      )
-    )
+    Json.obj("query" -> Json.obj("bool" -> Json.obj("filter" -> Json.arr(filterTerms: _*))))
 
   private def term[A: Encoder](k: String, value: A): Json =
     Json.obj("term" -> Json.obj(k -> value.asJson))

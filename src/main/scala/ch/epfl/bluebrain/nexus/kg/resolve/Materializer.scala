@@ -27,7 +27,7 @@ class Materializer[F[_]: Effect](resolution: ProjectResolution[F], projectCache:
     implicit config: AppConfig
 ) {
 
-  private def flattenCtx(rrefs: List[Ref], ccontextValue: Json)(
+  private def flattenCtx(rrefs: List[Ref], contextValue: Json)(
       implicit project: Project
   ): EitherT[F, Rejection, Json] = {
     type JsonRefs = (Json, List[Ref])
@@ -56,7 +56,7 @@ class Materializer[F[_]: Effect](resolution: ProjectResolution[F], projectCache:
         case (_, _, _)       => EitherT.leftT[F, JsonRefs](IllegalContextValue(refs): Rejection)
       }
 
-    inner(rrefs, ccontextValue).map {
+    inner(rrefs, contextValue).map {
       case (flattened, _) => flattened deepMerge resourceCtx.contextValue
     }
   }

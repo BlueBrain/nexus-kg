@@ -12,7 +12,7 @@ import ch.epfl.bluebrain.nexus.commons.es.client.ElasticSearchClient
 import ch.epfl.bluebrain.nexus.commons.http.HttpClient._
 import ch.epfl.bluebrain.nexus.commons.search.QueryResult.UnscoredQueryResult
 import ch.epfl.bluebrain.nexus.commons.search.QueryResults.UnscoredQueryResults
-import ch.epfl.bluebrain.nexus.commons.search.{FromPagination, Pagination, QueryResults}
+import ch.epfl.bluebrain.nexus.commons.search.{FromPagination, Pagination, QueryResults, Sort, SortList}
 import ch.epfl.bluebrain.nexus.commons.sparql.client.BlazegraphClient
 import ch.epfl.bluebrain.nexus.commons.test
 import ch.epfl.bluebrain.nexus.commons.test.{CirceEq, EitherValues}
@@ -97,6 +97,7 @@ class ResourceRoutesSpec
   private implicit val elasticSearch = mock[ElasticSearchClient[Task]]
   private implicit val storageClient = mock[StorageClient[Task]]
   private implicit val clients       = Clients()
+  private val sortList               = SortList(List(Sort(nxv.createdAt.prefix), Sort("@id")))
 
   private val manageResources = Set(Permission.unsafe("resources/read"), Permission.unsafe("resources/write"))
   // format: off
@@ -233,7 +234,7 @@ class ResourceRoutesSpec
         resourceValue.graph
           .as[Json](Json.obj("@context" -> defaultCtxValue).appendContextOf(resourceCtx))
           .rightValue
-          .removeKeys("@context")
+          .removeNestedKeys("@context")
 
       val endpoints = List(
         s"/v1/resources/${projectMeta.organizationUuid}/${projectMeta.uuid}/_/$urlEncodedId",
@@ -243,7 +244,7 @@ class ResourceRoutesSpec
       forAll(endpoints) { endpoint =>
         Get(endpoint) ~> addCredentials(oauthToken) ~> Accept(MediaRanges.`*/*`) ~> routes ~> check {
           status shouldEqual StatusCodes.OK
-          responseAs[Json].removeKeys("@context") should equalIgnoreArrayOrder(expected)
+          responseAs[Json].removeNestedKeys("@context") should equalIgnoreArrayOrder(expected)
         }
       }
     }
@@ -271,7 +272,7 @@ class ResourceRoutesSpec
         resourceValue.graph
           .as[Json](Json.obj("@context" -> defaultCtxValue).appendContextOf(resourceCtx))
           .rightValue
-          .removeKeys("@context")
+          .removeNestedKeys("@context")
 
       val endpoints = List(
         s"/v1/resources/${projectMeta.organizationUuid}/${projectMeta.uuid}/_/$urlEncodedId?rev=1",
@@ -281,7 +282,7 @@ class ResourceRoutesSpec
       forAll(endpoints) { endpoint =>
         Get(endpoint) ~> addCredentials(oauthToken) ~> Accept(MediaRanges.`*/*`) ~> routes ~> check {
           status shouldEqual StatusCodes.OK
-          responseAs[Json].removeKeys("@context") should equalIgnoreArrayOrder(expected)
+          responseAs[Json].removeNestedKeys("@context") should equalIgnoreArrayOrder(expected)
         }
       }
     }
@@ -309,7 +310,7 @@ class ResourceRoutesSpec
         resourceValue.graph
           .as[Json](Json.obj("@context" -> defaultCtxValue).appendContextOf(resourceCtx))
           .rightValue
-          .removeKeys("@context")
+          .removeNestedKeys("@context")
 
       val endpoints = List(
         s"/v1/resources/${projectMeta.organizationUuid}/${projectMeta.uuid}/_/$urlEncodedId?tag=some",
@@ -319,7 +320,7 @@ class ResourceRoutesSpec
       forAll(endpoints) { endpoint =>
         Get(endpoint) ~> addCredentials(oauthToken) ~> Accept(MediaRanges.`*/*`) ~> routes ~> check {
           status shouldEqual StatusCodes.OK
-          responseAs[Json].removeKeys("@context") should equalIgnoreArrayOrder(expected)
+          responseAs[Json].removeNestedKeys("@context") should equalIgnoreArrayOrder(expected)
         }
       }
     }
@@ -420,7 +421,7 @@ class ResourceRoutesSpec
         Some(Json.arr(Json.fromString("some")).noSpaces)
       )
       viewCache.getDefaultElasticSearch(projectRef) shouldReturn Task(Some(defaultEsView))
-      val params     = SearchParams(schema = Some(unconstrainedSchemaUri), deprecated = Some(false))
+      val params     = SearchParams(schema = Some(unconstrainedSchemaUri), deprecated = Some(false), sort = sortList)
       val pagination = Pagination(20)
       resources.list(Some(defaultEsView), params, pagination) shouldReturn Task(expectedList)
 
@@ -436,7 +437,7 @@ class ResourceRoutesSpec
         MediaRanges.`*/*`
       ) ~> routes ~> check {
         status shouldEqual StatusCodes.OK
-        responseAs[Json].removeKeys("@context") shouldEqual expected
+        responseAs[Json].removeNestedKeys("@context") shouldEqual expected
       }
     }
 
@@ -446,7 +447,7 @@ class ResourceRoutesSpec
       val expectedList: JsonResults =
         UnscoredQueryResults(1L, List(UnscoredQueryResult(resultElem)), Some(sort.noSpaces))
       viewCache.getDefaultElasticSearch(projectRef) shouldReturn Task(Some(defaultEsView))
-      val params     = SearchParams(deprecated = Some(false))
+      val params     = SearchParams(deprecated = Some(false), sort = sortList)
       val pagination = Pagination(20)
       resources.list(Some(defaultEsView), params, pagination) shouldReturn Task(expectedList)
 
@@ -456,7 +457,7 @@ class ResourceRoutesSpec
         MediaRanges.`*/*`
       ) ~> routes ~> check {
         status shouldEqual StatusCodes.OK
-        responseAs[Json].removeKeys("@context") shouldEqual expected.deepMerge(
+        responseAs[Json].removeNestedKeys("@context") shouldEqual expected.deepMerge(
           Json.obj(
             "_next" -> Json.fromString(
               s"http://127.0.0.1:8080/v1/resources/$organization/$project?deprecated=false&after=%5B%22two%22%5D"
@@ -469,7 +470,7 @@ class ResourceRoutesSpec
         MediaRanges.`*/*`
       ) ~> routes ~> check {
         status shouldEqual StatusCodes.OK
-        responseAs[Json].removeKeys("@context") shouldEqual expected.deepMerge(
+        responseAs[Json].removeNestedKeys("@context") shouldEqual expected.deepMerge(
           Json.obj(
             "_next" -> Json.fromString(
               s"http://127.0.0.1:8080/v1/resources/$organization/$project/_?deprecated=false&after=%5B%22two%22%5D"
@@ -486,7 +487,7 @@ class ResourceRoutesSpec
       val expectedList: JsonResults =
         UnscoredQueryResults(1L, List(UnscoredQueryResult(resultElem)), Some(sort.noSpaces))
       viewCache.getDefaultElasticSearch(projectRef) shouldReturn Task(Some(defaultEsView))
-      val params     = SearchParams(deprecated = Some(false))
+      val params     = SearchParams(deprecated = Some(false), sort = sortList)
       val pagination = Pagination(after, 20)
       resources.list(Some(defaultEsView), params, pagination) shouldReturn Task(expectedList)
 
@@ -496,7 +497,7 @@ class ResourceRoutesSpec
         MediaRanges.`*/*`
       ) ~> routes ~> check {
         status shouldEqual StatusCodes.OK
-        responseAs[Json].removeKeys("@context") shouldEqual expected.deepMerge(
+        responseAs[Json].removeNestedKeys("@context") shouldEqual expected.deepMerge(
           Json.obj(
             "_next" -> Json.fromString(
               s"http://127.0.0.1:8080/v1/resources/$organization/$project?deprecated=false&after=%5B%22two%22%5D"
@@ -509,7 +510,7 @@ class ResourceRoutesSpec
         oauthToken
       ) ~> Accept(MediaRanges.`*/*`) ~> routes ~> check {
         status shouldEqual StatusCodes.OK
-        responseAs[Json].removeKeys("@context") shouldEqual expected.deepMerge(
+        responseAs[Json].removeNestedKeys("@context") shouldEqual expected.deepMerge(
           Json.obj(
             "_next" -> Json.fromString(
               s"http://127.0.0.1:8080/v1/resources/$organization/$project/_?deprecated=false&after=%5B%22two%22%5D"

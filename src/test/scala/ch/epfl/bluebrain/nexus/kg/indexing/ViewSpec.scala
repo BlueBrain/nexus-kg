@@ -385,8 +385,8 @@ class ViewSpec
 
         forAll(results) {
           case (view, expectedJson) =>
-            val json = view.as[Json](viewCtx.appendContextOf(resourceCtx)).rightValue.removeKeys("@context")
-            json should equalIgnoreArrayOrder(expectedJson.removeKeys("@context"))
+            val json = view.as[Json](viewCtx.appendContextOf(resourceCtx)).rightValue.removeNestedKeys("@context")
+            json should equalIgnoreArrayOrder(expectedJson.removeNestedKeys("@context"))
 
         }
       }

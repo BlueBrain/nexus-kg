@@ -12,7 +12,7 @@ import ch.epfl.bluebrain.nexus.commons.es.client.ElasticSearchClient
 import ch.epfl.bluebrain.nexus.commons.http.HttpClient._
 import ch.epfl.bluebrain.nexus.commons.search.QueryResult.UnscoredQueryResult
 import ch.epfl.bluebrain.nexus.commons.search.QueryResults.UnscoredQueryResults
-import ch.epfl.bluebrain.nexus.commons.search.{Pagination, QueryResults}
+import ch.epfl.bluebrain.nexus.commons.search.{Pagination, QueryResults, Sort, SortList}
 import ch.epfl.bluebrain.nexus.commons.sparql.client.BlazegraphClient
 import ch.epfl.bluebrain.nexus.commons.test
 import ch.epfl.bluebrain.nexus.commons.test.{CirceEq, EitherValues}
@@ -97,6 +97,7 @@ class ResolverRoutesSpec
   private implicit val elasticSearch = mock[ElasticSearchClient[Task]]
   private implicit val storageClient = mock[StorageClient[Task]]
   private implicit val clients       = Clients()
+  private val sortList               = SortList(List(Sort(nxv.createdAt.prefix), Sort("@id")))
 
   private val manageResolver = Set(Permission.unsafe("resources/read"), Permission.unsafe("resolvers/write"))
   // format: off
@@ -219,33 +220,33 @@ class ResolverRoutesSpec
 
     "fetch latest revision of a resolver" in new Context {
       resolvers.fetch(id) shouldReturn EitherT.rightT[Task, Rejection](resourceV)
-      val expected = resourceValue.graph.as[Json](resolverCtx).rightValue.removeKeys("@context")
+      val expected = resourceValue.graph.as[Json](resolverCtx).rightValue.removeNestedKeys("@context")
       forAll(endpoints()) { endpoint =>
         Get(endpoint) ~> addCredentials(oauthToken) ~> Accept(MediaRanges.`*/*`) ~> routes ~> check {
           status shouldEqual StatusCodes.OK
-          responseAs[Json].removeKeys("@context") should equalIgnoreArrayOrder(expected)
+          responseAs[Json].removeNestedKeys("@context") should equalIgnoreArrayOrder(expected)
         }
       }
     }
 
     "fetch specific revision of a resolver" in new Context {
       resolvers.fetch(id, 1L) shouldReturn EitherT.rightT[Task, Rejection](resourceV)
-      val expected = resourceValue.graph.as[Json](resolverCtx).rightValue.removeKeys("@context")
+      val expected = resourceValue.graph.as[Json](resolverCtx).rightValue.removeNestedKeys("@context")
       forAll(endpoints(rev = Some(1L))) { endpoint =>
         Get(endpoint) ~> addCredentials(oauthToken) ~> Accept(MediaRanges.`*/*`) ~> routes ~> check {
           status shouldEqual StatusCodes.OK
-          responseAs[Json].removeKeys("@context") should equalIgnoreArrayOrder(expected)
+          responseAs[Json].removeNestedKeys("@context") should equalIgnoreArrayOrder(expected)
         }
       }
     }
 
     "fetch specific tag of a resolver" in new Context {
       resolvers.fetch(id, "some") shouldReturn EitherT.rightT[Task, Rejection](resourceV)
-      val expected = resourceValue.graph.as[Json](resolverCtx).rightValue.removeKeys("@context")
+      val expected = resourceValue.graph.as[Json](resolverCtx).rightValue.removeNestedKeys("@context")
       forAll(endpoints(tag = Some("some"))) { endpoint =>
         Get(endpoint) ~> addCredentials(oauthToken) ~> Accept(MediaRanges.`*/*`) ~> routes ~> check {
           status shouldEqual StatusCodes.OK
-          responseAs[Json].removeKeys("@context") should equalIgnoreArrayOrder(expected)
+          responseAs[Json].removeNestedKeys("@context") should equalIgnoreArrayOrder(expected)
         }
       }
     }
@@ -286,11 +287,11 @@ class ResolverRoutesSpec
     "fetch resolved resource for a concrete resolver" in new Context {
       val resourceId = genIri
       resolvers.resolve(id, resourceId) shouldReturn EitherT.rightT[Task, Rejection](resourceV)
-      val expected = resourceValue.graph.as[Json](resolverCtx).rightValue.removeKeys("@context")
+      val expected = resourceValue.graph.as[Json](resolverCtx).rightValue.removeNestedKeys("@context")
       forAll(endpoints()) { endpoint =>
         Get(s"$endpoint/${urlEncode(resourceId)}") ~> addCredentials(oauthToken) ~> Accept(MediaRanges.`*/*`) ~> routes ~> check {
           status shouldEqual StatusCodes.OK
-          responseAs[Json].removeKeys("@context") should equalIgnoreArrayOrder(expected)
+          responseAs[Json].removeNestedKeys("@context") should equalIgnoreArrayOrder(expected)
         }
       }
     }
@@ -298,13 +299,13 @@ class ResolverRoutesSpec
     "fetch resolved resource" in new Context {
       val resourceId = genIri
       resolvers.resolve(resourceId, 1L) shouldReturn EitherT.rightT[Task, Rejection](resourceV)
-      val expected = resourceValue.graph.as[Json](resolverCtx).rightValue.removeKeys("@context")
+      val expected = resourceValue.graph.as[Json](resolverCtx).rightValue.removeNestedKeys("@context")
 
       Get(s"/v1/resolvers/$organization/$project/_/${urlEncode(resourceId)}?rev=1") ~> addCredentials(oauthToken) ~> Accept(
         MediaRanges.`*/*`
       ) ~> routes ~> check {
         status shouldEqual StatusCodes.OK
-        responseAs[Json].removeKeys("@context") should equalIgnoreArrayOrder(expected)
+        responseAs[Json].removeNestedKeys("@context") should equalIgnoreArrayOrder(expected)
       }
     }
 
@@ -314,7 +315,7 @@ class ResolverRoutesSpec
       val expectedList: JsonResults =
         UnscoredQueryResults(1L, List(UnscoredQueryResult(resultElem)), Some(sort.noSpaces))
       viewCache.getDefaultElasticSearch(projectRef) shouldReturn Task(Some(defaultEsView))
-      val params     = SearchParams(schema = Some(resolverSchemaUri), deprecated = Some(false))
+      val params     = SearchParams(schema = Some(resolverSchemaUri), deprecated = Some(false), sort = sortList)
       val pagination = Pagination(20)
       resolvers.list(Some(defaultEsView), params, pagination) shouldReturn Task(expectedList)
 
@@ -324,7 +325,7 @@ class ResolverRoutesSpec
         MediaRanges.`*/*`
       ) ~> routes ~> check {
         status shouldEqual StatusCodes.OK
-        responseAs[Json].removeKeys("@context") shouldEqual expected.deepMerge(
+        responseAs[Json].removeNestedKeys("@context") shouldEqual expected.deepMerge(
           Json.obj(
             "_next" -> Json.fromString(
               s"http://127.0.0.1:8080/v1/resolvers/$organization/$project?deprecated=false&after=%5B%22two%22%5D"
@@ -337,7 +338,7 @@ class ResolverRoutesSpec
         MediaRanges.`*/*`
       ) ~> routes ~> check {
         status shouldEqual StatusCodes.OK
-        responseAs[Json].removeKeys("@context") shouldEqual expected.deepMerge(
+        responseAs[Json].removeNestedKeys("@context") shouldEqual expected.deepMerge(
           Json.obj(
             "_next" -> Json.fromString(
               s"http://127.0.0.1:8080/v1/resources/$organization/$project/resolver?deprecated=false&after=%5B%22two%22%5D"
@@ -354,7 +355,7 @@ class ResolverRoutesSpec
       val expectedList: JsonResults =
         UnscoredQueryResults(1L, List(UnscoredQueryResult(resultElem)), Some(sort.noSpaces))
       viewCache.getDefaultElasticSearch(projectRef) shouldReturn Task(Some(defaultEsView))
-      val params     = SearchParams(schema = Some(resolverSchemaUri), deprecated = Some(false))
+      val params     = SearchParams(schema = Some(resolverSchemaUri), deprecated = Some(false), sort = sortList)
       val pagination = Pagination(after, 20)
       resolvers.list(Some(defaultEsView), params, pagination) shouldReturn Task(expectedList)
 
@@ -364,7 +365,7 @@ class ResolverRoutesSpec
         MediaRanges.`*/*`
       ) ~> routes ~> check {
         status shouldEqual StatusCodes.OK
-        responseAs[Json].removeKeys("@context") shouldEqual expected.deepMerge(
+        responseAs[Json].removeNestedKeys("@context") shouldEqual expected.deepMerge(
           Json.obj(
             "_next" -> Json.fromString(
               s"http://127.0.0.1:8080/v1/resolvers/$organization/$project?deprecated=false&after=%5B%22two%22%5D"
@@ -377,7 +378,7 @@ class ResolverRoutesSpec
         oauthToken
       ) ~> Accept(MediaRanges.`*/*`) ~> routes ~> check {
         status shouldEqual StatusCodes.OK
-        responseAs[Json].removeKeys("@context") shouldEqual expected.deepMerge(
+        responseAs[Json].removeNestedKeys("@context") shouldEqual expected.deepMerge(
           Json.obj(
             "_next" -> Json.fromString(
               s"http://127.0.0.1:8080/v1/resources/$organization/$project/resolver?deprecated=false&after=%5B%22two%22%5D"

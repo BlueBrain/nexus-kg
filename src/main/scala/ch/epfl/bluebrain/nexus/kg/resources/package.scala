@@ -121,7 +121,7 @@ package object resources {
       elasticSearch: ElasticSearchClient[F]
   ): F[JsonResults] =
     view
-      .map(v => elasticSearch.search[Json](queryFor(params), Set(v.index))(pagination))
+      .map(v => elasticSearch.search[Json](queryFor(params), Set(v.index))(pagination, sort = params.sort))
       .getOrElse(F.pure[JsonResults](UnscoredQueryResults(0L, List.empty)))
 
   private[resources] def incoming[F[_]](
