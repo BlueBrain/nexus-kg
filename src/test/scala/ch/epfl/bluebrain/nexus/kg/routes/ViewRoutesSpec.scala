@@ -17,7 +17,7 @@ import ch.epfl.bluebrain.nexus.commons.http.HttpClient._
 import ch.epfl.bluebrain.nexus.commons.http.{HttpClient, RdfMediaTypes}
 import ch.epfl.bluebrain.nexus.commons.search.QueryResult.UnscoredQueryResult
 import ch.epfl.bluebrain.nexus.commons.search.QueryResults.UnscoredQueryResults
-import ch.epfl.bluebrain.nexus.commons.search.{Pagination, QueryResults}
+import ch.epfl.bluebrain.nexus.commons.search.{Pagination, QueryResults, Sort, SortList}
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlFailure.SparqlClientError
 import ch.epfl.bluebrain.nexus.commons.sparql.client.{BlazegraphClient, SparqlResults}
 import ch.epfl.bluebrain.nexus.commons.test
@@ -115,6 +115,7 @@ class ViewRoutesSpec
   private implicit val storageClient = mock[StorageClient[Task]]
   private implicit val clients       = Clients()
   private val coordinator            = mock[ProjectViewCoordinator[Task]]
+  private val sortList               = SortList(List(Sort(nxv.createdAt.prefix), Sort("@id")))
 
   private val manageResolver =
     Set(Permission.unsafe("views/query"), Permission.unsafe("resources/read"), Permission.unsafe("views/write"))
@@ -322,7 +323,7 @@ class ViewRoutesSpec
       val expectedList: JsonResults =
         UnscoredQueryResults(1L, List(UnscoredQueryResult(resultElem)), Some(sort.noSpaces))
       viewCache.getDefaultElasticSearch(projectRef) shouldReturn Task(Some(defaultEsView))
-      val params     = SearchParams(schema = Some(viewSchemaUri), deprecated = Some(false))
+      val params     = SearchParams(schema = Some(viewSchemaUri), deprecated = Some(false), sort = sortList)
       val pagination = Pagination(20)
       views.list(Some(defaultEsView), params, pagination) shouldReturn Task(expectedList)
 
@@ -363,33 +364,36 @@ class ViewRoutesSpec
       val expectedList: JsonResults =
         UnscoredQueryResults(1L, List(UnscoredQueryResult(resultElem)), Some(sort.noSpaces))
       viewCache.getDefaultElasticSearch(projectRef) shouldReturn Task(Some(defaultEsView))
-      val params     = SearchParams(schema = Some(viewSchemaUri), deprecated = Some(false))
+      val params =
+        SearchParams(schema = Some(viewSchemaUri), deprecated = Some(false), sort = SortList(List(Sort("@type"))))
       val pagination = Pagination(after, 20)
       views.list(Some(defaultEsView), params, pagination) shouldReturn Task(expectedList)
 
       val expected = Json.obj("_total" -> Json.fromLong(1L), "_results" -> Json.arr(resultElem))
 
-      Get(s"/v1/views/$organization/$project?deprecated=false&after=%5B%22one%22%5D") ~> addCredentials(oauthToken) ~> Accept(
+      Get(s"/v1/views/$organization/$project?deprecated=false&sort=@type&after=%5B%22one%22%5D") ~> addCredentials(
+        oauthToken
+      ) ~> Accept(
         MediaRanges.`*/*`
       ) ~> routes ~> check {
         status shouldEqual StatusCodes.OK
         responseAs[Json].removeKeys("@context") shouldEqual expected.deepMerge(
           Json.obj(
             "_next" -> Json.fromString(
-              s"http://127.0.0.1:8080/v1/views/$organization/$project?deprecated=false&after=%5B%22two%22%5D"
+              s"http://127.0.0.1:8080/v1/views/$organization/$project?deprecated=false&sort=@type&after=%5B%22two%22%5D"
             )
           )
         )
       }
 
-      Get(s"/v1/resources/$organization/$project/view?deprecated=false&after=%5B%22one%22%5D") ~> addCredentials(
+      Get(s"/v1/resources/$organization/$project/view?deprecated=false&sort=@type&after=%5B%22one%22%5D") ~> addCredentials(
         oauthToken
       ) ~> Accept(MediaRanges.`*/*`) ~> routes ~> check {
         status shouldEqual StatusCodes.OK
         responseAs[Json].removeKeys("@context") shouldEqual expected.deepMerge(
           Json.obj(
             "_next" -> Json.fromString(
-              s"http://127.0.0.1:8080/v1/resources/$organization/$project/view?deprecated=false&after=%5B%22two%22%5D"
+              s"http://127.0.0.1:8080/v1/resources/$organization/$project/view?deprecated=false&sort=@type&after=%5B%22two%22%5D"
             )
           )
         )

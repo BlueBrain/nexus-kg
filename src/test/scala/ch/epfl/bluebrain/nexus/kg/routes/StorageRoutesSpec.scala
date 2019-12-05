@@ -12,7 +12,7 @@ import ch.epfl.bluebrain.nexus.commons.es.client.ElasticSearchClient
 import ch.epfl.bluebrain.nexus.commons.http.HttpClient._
 import ch.epfl.bluebrain.nexus.commons.search.QueryResult.UnscoredQueryResult
 import ch.epfl.bluebrain.nexus.commons.search.QueryResults.UnscoredQueryResults
-import ch.epfl.bluebrain.nexus.commons.search.{Pagination, QueryResults}
+import ch.epfl.bluebrain.nexus.commons.search.{Pagination, QueryResults, Sort, SortList}
 import ch.epfl.bluebrain.nexus.commons.sparql.client.BlazegraphClient
 import ch.epfl.bluebrain.nexus.commons.test
 import ch.epfl.bluebrain.nexus.commons.test.{CirceEq, EitherValues}
@@ -96,6 +96,7 @@ class StorageRoutesSpec
   private implicit val elasticSearch = mock[ElasticSearchClient[Task]]
   private implicit val storageClient = mock[StorageClient[Task]]
   private implicit val clients       = Clients()
+  private val sortList               = SortList(List(Sort(nxv.createdAt.prefix), Sort("@id")))
 
   before {
     Mockito.reset(storages)
@@ -296,7 +297,7 @@ class StorageRoutesSpec
       val expectedList: JsonResults =
         UnscoredQueryResults(1L, List(UnscoredQueryResult(resultElem)), Some(sort.noSpaces))
       viewCache.getDefaultElasticSearch(projectRef) shouldReturn Task(Some(defaultEsView))
-      val params     = SearchParams(schema = Some(storageSchemaUri), deprecated = Some(false))
+      val params     = SearchParams(schema = Some(storageSchemaUri), deprecated = Some(false), sort = sortList)
       val pagination = Pagination(20)
       storages.list(Some(defaultEsView), params, pagination) shouldReturn Task(expectedList)
 
@@ -337,7 +338,7 @@ class StorageRoutesSpec
       val expectedList: JsonResults =
         UnscoredQueryResults(1L, List(UnscoredQueryResult(resultElem)), Some(sort.noSpaces))
       viewCache.getDefaultElasticSearch(projectRef) shouldReturn Task(Some(defaultEsView))
-      val params     = SearchParams(schema = Some(storageSchemaUri), deprecated = Some(false))
+      val params     = SearchParams(schema = Some(storageSchemaUri), deprecated = Some(false), sort = sortList)
       val pagination = Pagination(after, 20)
       storages.list(Some(defaultEsView), params, pagination) shouldReturn Task(expectedList)
 

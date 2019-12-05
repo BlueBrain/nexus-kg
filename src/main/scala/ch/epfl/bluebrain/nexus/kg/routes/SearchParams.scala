@@ -1,5 +1,6 @@
 package ch.epfl.bluebrain.nexus.kg.routes
 
+import ch.epfl.bluebrain.nexus.commons.search.SortList
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 
 /**
@@ -11,6 +12,7 @@ import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
   * @param createdBy  the optional identity id who created the resource
   * @param updatedBy  the optional identity id who updated the resource
   * @param types      the optional types of the resources
+  * @param sort       the sorting response
   * @param id         the optional id of the resources
   * @param q          the optional full text search string
   */
@@ -21,6 +23,7 @@ final case class SearchParams(
     createdBy: Option[AbsoluteIri] = None,
     updatedBy: Option[AbsoluteIri] = None,
     types: List[AbsoluteIri] = List.empty,
+    sort: SortList = SortList.Empty,
     id: Option[AbsoluteIri] = None,
     q: Option[String] = None
 )
