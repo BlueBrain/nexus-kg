@@ -341,7 +341,7 @@ class ViewsSpec
             "_uuid"             -> Json.fromString(uuid(result))
           )
         )
-        result.value.source.removeKeys("@context") should equalIgnoreArrayOrder(expected.value.source)
+        result.value.source.removeNestedKeys("@context") should equalIgnoreArrayOrder(expected.value.source)
         result.value.ctx shouldEqual expected.value.ctx
         result.value.graph shouldEqual expected.value.graph
         result shouldEqual expected.copy(value = result.value)
@@ -369,7 +369,7 @@ class ViewsSpec
         val resultLatest = views.fetch(resId, 2L).value.accepted
         val expectedLatest =
           resourceV(viewUpdated deepMerge Json.obj("_uuid" -> Json.fromString(uuid(resultLatest))), 2L)
-        resultLatest.value.source.removeKeys("@context") should equalIgnoreArrayOrder(expectedLatest.value.source)
+        resultLatest.value.source.removeNestedKeys("@context") should equalIgnoreArrayOrder(expectedLatest.value.source)
         resultLatest.value.ctx shouldEqual expectedLatest.value.ctx
         resultLatest.value.graph shouldEqual expectedLatest.value.graph
         resultLatest shouldEqual expectedLatest.copy(value = resultLatest.value)
@@ -387,7 +387,7 @@ class ViewsSpec
             "_uuid"             -> Json.fromString(uuid(result))
           )
         )
-        result.value.source.removeKeys("@context") should equalIgnoreArrayOrder(expected.value.source)
+        result.value.source.removeNestedKeys("@context") should equalIgnoreArrayOrder(expected.value.source)
         result.value.ctx shouldEqual expected.value.ctx
         result.value.graph shouldEqual expected.value.graph
         result shouldEqual expected.copy(value = result.value)

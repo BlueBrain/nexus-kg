@@ -256,7 +256,7 @@ class ResolversSpec
         val result = resolvers.fetch(resId).value.accepted
         resolvers.fetchSource(resId).value.accepted should equalIgnoreArrayOrder(resolverSource())
         val expected = resourceV(resolverForGraph(resId.value))
-        val json     = removeMetadata(result.value.graph).as[Json](fullCtx).rightValue.removeKeys("@context")
+        val json     = removeMetadata(result.value.graph).as[Json](fullCtx).rightValue.removeNestedKeys("@context")
         json should equalIgnoreArrayOrder(resolverForGraph(resId.value))
         result.value.ctx shouldEqual expected.value.ctx
         result shouldEqual expected.copy(value = result.value)
@@ -273,7 +273,7 @@ class ResolversSpec
         val resultLatest   = resolvers.fetch(resId, 2L).value.accepted
         val expectedLatest = resourceV(resolverUpdatedForGraph, 2L)
         resultLatest.value.ctx shouldEqual expectedLatest.value.ctx
-        val json1 = removeMetadata(resultLatest.value.graph).as[Json](fullCtx).rightValue.removeKeys("@context")
+        val json1 = removeMetadata(resultLatest.value.graph).as[Json](fullCtx).rightValue.removeNestedKeys("@context")
         json1 should equalIgnoreArrayOrder(resolverUpdatedForGraph)
         resultLatest shouldEqual expectedLatest.copy(value = resultLatest.value)
 
@@ -282,7 +282,7 @@ class ResolversSpec
         val result   = resolvers.fetch(resId, 1L).value.accepted
         val expected = resourceV(resolverForGraph(resId.value))
         result.value.ctx shouldEqual expected.value.ctx
-        val json2 = removeMetadata(result.value.graph).as[Json](fullCtx).rightValue.removeKeys("@context")
+        val json2 = removeMetadata(result.value.graph).as[Json](fullCtx).rightValue.removeNestedKeys("@context")
         json2 should equalIgnoreArrayOrder(resolverForGraph(resId.value))
         result shouldEqual expected.copy(value = result.value)
       }

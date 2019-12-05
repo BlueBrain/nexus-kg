@@ -462,12 +462,12 @@ object ViewRoutes {
   }
 
   private[routes] implicit val encoderListResultsOffset: Encoder[ListResults[ProgressWrapper]] = {
-    implicit val progressEnc = ProgressWrapper.encoderProgress.mapJson(_.removeKeys("@context"))
+    implicit val progressEnc = ProgressWrapper.encoderProgress.mapJson(_.removeNestedKeys("@context"))
     qrsEncoderLowPrio[IdentifiedValue[ProgressWrapper]].mapJson(_.addContext(progressCtxUri))
   }
 
   private[routes] implicit val encoderListResultsStatistics: Encoder[ListResults[Statistics]] = {
-    implicit val statstisticsEnc = Statistics.statisticsEncoder.mapJson(_.removeKeys("@context"))
+    implicit val statstisticsEnc = Statistics.statisticsEncoder.mapJson(_.removeNestedKeys("@context"))
     qrsEncoderLowPrio[IdentifiedValue[Statistics]].mapJson(_.addContext(statisticsCtxUri))
   }
 

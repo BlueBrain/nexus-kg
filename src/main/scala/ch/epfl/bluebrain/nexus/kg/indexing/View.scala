@@ -404,8 +404,8 @@ object View {
         includeMeta   <- sourceC.downField(nxv.includeMetadata).focus.as[Boolean].withDefault(false).onError(res.id.ref, nxv.includeMetadata.prefix)
         projs         <- projections(c.downField(nxv.projections).downSet)
         rebuildCursor  = c.downField(nxv.rebuildStrategy)
-        rebuildTpe    <- rebuildCursor.downField(rdf.tpe).focus.as[AbsoluteIri].onError(res.id.ref, "@type")
-        _             <- if(rebuildTpe == nxv.Interval.value) Right(()) else Left(InvalidResourceFormat(res.id.ref, s"${nxv.rebuildStrategy.prefix} @type with value '$rebuildTpe' is not supported."))
+        rebuildTpe    <- rebuildCursor.downField(rdf.tpe).focus.asOption[AbsoluteIri].onError(res.id.ref, "@type")
+        _             <- if(rebuildTpe == Some(nxv.Interval.value) || rebuildTpe == None)  Right(()) else Left(InvalidResourceFormat(res.id.ref, s"${nxv.rebuildStrategy.prefix} @type with value '$rebuildTpe' is not supported."))
         interval      <- rebuildCursor.downField(nxv.value).focus.asOption[FiniteDuration].onError(res.id.ref, "value")
         _             <- validateRebuild(interval)
       } yield CompositeView (Source(filterSource, includeMeta), projs, interval.map(Interval), res.id.parent, res.id.value, uuid, res.rev, res.deprecated)
@@ -538,7 +538,7 @@ object View {
             s"Could not convert resource with id '${res.id}' and value '${res.value}' from Graph back to json. Reason: '${err.message}'"
           )
           None
-        case Right(value) => Some(value.removeKeys("@context"))
+        case Right(value) => Some(value.removeNestedKeys("@context"))
       }
     }
 
@@ -804,7 +804,7 @@ object View {
               logger.error(msg)
               F.pure(None)
             case Right(value) =>
-              client.create(view.index, res.id.value.asString, value.removeKeys("@context")) >> F.pure(
+              client.create(view.index, res.id.value.asString, value.removeNestedKeys("@context")) >> F.pure(
                 Some(())
               )
           }

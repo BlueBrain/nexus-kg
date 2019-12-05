@@ -225,39 +225,39 @@ class SchemaRoutesSpec
 
     "fetch latest revision of a schema" in new Context {
       schemas.fetch(id) shouldReturn EitherT.rightT[Task, Rejection](resourceV)
-      val expected = resourceValue.graph.as[Json](shaclCtx).rightValue.removeKeys("@context") deepMerge Json.obj(
+      val expected = resourceValue.graph.as[Json](shaclCtx).rightValue.removeNestedKeys("@context") deepMerge Json.obj(
         "@type" -> Json.fromString("Schema")
       )
       forAll(endpoints()) { endpoint =>
         Get(endpoint) ~> addCredentials(oauthToken) ~> Accept(MediaRanges.`*/*`) ~> routes ~> check {
           status shouldEqual StatusCodes.OK
-          responseAs[Json].removeKeys("@context") should equalIgnoreArrayOrder(expected)
+          responseAs[Json].removeNestedKeys("@context") should equalIgnoreArrayOrder(expected)
         }
       }
     }
 
     "fetch specific revision of a schema" in new Context {
       schemas.fetch(id, 1L) shouldReturn EitherT.rightT[Task, Rejection](resourceV)
-      val expected = resourceValue.graph.as[Json](shaclCtx).rightValue.removeKeys("@context") deepMerge Json.obj(
+      val expected = resourceValue.graph.as[Json](shaclCtx).rightValue.removeNestedKeys("@context") deepMerge Json.obj(
         "@type" -> Json.fromString("Schema")
       )
       forAll(endpoints(rev = Some(1L))) { endpoint =>
         Get(endpoint) ~> addCredentials(oauthToken) ~> Accept(MediaRanges.`*/*`) ~> routes ~> check {
           status shouldEqual StatusCodes.OK
-          responseAs[Json].removeKeys("@context") should equalIgnoreArrayOrder(expected)
+          responseAs[Json].removeNestedKeys("@context") should equalIgnoreArrayOrder(expected)
         }
       }
     }
 
     "fetch specific tag of a schema" in new Context {
       schemas.fetch(id, "some") shouldReturn EitherT.rightT[Task, Rejection](resourceV)
-      val expected = resourceValue.graph.as[Json](shaclCtx).rightValue.removeKeys("@context") deepMerge Json.obj(
+      val expected = resourceValue.graph.as[Json](shaclCtx).rightValue.removeNestedKeys("@context") deepMerge Json.obj(
         "@type" -> Json.fromString("Schema")
       )
       forAll(endpoints(tag = Some("some"))) { endpoint =>
         Get(endpoint) ~> addCredentials(oauthToken) ~> Accept(MediaRanges.`*/*`) ~> routes ~> check {
           status shouldEqual StatusCodes.OK
-          responseAs[Json].removeKeys("@context") should equalIgnoreArrayOrder(expected)
+          responseAs[Json].removeNestedKeys("@context") should equalIgnoreArrayOrder(expected)
         }
       }
     }
@@ -312,7 +312,7 @@ class SchemaRoutesSpec
         MediaRanges.`*/*`
       ) ~> routes ~> check {
         status shouldEqual StatusCodes.OK
-        responseAs[Json].removeKeys("@context") shouldEqual expected.deepMerge(
+        responseAs[Json].removeNestedKeys("@context") shouldEqual expected.deepMerge(
           Json.obj(
             "_next" -> Json.fromString(
               s"http://127.0.0.1:8080/v1/schemas/$organization/$project?deprecated=false&after=%5B%22two%22%5D"
@@ -325,7 +325,7 @@ class SchemaRoutesSpec
         MediaRanges.`*/*`
       ) ~> routes ~> check {
         status shouldEqual StatusCodes.OK
-        responseAs[Json].removeKeys("@context") shouldEqual expected.deepMerge(
+        responseAs[Json].removeNestedKeys("@context") shouldEqual expected.deepMerge(
           Json.obj(
             "_next" -> Json.fromString(
               s"http://127.0.0.1:8080/v1/resources/$organization/$project/schema?deprecated=false&after=%5B%22two%22%5D"
@@ -353,7 +353,7 @@ class SchemaRoutesSpec
         MediaRanges.`*/*`
       ) ~> routes ~> check {
         status shouldEqual StatusCodes.OK
-        responseAs[Json].removeKeys("@context") shouldEqual expected.deepMerge(
+        responseAs[Json].removeNestedKeys("@context") shouldEqual expected.deepMerge(
           Json.obj(
             "_next" -> Json.fromString(
               s"http://127.0.0.1:8080/v1/schemas/$organization/$project?deprecated=false&after=%5B%22two%22%5D"
@@ -366,7 +366,7 @@ class SchemaRoutesSpec
         oauthToken
       ) ~> Accept(MediaRanges.`*/*`) ~> routes ~> check {
         status shouldEqual StatusCodes.OK
-        responseAs[Json].removeKeys("@context") shouldEqual expected.deepMerge(
+        responseAs[Json].removeNestedKeys("@context") shouldEqual expected.deepMerge(
           Json.obj(
             "_next" -> Json.fromString(
               s"http://127.0.0.1:8080/v1/resources/$organization/$project/schema?deprecated=false&after=%5B%22two%22%5D"

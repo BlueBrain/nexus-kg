@@ -455,7 +455,7 @@ class FileRoutesSpec
         MediaRanges.`*/*`
       ) ~> routes ~> check {
         status shouldEqual StatusCodes.OK
-        responseAs[Json].removeKeys("@context") shouldEqual expected.deepMerge(
+        responseAs[Json].removeNestedKeys("@context") shouldEqual expected.deepMerge(
           Json.obj(
             "_next" -> Json.fromString(
               s"http://127.0.0.1:8080/v1/files/$organization/$project?deprecated=false&after=%5B%22two%22%5D"
@@ -468,7 +468,7 @@ class FileRoutesSpec
         MediaRanges.`*/*`
       ) ~> routes ~> check {
         status shouldEqual StatusCodes.OK
-        responseAs[Json].removeKeys("@context") shouldEqual expected.deepMerge(
+        responseAs[Json].removeNestedKeys("@context") shouldEqual expected.deepMerge(
           Json.obj(
             "_next" -> Json.fromString(
               s"http://127.0.0.1:8080/v1/resources/$organization/$project/file?deprecated=false&after=%5B%22two%22%5D"
@@ -495,7 +495,7 @@ class FileRoutesSpec
         MediaRanges.`*/*`
       ) ~> routes ~> check {
         status shouldEqual StatusCodes.OK
-        responseAs[Json].removeKeys("@context") shouldEqual expected.deepMerge(
+        responseAs[Json].removeNestedKeys("@context") shouldEqual expected.deepMerge(
           Json.obj(
             "_next" -> Json.fromString(
               s"http://127.0.0.1:8080/v1/files/$organization/$project?deprecated=false&after=%5B%22two%22%5D"
@@ -508,7 +508,7 @@ class FileRoutesSpec
         oauthToken
       ) ~> Accept(MediaRanges.`*/*`) ~> routes ~> check {
         status shouldEqual StatusCodes.OK
-        responseAs[Json].removeKeys("@context") shouldEqual expected.deepMerge(
+        responseAs[Json].removeNestedKeys("@context") shouldEqual expected.deepMerge(
           Json.obj(
             "_next" -> Json.fromString(
               s"http://127.0.0.1:8080/v1/resources/$organization/$project/file?deprecated=false&after=%5B%22two%22%5D"

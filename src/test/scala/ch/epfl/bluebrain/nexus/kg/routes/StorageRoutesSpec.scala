@@ -226,33 +226,33 @@ class StorageRoutesSpec
 
     "fetch latest revision of a storage" in new Context {
       storages.fetch(id) shouldReturn EitherT.rightT[Task, Rejection](resourceV)
-      val expected = resourceValue.graph.as[Json](storageCtx).rightValue.removeKeys("@context")
+      val expected = resourceValue.graph.as[Json](storageCtx).rightValue.removeNestedKeys("@context")
       forAll(endpoints()) { endpoint =>
         Get(endpoint) ~> addCredentials(oauthToken) ~> Accept(MediaRanges.`*/*`) ~> routes ~> check {
           status shouldEqual StatusCodes.OK
-          responseAs[Json].removeKeys("@context") should equalIgnoreArrayOrder(expected)
+          responseAs[Json].removeNestedKeys("@context") should equalIgnoreArrayOrder(expected)
         }
       }
     }
 
     "fetch specific revision of a storage" in new Context {
       storages.fetch(id, 1L) shouldReturn EitherT.rightT[Task, Rejection](resourceV)
-      val expected = resourceValue.graph.as[Json](storageCtx).rightValue.removeKeys("@context")
+      val expected = resourceValue.graph.as[Json](storageCtx).rightValue.removeNestedKeys("@context")
       forAll(endpoints(rev = Some(1L))) { endpoint =>
         Get(endpoint) ~> addCredentials(oauthToken) ~> Accept(MediaRanges.`*/*`) ~> routes ~> check {
           status shouldEqual StatusCodes.OK
-          responseAs[Json].removeKeys("@context") should equalIgnoreArrayOrder(expected)
+          responseAs[Json].removeNestedKeys("@context") should equalIgnoreArrayOrder(expected)
         }
       }
     }
 
     "fetch specific tag of a storage" in new Context {
       storages.fetch(id, "some") shouldReturn EitherT.rightT[Task, Rejection](resourceV)
-      val expected = resourceValue.graph.as[Json](storageCtx).rightValue.removeKeys("@context")
+      val expected = resourceValue.graph.as[Json](storageCtx).rightValue.removeNestedKeys("@context")
       forAll(endpoints(tag = Some("some"))) { endpoint =>
         Get(endpoint) ~> addCredentials(oauthToken) ~> Accept(MediaRanges.`*/*`) ~> routes ~> check {
           status shouldEqual StatusCodes.OK
-          responseAs[Json].removeKeys("@context") should equalIgnoreArrayOrder(expected)
+          responseAs[Json].removeNestedKeys("@context") should equalIgnoreArrayOrder(expected)
         }
       }
     }
@@ -307,7 +307,7 @@ class StorageRoutesSpec
         MediaRanges.`*/*`
       ) ~> routes ~> check {
         status shouldEqual StatusCodes.OK
-        responseAs[Json].removeKeys("@context") shouldEqual expected.deepMerge(
+        responseAs[Json].removeNestedKeys("@context") shouldEqual expected.deepMerge(
           Json.obj(
             "_next" -> Json.fromString(
               s"http://127.0.0.1:8080/v1/storages/$organization/$project?deprecated=false&after=%5B%22two%22%5D"
@@ -320,7 +320,7 @@ class StorageRoutesSpec
         MediaRanges.`*/*`
       ) ~> routes ~> check {
         status shouldEqual StatusCodes.OK
-        responseAs[Json].removeKeys("@context") shouldEqual expected.deepMerge(
+        responseAs[Json].removeNestedKeys("@context") shouldEqual expected.deepMerge(
           Json.obj(
             "_next" -> Json.fromString(
               s"http://127.0.0.1:8080/v1/resources/$organization/$project/storage?deprecated=false&after=%5B%22two%22%5D"
@@ -348,7 +348,7 @@ class StorageRoutesSpec
         MediaRanges.`*/*`
       ) ~> routes ~> check {
         status shouldEqual StatusCodes.OK
-        responseAs[Json].removeKeys("@context") shouldEqual expected.deepMerge(
+        responseAs[Json].removeNestedKeys("@context") shouldEqual expected.deepMerge(
           Json.obj(
             "_next" -> Json.fromString(
               s"http://127.0.0.1:8080/v1/storages/$organization/$project?deprecated=false&after=%5B%22two%22%5D"
@@ -361,7 +361,7 @@ class StorageRoutesSpec
         oauthToken
       ) ~> Accept(MediaRanges.`*/*`) ~> routes ~> check {
         status shouldEqual StatusCodes.OK
-        responseAs[Json].removeKeys("@context") shouldEqual expected.deepMerge(
+        responseAs[Json].removeNestedKeys("@context") shouldEqual expected.deepMerge(
           Json.obj(
             "_next" -> Json.fromString(
               s"http://127.0.0.1:8080/v1/resources/$organization/$project/storage?deprecated=false&after=%5B%22two%22%5D"

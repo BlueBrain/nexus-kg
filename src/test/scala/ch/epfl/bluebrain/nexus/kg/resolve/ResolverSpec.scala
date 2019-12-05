@@ -157,8 +157,8 @@ class ResolverSpec
             )
           )
         )
-        val json = resolver.as[Json](resolverCtx.appendContextOf(resourceCtx)).rightValue.removeKeys("@context")
-        json should equalIgnoreArrayOrder(crossProjectAnon.removeKeys("@context") deepMerge metadata)
+        val json = resolver.as[Json](resolverCtx.appendContextOf(resourceCtx)).rightValue.removeNestedKeys("@context")
+        json should equalIgnoreArrayOrder(crossProjectAnon.removeNestedKeys("@context") deepMerge metadata)
       }
     }
 

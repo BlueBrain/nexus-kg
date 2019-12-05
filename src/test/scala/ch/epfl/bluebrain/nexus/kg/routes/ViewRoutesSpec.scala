@@ -252,33 +252,33 @@ class ViewRoutesSpec
 
     "fetch latest revision of a view" in new Context {
       views.fetch(id) shouldReturn EitherT.rightT[Task, Rejection](resourceV)
-      val expected = mappingToJson(resourceValue.graph.as[Json](viewCtx).rightValue.removeKeys("@context"))
+      val expected = mappingToJson(resourceValue.graph.as[Json](viewCtx).rightValue.removeNestedKeys("@context"))
       forAll(endpoints()) { endpoint =>
         Get(endpoint) ~> addCredentials(oauthToken) ~> Accept(MediaRanges.`*/*`) ~> routes ~> check {
           status shouldEqual StatusCodes.OK
-          responseAs[Json].removeKeys("@context") should equalIgnoreArrayOrder(expected)
+          responseAs[Json].removeNestedKeys("@context") should equalIgnoreArrayOrder(expected)
         }
       }
     }
 
     "fetch specific revision of a view" in new Context {
       views.fetch(id, 1L) shouldReturn EitherT.rightT[Task, Rejection](resourceV)
-      val expected = mappingToJson(resourceValue.graph.as[Json](viewCtx).rightValue.removeKeys("@context"))
+      val expected = mappingToJson(resourceValue.graph.as[Json](viewCtx).rightValue.removeNestedKeys("@context"))
       forAll(endpoints(rev = Some(1L))) { endpoint =>
         Get(endpoint) ~> addCredentials(oauthToken) ~> Accept(MediaRanges.`*/*`) ~> routes ~> check {
           status shouldEqual StatusCodes.OK
-          responseAs[Json].removeKeys("@context") should equalIgnoreArrayOrder(expected)
+          responseAs[Json].removeNestedKeys("@context") should equalIgnoreArrayOrder(expected)
         }
       }
     }
 
     "fetch specific tag of a view" in new Context {
       views.fetch(id, "some") shouldReturn EitherT.rightT[Task, Rejection](resourceV)
-      val expected = mappingToJson(resourceValue.graph.as[Json](viewCtx).rightValue.removeKeys("@context"))
+      val expected = mappingToJson(resourceValue.graph.as[Json](viewCtx).rightValue.removeNestedKeys("@context"))
       forAll(endpoints(tag = Some("some"))) { endpoint =>
         Get(endpoint) ~> addCredentials(oauthToken) ~> Accept(MediaRanges.`*/*`) ~> routes ~> check {
           status shouldEqual StatusCodes.OK
-          responseAs[Json].removeKeys("@context") should equalIgnoreArrayOrder(expected)
+          responseAs[Json].removeNestedKeys("@context") should equalIgnoreArrayOrder(expected)
         }
       }
     }
@@ -289,7 +289,7 @@ class ViewRoutesSpec
       forAll(endpoints()) { endpoint =>
         Get(s"$endpoint/source") ~> addCredentials(oauthToken) ~> Accept(MediaRanges.`*/*`) ~> routes ~> check {
           status shouldEqual StatusCodes.OK
-          responseAs[Json].removeKeys("@context") should equalIgnoreArrayOrder(expected)
+          responseAs[Json].removeNestedKeys("@context") should equalIgnoreArrayOrder(expected)
         }
       }
     }
@@ -300,7 +300,7 @@ class ViewRoutesSpec
       forAll(endpoints()) { endpoint =>
         Get(s"$endpoint/source?rev=1") ~> addCredentials(oauthToken) ~> Accept(MediaRanges.`*/*`) ~> routes ~> check {
           status shouldEqual StatusCodes.OK
-          responseAs[Json].removeKeys("@context") should equalIgnoreArrayOrder(expected)
+          responseAs[Json].removeNestedKeys("@context") should equalIgnoreArrayOrder(expected)
         }
       }
     }
@@ -311,7 +311,7 @@ class ViewRoutesSpec
       forAll(endpoints()) { endpoint =>
         Get(s"$endpoint/source?tag=some") ~> addCredentials(oauthToken) ~> Accept(MediaRanges.`*/*`) ~> routes ~> check {
           status shouldEqual StatusCodes.OK
-          responseAs[Json].removeKeys("@context") should equalIgnoreArrayOrder(expected)
+          responseAs[Json].removeNestedKeys("@context") should equalIgnoreArrayOrder(expected)
         }
       }
     }
@@ -333,7 +333,7 @@ class ViewRoutesSpec
         MediaRanges.`*/*`
       ) ~> routes ~> check {
         status shouldEqual StatusCodes.OK
-        responseAs[Json].removeKeys("@context") shouldEqual expected.deepMerge(
+        responseAs[Json].removeNestedKeys("@context") shouldEqual expected.deepMerge(
           Json.obj(
             "_next" -> Json.fromString(
               s"http://127.0.0.1:8080/v1/views/$organization/$project?deprecated=false&after=%5B%22two%22%5D"
@@ -346,7 +346,7 @@ class ViewRoutesSpec
         MediaRanges.`*/*`
       ) ~> routes ~> check {
         status shouldEqual StatusCodes.OK
-        responseAs[Json].removeKeys("@context") shouldEqual expected.deepMerge(
+        responseAs[Json].removeNestedKeys("@context") shouldEqual expected.deepMerge(
           Json.obj(
             "_next" -> Json.fromString(
               s"http://127.0.0.1:8080/v1/resources/$organization/$project/view?deprecated=false&after=%5B%22two%22%5D"
@@ -377,7 +377,7 @@ class ViewRoutesSpec
         MediaRanges.`*/*`
       ) ~> routes ~> check {
         status shouldEqual StatusCodes.OK
-        responseAs[Json].removeKeys("@context") shouldEqual expected.deepMerge(
+        responseAs[Json].removeNestedKeys("@context") shouldEqual expected.deepMerge(
           Json.obj(
             "_next" -> Json.fromString(
               s"http://127.0.0.1:8080/v1/views/$organization/$project?deprecated=false&sort=@type&after=%5B%22two%22%5D"
@@ -390,7 +390,7 @@ class ViewRoutesSpec
         oauthToken
       ) ~> Accept(MediaRanges.`*/*`) ~> routes ~> check {
         status shouldEqual StatusCodes.OK
-        responseAs[Json].removeKeys("@context") shouldEqual expected.deepMerge(
+        responseAs[Json].removeNestedKeys("@context") shouldEqual expected.deepMerge(
           Json.obj(
             "_next" -> Json.fromString(
               s"http://127.0.0.1:8080/v1/resources/$organization/$project/view?deprecated=false&sort=@type&after=%5B%22two%22%5D"
