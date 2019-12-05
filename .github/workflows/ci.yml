@@ -46,6 +46,22 @@ jobs:
           sbt -Dsbt.color=always -Dsbt.supershell=false docker:publishLocal
           echo ${{ secrets.DOCKER_PASS }} | docker login --username ${{ secrets.DOCKER_USER }} --password-stdin
           docker push bluebrain/nexus-kg:latest
+      - name: TriggerIntegrationTests
+        run: |
+          echo '${{ secrets.JOB_DELETION_MANIFEST }}' | curl -s \
+            -XDELETE \
+            -H"Authorization: Bearer ${{ secrets.JOB_TOKEN }}" \
+            -H"Content-Type: application/yaml" \
+            --data-binary @- \
+            -o /dev/null \
+            ${{ secrets.JOB_ADDRESS }}/test-runner-kg-latest
+          echo '${{ secrets.JOB_MANIFEST }}' | sed -e 's/{VERSION}/latest/g' -e 's/{SERVICE}/kg/g' | curl -s \
+            -XPOST \
+            -H"Authorization: Bearer ${{ secrets.JOB_TOKEN }}" \
+            -H"Content-Type: application/yaml" \
+            --data-binary @- \
+            -o /dev/null \
+            ${{ secrets.JOB_ADDRESS }}
       - name: RecordCoverage
         run: sbt -Dsbt.color=always -Dsbt.supershell=false clean coverage test coverageReport coverageAggregate
       - name: PublishCoverage

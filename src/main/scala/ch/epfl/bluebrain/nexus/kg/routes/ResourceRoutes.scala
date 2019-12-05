@@ -43,7 +43,7 @@ class ResourceRoutes private[routes] (resources: Resources[Task], tags: Tags[Tas
   def routes: Route =
     concat(
       // Create resource when id is not provided on the Uri (POST)
-      (post & noParameter('rev.as[Long]) & pathEndOrSingleSlash) {
+      (post & noParameter("rev".as[Long]) & pathEndOrSingleSlash) {
         operationName(s"/${config.http.prefix}/resources/{org}/{project}/{schemaId}") {
           Kamon.currentSpan().tag("resource.operation", "create")
           (hasPermission(write) & projectNotDeprecated) {
@@ -82,7 +82,7 @@ class ResourceRoutes private[routes] (resources: Resources[Task], tags: Tags[Tas
         operationName(s"/${config.http.prefix}/resources/{org}/{project}/{schemaId}/{id}") {
           (hasPermission(write) & projectNotDeprecated) {
             entity(as[Json]) { source =>
-              parameter('rev.as[Long].?) {
+              parameter("rev".as[Long].?) {
                 case None =>
                   Kamon.currentSpan().tag("resource.operation", "create")
                   complete(resources.create(Id(project.ref, id), schema, source).value.runWithStatus(Created))
@@ -95,7 +95,7 @@ class ResourceRoutes private[routes] (resources: Resources[Task], tags: Tags[Tas
         }
       },
       // Deprecate resource
-      (delete & parameter('rev.as[Long]) & pathEndOrSingleSlash) { rev =>
+      (delete & parameter("rev".as[Long]) & pathEndOrSingleSlash) { rev =>
         operationName(s"/${config.http.prefix}/resources/{org}/{project}/{schemaId}/{id}") {
           (hasPermission(write) & projectNotDeprecated) {
             complete(resources.deprecate(Id(project.ref, id), rev, schema).value.runWithStatus(OK))
@@ -109,17 +109,17 @@ class ResourceRoutes private[routes] (resources: Resources[Task], tags: Tags[Tas
             case format: NonBinaryOutputFormat =>
               hasPermission(read).apply {
                 concat(
-                  (parameter('rev.as[Long]) & noParameter('tag)) { rev =>
+                  (parameter("rev".as[Long]) & noParameter("tag")) { rev =>
                     completeWithFormat(resources.fetch(Id(project.ref, id), rev, schema).value.runWithStatus(OK))(
                       format
                     )
                   },
-                  (parameter('tag) & noParameter('rev)) { tag =>
+                  (parameter("tag") & noParameter("rev")) { tag =>
                     completeWithFormat(resources.fetch(Id(project.ref, id), tag, schema).value.runWithStatus(OK))(
                       format
                     )
                   },
-                  (noParameter('tag) & noParameter('rev)) {
+                  (noParameter("tag") & noParameter("rev")) {
                     completeWithFormat(resources.fetch(Id(project.ref, id), schema).value.runWithStatus(OK))(format)
                   }
                 )
@@ -133,13 +133,13 @@ class ResourceRoutes private[routes] (resources: Resources[Task], tags: Tags[Tas
         operationName(s"/${config.http.prefix}/resources/{org}/{project}/{schemaId}/{id}/source") {
           hasPermission(read).apply {
             concat(
-              (parameter('rev.as[Long]) & noParameter('tag)) { rev =>
+              (parameter("rev".as[Long]) & noParameter("tag")) { rev =>
                 complete(resources.fetchSource(Id(project.ref, id), rev, schema).value.runWithStatus(OK))
               },
-              (parameter('tag) & noParameter('rev)) { tag =>
+              (parameter("tag") & noParameter("rev")) { tag =>
                 complete(resources.fetchSource(Id(project.ref, id), tag, schema).value.runWithStatus(OK))
               },
-              (noParameter('tag) & noParameter('rev)) {
+              (noParameter("tag") & noParameter("rev")) {
                 complete(resources.fetchSource(Id(project.ref, id), schema).value.runWithStatus(OK))
               }
             )
@@ -160,7 +160,7 @@ class ResourceRoutes private[routes] (resources: Resources[Task], tags: Tags[Tas
         }
       },
       // Outgoing links
-      (get & pathPrefix("outgoing") & parameter('includeExternalLinks.as[Boolean] ? true) & pathEndOrSingleSlash) {
+      (get & pathPrefix("outgoing") & parameter("includeExternalLinks".as[Boolean] ? true) & pathEndOrSingleSlash) {
         links =>
           operationName(s"/${config.http.prefix}/resources/{org}/{project}/{schemaId}/{id}/outgoing") {
             fromPaginated.apply { implicit page =>

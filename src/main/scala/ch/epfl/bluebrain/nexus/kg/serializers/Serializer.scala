@@ -18,6 +18,7 @@ import ch.epfl.bluebrain.nexus.rdf.instances._
 import ch.epfl.bluebrain.nexus.rdf.syntax._
 import ch.epfl.bluebrain.nexus.storage.client.types.FileAttributes.{Digest => StorageDigest}
 import ch.epfl.bluebrain.nexus.storage.client.types.{FileAttributes => StorageFileAttributes}
+import com.github.ghik.silencer.silent
 import io.circe.generic.extras.Configuration
 import io.circe.generic.extras.semiauto.{deriveConfiguredDecoder, deriveConfiguredEncoder}
 import io.circe.syntax._
@@ -30,6 +31,7 @@ import scala.util.Try
   * Akka ''SerializerWithStringManifest'' class definition for all events.
   * The serializer provides the types available for serialization.
   */
+@silent // private implicits in automatic derivation are not recognized as used
 object Serializer {
 
   private implicit val config: Configuration = Configuration.default.withDiscriminator("@type")

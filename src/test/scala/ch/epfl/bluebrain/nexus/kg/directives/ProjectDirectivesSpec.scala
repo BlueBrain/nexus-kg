@@ -3,8 +3,6 @@ package ch.epfl.bluebrain.nexus.kg.directives
 import java.time.Instant
 import java.util.UUID
 
-import _root_.org.mockito.{IdiomaticMockito, Mockito}
-import _root_.org.scalatest.{BeforeAndAfter, EitherValues, Matchers, WordSpecLike}
 import akka.http.scaladsl.model.StatusCodes
 import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.Route
@@ -12,6 +10,7 @@ import akka.http.scaladsl.testkit.ScalatestRouteTest
 import cats.syntax.show._
 import ch.epfl.bluebrain.nexus.admin.client.AdminClient
 import ch.epfl.bluebrain.nexus.admin.client.types.{Organization, Project}
+import ch.epfl.bluebrain.nexus.commons.test.EitherValues
 import ch.epfl.bluebrain.nexus.iam.client.IamClientError
 import ch.epfl.bluebrain.nexus.iam.client.types.AuthToken
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity.{Subject, User}
@@ -21,6 +20,10 @@ import ch.epfl.bluebrain.nexus.kg.cache.ProjectCache
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig.HttpConfig
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary._
 import ch.epfl.bluebrain.nexus.kg.config.{Schemas, Settings}
+import org.mockito.{IdiomaticMockito, Mockito}
+import org.scalatest.BeforeAndAfter
+import org.scalatest.matchers.should.Matchers
+import org.scalatest.wordspec.AnyWordSpecLike
 import ch.epfl.bluebrain.nexus.kg.directives.ProjectDirectives._
 import ch.epfl.bluebrain.nexus.kg.marshallers.instances._
 import ch.epfl.bluebrain.nexus.kg.resources.{OrganizationRef, ProjectInitializer, ProjectLabel, ProjectRef}
@@ -35,7 +38,7 @@ import monix.eval.Task
 
 //noinspection NameBooleanParameters
 class ProjectDirectivesSpec
-    extends WordSpecLike
+    extends AnyWordSpecLike
     with Matchers
     with EitherValues
     with IdiomaticMockito
@@ -110,7 +113,7 @@ class ProjectDirectivesSpec
 
   "A Project directives" when {
 
-    val creator = Iri.absolute("http://example.com/subject").right.value
+    val creator = Iri.absolute("http://example.com/subject").rightValue
 
     val label = ProjectLabel("organization", "project")
     val apiMappings = Map[String, AbsoluteIri](

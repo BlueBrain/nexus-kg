@@ -14,7 +14,8 @@ import ch.epfl.bluebrain.nexus.rdf.syntax._
 import monix.eval.Task
 import monix.execution.Scheduler.Implicits.global
 import org.scalatest.concurrent.ScalaFutures
-import org.scalatest.{Inspectors, Matchers, TryValues}
+import org.scalatest.matchers.should.Matchers
+import org.scalatest.{Inspectors, TryValues}
 
 import scala.concurrent.duration._
 

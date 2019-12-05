@@ -15,7 +15,7 @@ import ch.epfl.bluebrain.nexus.commons.search.QueryResults.UnscoredQueryResults
 import ch.epfl.bluebrain.nexus.commons.search.{FromPagination, Pagination, QueryResults}
 import ch.epfl.bluebrain.nexus.commons.sparql.client.BlazegraphClient
 import ch.epfl.bluebrain.nexus.commons.test
-import ch.epfl.bluebrain.nexus.commons.test.CirceEq
+import ch.epfl.bluebrain.nexus.commons.test.{CirceEq, EitherValues}
 import ch.epfl.bluebrain.nexus.iam.client.IamClient
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity._
 import ch.epfl.bluebrain.nexus.iam.client.types._
@@ -43,14 +43,16 @@ import io.circe.generic.auto._
 import monix.eval.Task
 import org.mockito.IdiomaticMockito
 import org.mockito.matchers.MacroBasedMatchers
-import org.scalatest._
+import org.scalatest.{BeforeAndAfter, Inspectors, OptionValues}
 import org.scalatest.concurrent.{Eventually, ScalaFutures}
+import org.scalatest.matchers.should.Matchers
+import org.scalatest.wordspec.AnyWordSpecLike
 
 import scala.concurrent.duration._
 
 //noinspection TypeAnnotation
 class ResourceRoutesSpec
-    extends WordSpecLike
+    extends AnyWordSpecLike
     with Matchers
     with EitherValues
     with OptionValues
@@ -69,7 +71,7 @@ class ResourceRoutesSpec
   override def testConfig: Config =
     ConfigFactory.load("test-no-inmemory.conf").withFallback(ConfigFactory.load()).resolve()
 
-  override implicit def patienceConfig: PatienceConfig = PatienceConfig(3 second, 15 milliseconds)
+  override implicit def patienceConfig: PatienceConfig = PatienceConfig(3.second, 15.milliseconds)
 
   private implicit val appConfig = Settings(system).appConfig
   private implicit val clock     = Clock.fixed(Instant.EPOCH, ZoneId.systemDefault())
@@ -140,7 +142,7 @@ class ResourceRoutesSpec
       ResourceF.simpleF(id, jsonWithCtx, created = user, updated = user, schema = unconstrainedRef)
 
     // format: off
-    val resourceValue = Value(jsonWithCtx, defaultCtxValue, jsonWithCtx.deepMerge(Json.obj("@id" -> Json.fromString(id.value.asString))).asGraph(id.value).right.value)
+    val resourceValue = Value(jsonWithCtx, defaultCtxValue, jsonWithCtx.deepMerge(Json.obj("@id" -> Json.fromString(id.value.asString))).asGraph(id.value).rightValue)
     // format: on
     val resourceV =
       ResourceF.simpleV(id, resourceValue, created = user, updated = user, schema = unconstrainedRef)
@@ -230,8 +232,7 @@ class ResourceRoutesSpec
       val expected =
         resourceValue.graph
           .as[Json](Json.obj("@context" -> defaultCtxValue).appendContextOf(resourceCtx))
-          .right
-          .value
+          .rightValue
           .removeKeys("@context")
 
       val endpoints = List(
@@ -269,8 +270,7 @@ class ResourceRoutesSpec
       val expected =
         resourceValue.graph
           .as[Json](Json.obj("@context" -> defaultCtxValue).appendContextOf(resourceCtx))
-          .right
-          .value
+          .rightValue
           .removeKeys("@context")
 
       val endpoints = List(
@@ -308,8 +308,7 @@ class ResourceRoutesSpec
       val expected =
         resourceValue.graph
           .as[Json](Json.obj("@context" -> defaultCtxValue).appendContextOf(resourceCtx))
-          .right
-          .value
+          .rightValue
           .removeKeys("@context")
 
       val endpoints = List(

@@ -42,7 +42,7 @@ class TagRoutes private[routes] (resourceType: String, tags: Tags[Task], schema:
     pathPrefix("tags") {
       concat(
         // Create tag
-        (post & parameter('rev.as[Long]) & pathEndOrSingleSlash) { rev =>
+        (post & parameter("rev".as[Long]) & pathEndOrSingleSlash) { rev =>
           operationName(opName) {
             (hasPermission(write) & projectNotDeprecated) {
               entity(as[Json]) { source =>
@@ -56,7 +56,7 @@ class TagRoutes private[routes] (resourceType: String, tags: Tags[Task], schema:
         (get & projectNotDeprecated & pathEndOrSingleSlash) {
           operationName(opName) {
             hasPermission(read).apply {
-              parameter('rev.as[Long].?) {
+              parameter("rev".as[Long].?) {
                 case Some(rev) => complete(tags.fetch(Id(project.ref, id), rev, schema).value.runWithStatus(OK))
                 case _         => complete(tags.fetch(Id(project.ref, id), schema).value.runWithStatus(OK))
               }

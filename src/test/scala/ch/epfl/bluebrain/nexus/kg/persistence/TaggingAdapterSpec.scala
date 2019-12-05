@@ -12,9 +12,11 @@ import ch.epfl.bluebrain.nexus.kg.persistence.TaggingAdapterSpec.Other
 import ch.epfl.bluebrain.nexus.kg.resources.Event._
 import ch.epfl.bluebrain.nexus.kg.resources.{Id, OrganizationRef, ProjectRef, Ref}
 import io.circe.Json
-import org.scalatest.{Inspectors, Matchers, WordSpecLike}
+import org.scalatest.Inspectors
+import org.scalatest.matchers.should.Matchers
+import org.scalatest.wordspec.AnyWordSpecLike
 
-class TaggingAdapterSpec extends WordSpecLike with Matchers with Inspectors with TestHelper {
+class TaggingAdapterSpec extends AnyWordSpecLike with Matchers with Inspectors with TestHelper {
 
   "A TaggingAdapter" should {
     val clock = Clock.fixed(Instant.ofEpochSecond(3600), ZoneId.systemDefault())

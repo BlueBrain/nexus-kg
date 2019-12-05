@@ -3,9 +3,10 @@ package ch.epfl.bluebrain.nexus.kg.storage
 import java.util.Base64
 
 import ch.epfl.bluebrain.nexus.commons.test.Randomness
-import org.scalatest.{Matchers, WordSpec}
+import org.scalatest.matchers.should.Matchers
+import org.scalatest.wordspec.AnyWordSpecLike
 
-class CryptoSpec extends WordSpec with Matchers with Randomness {
+class CryptoSpec extends AnyWordSpecLike with Matchers with Randomness {
 
   private val accessKey = "AKIAIOSFODNN7EXAMPLE"
   private val secretKey = "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"

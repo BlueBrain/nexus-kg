@@ -24,10 +24,12 @@ import io.circe.generic.auto._
 import io.circe.syntax._
 import monix.eval.Task
 import org.mockito.{IdiomaticMockito, Mockito}
-import org.scalatest.{BeforeAndAfter, Matchers, WordSpecLike}
+import org.scalatest.BeforeAndAfter
+import org.scalatest.matchers.should.Matchers
+import org.scalatest.wordspec.AnyWordSpecLike
 
 class AppInfoRoutesSpec
-    extends WordSpecLike
+    extends AnyWordSpecLike
     with Matchers
     with IdiomaticMockito
     with BeforeAndAfter

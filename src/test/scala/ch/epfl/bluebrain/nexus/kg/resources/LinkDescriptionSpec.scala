@@ -2,17 +2,19 @@ package ch.epfl.bluebrain.nexus.kg.resources
 
 import akka.http.scaladsl.model.Uri.Path
 import akka.http.scaladsl.model.{ContentType, ContentTypes}
-import ch.epfl.bluebrain.nexus.commons.test.Randomness
+import ch.epfl.bluebrain.nexus.commons.test.{EitherValues, Randomness}
 import ch.epfl.bluebrain.nexus.kg.TestHelper
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection.InvalidResourceFormat
 import ch.epfl.bluebrain.nexus.kg.resources.file.File.{FileDescription, LinkDescription}
 import ch.epfl.bluebrain.nexus.rdf.syntax._
 import io.circe.Json
 import io.circe.syntax._
-import org.scalatest.{EitherValues, Matchers, OptionValues, WordSpec}
+import org.scalatest.OptionValues
+import org.scalatest.matchers.should.Matchers
+import org.scalatest.wordspec.AnyWordSpecLike
 
 class LinkDescriptionSpec
-    extends WordSpec
+    extends AnyWordSpecLike
     with Matchers
     with TestHelper
     with Randomness
@@ -32,33 +34,33 @@ class LinkDescriptionSpec
   "A Link Description" should {
 
     "be decoded correctly" in new Ctx {
-      LinkDescription(id, jsonLink()).right.value shouldEqual
+      LinkDescription(id, jsonLink()).rightValue shouldEqual
         LinkDescription(Path(p), Some(f), ContentType.parse(m).toOption)
 
-      LinkDescription(id, Json.obj("path" -> p.asJson)).right.value shouldEqual
+      LinkDescription(id, Json.obj("path" -> p.asJson)).rightValue shouldEqual
         LinkDescription(Path(p), None, None)
     }
 
     "accept missing filename" in new Ctx {
-      LinkDescription(id, jsonLink().removeKeys("filename")).right.value shouldEqual
+      LinkDescription(id, jsonLink().removeKeys("filename")).rightValue shouldEqual
         LinkDescription(Path(p), None, ContentType.parse(m).toOption)
     }
 
     "reject empty filename" in new Ctx {
-      LinkDescription(id, jsonLink(filename = "")).left.value shouldBe a[InvalidResourceFormat]
+      LinkDescription(id, jsonLink(filename = "")).leftValue shouldBe a[InvalidResourceFormat]
     }
 
     "accept missing mediaType" in new Ctx {
-      LinkDescription(id, jsonLink().removeKeys("mediaType")).right.value shouldEqual
+      LinkDescription(id, jsonLink().removeKeys("mediaType")).rightValue shouldEqual
         LinkDescription(Path(p), Some(f), None)
     }
 
     "reject wrong mediaType format" in new Ctx {
-      LinkDescription(id, jsonLink(mediaType = genString())).left.value shouldBe a[InvalidResourceFormat]
+      LinkDescription(id, jsonLink(mediaType = genString())).leftValue shouldBe a[InvalidResourceFormat]
     }
 
     "reject missing path" in new Ctx {
-      LinkDescription(id, jsonLink().removeKeys("path")).left.value shouldBe a[InvalidResourceFormat]
+      LinkDescription(id, jsonLink().removeKeys("path")).leftValue shouldBe a[InvalidResourceFormat]
     }
 
     "be converted to a FileDescription correctly" in new Ctx {

@@ -13,9 +13,11 @@ import ch.epfl.bluebrain.nexus.kg.config.Vocabulary.nxv
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import ch.epfl.bluebrain.nexus.rdf.Vocabulary._
 import ch.epfl.bluebrain.nexus.rdf.syntax.node.unsafe._
-import org.scalatest.{Inspectors, Matchers, WordSpecLike}
+import org.scalatest.Inspectors
+import org.scalatest.matchers.should.Matchers
+import org.scalatest.wordspec.AnyWordSpecLike
 
-class AccessIdSpec extends WordSpecLike with Matchers with Inspectors with TestHelper {
+class AccessIdSpec extends AnyWordSpecLike with Matchers with Inspectors with TestHelper {
 
   "An AccessId" should {
     implicit val http = HttpConfig("http://resources.nexus.com", 80, "v1", "http://resources.nexus.com")

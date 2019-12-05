@@ -13,7 +13,8 @@ import ch.epfl.bluebrain.nexus.kg.resources.syntax._
 import monix.eval.Task
 import monix.execution.Scheduler.Implicits.global
 import org.scalatest.concurrent.ScalaFutures
-import org.scalatest.{Inspectors, Matchers}
+import org.scalatest.Inspectors
+import org.scalatest.matchers.should.Matchers
 
 import scala.concurrent.duration._
 

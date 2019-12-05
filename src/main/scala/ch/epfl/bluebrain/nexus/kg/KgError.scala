@@ -6,6 +6,7 @@ import ch.epfl.bluebrain.nexus.commons.http.directives.StatusFrom
 import ch.epfl.bluebrain.nexus.kg.config.Contexts.errorCtxUri
 import ch.epfl.bluebrain.nexus.kg.resources.{ProjectLabel, Ref}
 import ch.epfl.bluebrain.nexus.rdf.syntax._
+import com.github.ghik.silencer.silent
 import io.circe.generic.extras.Configuration
 import io.circe.generic.extras.semiauto.deriveConfiguredEncoder
 import io.circe.{Encoder, Json}
@@ -127,6 +128,7 @@ object KgError {
     */
   final case class ProjectIsDeprecated(ref: ProjectLabel) extends KgError(s"Project '${ref.show}' is deprecated.")
 
+  @silent // private implicits in automatic derivation are not recognized as used
   implicit val kgErrorEncoder: Encoder[KgError] = {
     implicit val config: Configuration = Configuration.default.withDiscriminator("@type")
     implicit val uriEnc: Encoder[Uri]  = Encoder.encodeString.contramap(_.toString)
@@ -136,7 +138,7 @@ object KgError {
   }
 
   implicit val kgErrorStatusFrom: StatusFrom[KgError] = {
-    case _: FileSizeExceed                => StatusCodes.RequestEntityTooLarge
+    case _: FileSizeExceed                => StatusCodes.PayloadTooLarge
     case _: NotFound                      => StatusCodes.NotFound
     case _: ProjectNotFound               => StatusCodes.NotFound
     case _: OrganizationNotFound          => StatusCodes.NotFound

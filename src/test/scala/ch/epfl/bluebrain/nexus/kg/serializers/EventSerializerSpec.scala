@@ -10,7 +10,7 @@ import akka.http.scaladsl.model.ContentTypes._
 import akka.http.scaladsl.model.Uri
 import akka.http.scaladsl.testkit.ScalatestRouteTest
 import akka.serialization.{SerializationExtension, SerializerWithStringManifest}
-import ch.epfl.bluebrain.nexus.commons.test.Resources
+import ch.epfl.bluebrain.nexus.commons.test.{EitherValues, Resources}
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity._
 import ch.epfl.bluebrain.nexus.kg.TestHelper
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig._
@@ -26,13 +26,15 @@ import ch.epfl.bluebrain.nexus.storage.client.types.{FileAttributes => StorageFi
 import ch.epfl.bluebrain.nexus.storage.client.types.FileAttributes.{Digest => StorageFileDigest}
 import io.circe.Json
 import io.circe.parser._
-import org.scalatest._
+import org.scalatest.{Inspectors, OptionValues}
+import org.scalatest.matchers.should.Matchers
+import org.scalatest.wordspec.AnyWordSpecLike
 import shapeless.Typeable
 
 import scala.concurrent.duration._
 
 class EventSerializerSpec
-    extends WordSpecLike
+    extends AnyWordSpecLike
     with Matchers
     with Inspectors
     with EitherValues
@@ -50,7 +52,7 @@ class EventSerializerSpec
       S3StorageConfig("MD5", read, write, true, 1024L),
       "password",
       "salt",
-      RetryStrategyConfig("linear", 300 millis, 5 minutes, 100, 1 second)
+      RetryStrategyConfig("linear", 300.millis, 5.minutes, 100, 1.second)
     )
   private case class Other(str: String)
 
@@ -149,7 +151,7 @@ class EventSerializerSpec
         forAll(results) {
           case (event, json) =>
             val serializer = findConcreteSerializer[EventSerializer](event)
-            parse(new String(serializer.toBinary(event), UTF8)).right.value shouldEqual json
+            parse(new String(serializer.toBinary(event), UTF8)).rightValue shouldEqual json
             serializer.manifest(event)
         }
       }

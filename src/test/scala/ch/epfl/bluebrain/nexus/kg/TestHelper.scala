@@ -6,7 +6,7 @@ import java.util.UUID
 import akka.stream.Materializer
 import akka.stream.scaladsl.Source
 import akka.util.ByteString
-import ch.epfl.bluebrain.nexus.commons.test.Randomness
+import ch.epfl.bluebrain.nexus.commons.test.{EitherValues, Randomness}
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity.Anonymous
 import ch.epfl.bluebrain.nexus.iam.client.types.{AccessControlList, Identity, Permission, ResourceAccessControlList}
 import ch.epfl.bluebrain.nexus.kg.config.Schemas.unconstrainedSchemaUri
@@ -17,7 +17,6 @@ import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import ch.epfl.bluebrain.nexus.rdf.instances._
 import ch.epfl.bluebrain.nexus.rdf.syntax._
 import io.circe.Json
-import org.scalatest.EitherValues
 
 trait TestHelper extends EitherValues with Randomness {
 
@@ -67,7 +66,7 @@ trait TestHelper extends EitherValues with Randomness {
       created,
       updated,
       schema,
-      Value(value, value.contextValue, value.asGraph(id.value).right.value)
+      Value(value, value.contextValue, value.asGraph(id.value).rightValue)
     )
 
   def simpleV(res: ResourceF[Json])(implicit clock: Clock) = ResourceF(
@@ -82,7 +81,7 @@ trait TestHelper extends EitherValues with Randomness {
     res.createdBy,
     res.updatedBy,
     res.schema,
-    Value(res.value, res.value.contextValue, res.value.asGraph(res.id.value).right.value)
+    Value(res.value, res.value.contextValue, res.value.asGraph(res.id.value).rightValue)
   )
 
   def genUUID: UUID = UUID.randomUUID()

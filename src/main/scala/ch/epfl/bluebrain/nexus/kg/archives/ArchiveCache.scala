@@ -14,7 +14,7 @@ import ch.epfl.bluebrain.nexus.kg.archives.ArchiveCache.{ReadResponse, WriteResp
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig._
 import ch.epfl.bluebrain.nexus.kg.resources.ResId
-import journal.Logger
+import com.typesafe.scalalogging.Logger
 
 import scala.concurrent.ExecutionContext
 import scala.util.control.NonFatal

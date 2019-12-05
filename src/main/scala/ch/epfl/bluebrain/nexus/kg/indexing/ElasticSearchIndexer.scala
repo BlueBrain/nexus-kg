@@ -15,7 +15,7 @@ import ch.epfl.bluebrain.nexus.kg.routes.Clients
 import ch.epfl.bluebrain.nexus.sourcing.projections.ProgressFlow.ProgressFlowElem
 import ch.epfl.bluebrain.nexus.sourcing.projections.ProjectionProgress.NoProgress
 import ch.epfl.bluebrain.nexus.sourcing.projections._
-import journal.Logger
+import com.typesafe.scalalogging.Logger
 
 import scala.concurrent.ExecutionContext
 

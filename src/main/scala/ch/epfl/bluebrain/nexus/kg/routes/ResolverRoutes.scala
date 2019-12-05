@@ -47,7 +47,7 @@ class ResolverRoutes private[routes] (resolvers: Resolvers[Task], tags: Tags[Tas
   def routes: Route =
     concat(
       // Create resolver when id is not provided on the Uri (POST)
-      (post & noParameter('rev.as[Long]) & pathEndOrSingleSlash) {
+      (post & noParameter("rev".as[Long]) & pathEndOrSingleSlash) {
         operationName(s"/${config.http.prefix}/resolvers/{org}/{project}") {
           Kamon.currentSpan().tag("resource.operation", "create")
           (hasPermission(write) & projectNotDeprecated) {
@@ -93,13 +93,13 @@ class ResolverRoutes private[routes] (resolvers: Resolvers[Task], tags: Tags[Tas
           case format: NonBinaryOutputFormat =>
             hasPermission(read).apply {
               concat(
-                (parameter('rev.as[Long]) & noParameter('tag)) { rev =>
+                (parameter("rev".as[Long]) & noParameter("tag")) { rev =>
                   completeWithFormat(resolvers.resolve(id, rev).value.runWithStatus(OK))(format)
                 },
-                (parameter('tag) & noParameter('rev)) { tag =>
+                (parameter("tag") & noParameter("rev")) { tag =>
                   completeWithFormat(resolvers.resolve(id, tag).value.runWithStatus(OK))(format)
                 },
-                (noParameter('tag) & noParameter('rev)) {
+                (noParameter("tag") & noParameter("rev")) {
                   completeWithFormat(resolvers.resolve(id).value.runWithStatus(OK))(format)
                 }
               )
@@ -127,13 +127,13 @@ class ResolverRoutes private[routes] (resolvers: Resolvers[Task], tags: Tags[Tas
           case format: NonBinaryOutputFormat =>
             hasPermission(read).apply {
               concat(
-                (parameter('rev.as[Long]) & noParameter('tag)) { rev =>
+                (parameter("rev".as[Long]) & noParameter("tag")) { rev =>
                   completeWithFormat(resolvers.resolve(resolverId, resourceId, rev).value.runWithStatus(OK))(format)
                 },
-                (parameter('tag) & noParameter('rev)) { tag =>
+                (parameter("tag") & noParameter("rev")) { tag =>
                   completeWithFormat(resolvers.resolve(resolverId, resourceId, tag).value.runWithStatus(OK))(format)
                 },
-                (noParameter('tag) & noParameter('rev)) {
+                (noParameter("tag") & noParameter("rev")) {
                   completeWithFormat(resolvers.resolve(resolverId, resourceId).value.runWithStatus(OK))(format)
                 }
               )
@@ -160,7 +160,7 @@ class ResolverRoutes private[routes] (resolvers: Resolvers[Task], tags: Tags[Tas
         operationName(s"/${config.http.prefix}/resolvers/{org}/{project}/{id}") {
           (hasPermission(write) & projectNotDeprecated) {
             entity(as[Json]) { source =>
-              parameter('rev.as[Long].?) {
+              parameter("rev".as[Long].?) {
                 case None =>
                   Kamon.currentSpan().tag("resource.operation", "create")
                   complete(resolvers.create(Id(project.ref, id), source).value.runWithStatus(Created))
@@ -173,7 +173,7 @@ class ResolverRoutes private[routes] (resolvers: Resolvers[Task], tags: Tags[Tas
         }
       },
       // Deprecate resolver
-      (delete & parameter('rev.as[Long]) & pathEndOrSingleSlash) { rev =>
+      (delete & parameter("rev".as[Long]) & pathEndOrSingleSlash) { rev =>
         operationName(s"/${config.http.prefix}/resolvers/{org}/{project}/{id}") {
           (hasPermission(write) & projectNotDeprecated) {
             complete(resolvers.deprecate(Id(project.ref, id), rev).value.runWithStatus(OK))
@@ -187,13 +187,13 @@ class ResolverRoutes private[routes] (resolvers: Resolvers[Task], tags: Tags[Tas
             case format: NonBinaryOutputFormat =>
               hasPermission(read).apply {
                 concat(
-                  (parameter('rev.as[Long]) & noParameter('tag)) { rev =>
+                  (parameter("rev".as[Long]) & noParameter("tag")) { rev =>
                     completeWithFormat(resolvers.fetch(Id(project.ref, id), rev).value.runWithStatus(OK))(format)
                   },
-                  (parameter('tag) & noParameter('rev)) { tag =>
+                  (parameter("tag") & noParameter("rev")) { tag =>
                     completeWithFormat(resolvers.fetch(Id(project.ref, id), tag).value.runWithStatus(OK))(format)
                   },
-                  (noParameter('tag) & noParameter('rev)) {
+                  (noParameter("tag") & noParameter("rev")) {
                     completeWithFormat(resolvers.fetch(Id(project.ref, id)).value.runWithStatus(OK))(format)
                   }
                 )
@@ -207,13 +207,13 @@ class ResolverRoutes private[routes] (resolvers: Resolvers[Task], tags: Tags[Tas
         operationName(s"/${config.http.prefix}/resolvers/{org}/{project}/{id}/source") {
           hasPermission(read).apply {
             concat(
-              (parameter('rev.as[Long]) & noParameter('tag)) { rev =>
+              (parameter("rev".as[Long]) & noParameter("tag")) { rev =>
                 complete(resolvers.fetchSource(Id(project.ref, id), rev).value.runWithStatus(OK))
               },
-              (parameter('tag) & noParameter('rev)) { tag =>
+              (parameter("tag") & noParameter("rev")) { tag =>
                 complete(resolvers.fetchSource(Id(project.ref, id), tag).value.runWithStatus(OK))
               },
-              (noParameter('tag) & noParameter('rev)) {
+              (noParameter("tag") & noParameter("rev")) {
                 complete(resolvers.fetchSource(Id(project.ref, id)).value.runWithStatus(OK))
               }
             )
@@ -234,7 +234,7 @@ class ResolverRoutes private[routes] (resolvers: Resolvers[Task], tags: Tags[Tas
         }
       },
       // Outgoing links
-      (get & pathPrefix("outgoing") & parameter('includeExternalLinks.as[Boolean] ? true) & pathEndOrSingleSlash) {
+      (get & pathPrefix("outgoing") & parameter("includeExternalLinks".as[Boolean] ? true) & pathEndOrSingleSlash) {
         links =>
           operationName(s"/${config.http.prefix}/resolvers/{org}/{project}/{id}/outgoing") {
             fromPaginated.apply { implicit page =>

@@ -14,11 +14,13 @@ import ch.epfl.bluebrain.nexus.storage.client.StorageClient
 import ch.epfl.bluebrain.nexus.storage.client.types.FileAttributes.{Digest => StorageDigest}
 import ch.epfl.bluebrain.nexus.storage.client.types.{FileAttributes => StorageFileAttributes}
 import org.mockito.{IdiomaticMockito, Mockito}
-import org.scalatest._
+import org.scalatest.BeforeAndAfter
+import org.scalatest.matchers.should.Matchers
+import org.scalatest.wordspec.AnyWordSpecLike
 
 class RemoteDiskStorageOperationsSpec
     extends ActorSystemFixture("RemoteDiskStorageOperationsSpec")
-    with WordSpecLike
+    with AnyWordSpecLike
     with Matchers
     with BeforeAndAfter
     with IdiomaticMockito

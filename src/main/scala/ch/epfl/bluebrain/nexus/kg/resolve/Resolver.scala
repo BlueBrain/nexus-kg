@@ -106,7 +106,7 @@ object Resolver {
       val result = for {
         ids   <- identities(c.downField(nxv.identities).downSet)
         prio  <- c.downField(nxv.priority).focus.as[Int].onError(res.id.ref, nxv.priority.prefix)
-        types <- c.downField(nxv.resourceTypes).values.asListOf[AbsoluteIri].orElse(List.empty).map(_.toSet).onError(res.id.ref, nxv.resourceTypes.prefix)
+        types <- c.downField(nxv.resourceTypes).values.asListOf[AbsoluteIri].withDefault(List.empty).map(_.toSet).onError(res.id.ref, nxv.resourceTypes.prefix)
       } yield CrossProjectResolver(types, List.empty[String], ids, id.parent, id.value, res.rev, res.deprecated, prio)
       // format: on
       result.flatMap { r =>

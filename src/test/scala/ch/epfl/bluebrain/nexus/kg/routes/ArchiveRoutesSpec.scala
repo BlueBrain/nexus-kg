@@ -16,7 +16,7 @@ import ch.epfl.bluebrain.nexus.commons.http.RdfMediaTypes.`application/ld+json`
 import ch.epfl.bluebrain.nexus.commons.search.QueryResults
 import ch.epfl.bluebrain.nexus.commons.sparql.client.BlazegraphClient
 import ch.epfl.bluebrain.nexus.commons.test
-import ch.epfl.bluebrain.nexus.commons.test.CirceEq
+import ch.epfl.bluebrain.nexus.commons.test.{CirceEq, EitherValues}
 import ch.epfl.bluebrain.nexus.iam.client.IamClient
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity._
 import ch.epfl.bluebrain.nexus.iam.client.types._
@@ -43,14 +43,16 @@ import io.circe.generic.auto._
 import monix.eval.Task
 import org.mockito.matchers.MacroBasedMatchers
 import org.mockito.{ArgumentMatchersSugar, IdiomaticMockito, Mockito}
-import org.scalatest._
+import org.scalatest.{BeforeAndAfter, Inspectors, OptionValues}
 import org.scalatest.concurrent.{Eventually, ScalaFutures}
+import org.scalatest.matchers.should.Matchers
+import org.scalatest.wordspec.AnyWordSpecLike
 
 import scala.concurrent.duration._
 
 //noinspection TypeAnnotation
 class ArchiveRoutesSpec
-    extends WordSpecLike
+    extends AnyWordSpecLike
     with Matchers
     with EitherValues
     with OptionValues
@@ -70,7 +72,7 @@ class ArchiveRoutesSpec
   override def testConfig: Config =
     ConfigFactory.load("test-no-inmemory.conf").withFallback(ConfigFactory.load()).resolve()
 
-  override implicit def patienceConfig: PatienceConfig = PatienceConfig(3 second, 15 milliseconds)
+  override implicit def patienceConfig: PatienceConfig = PatienceConfig(3.second, 15.milliseconds)
 
   private implicit val appConfig = Settings(system).appConfig
   private implicit val clock     = Clock.fixed(Instant.EPOCH, ZoneId.systemDefault())

@@ -4,6 +4,7 @@ import java.time.Instant
 
 import ch.epfl.bluebrain.nexus.kg.config.Contexts.statisticsCtxUri
 import ch.epfl.bluebrain.nexus.rdf.syntax._
+import com.github.ghik.silencer.silent
 import io.circe.Encoder
 import io.circe.generic.extras.Configuration
 import io.circe.generic.extras.semiauto.deriveConfiguredEncoder
@@ -73,6 +74,7 @@ object Statistics {
       } yield lastEvent.getEpochSecond - lastProcessedEvent.getEpochSecond
     )
 
+  @silent // private implicits in automatic derivation are not recognized as used
   private implicit val config: Configuration = Configuration.default
   implicit val statisticsEncoder: Encoder[Statistics] = deriveConfiguredEncoder[Statistics]
     .mapJson(_.addContext(statisticsCtxUri))

@@ -16,11 +16,12 @@ import ch.epfl.bluebrain.nexus.rdf.Node.IriNode
 import ch.epfl.bluebrain.nexus.rdf._
 import io.circe.Json
 import io.circe.parser.parse
-import org.scalatest.{Matchers, WordSpecLike}
+import org.scalatest.matchers.should.Matchers
+import org.scalatest.wordspec.AnyWordSpecLike
 
 class ResourceEncoderSpec
     extends TestKit(ActorSystem("ResourceEncoderSpec"))
-    with WordSpecLike
+    with AnyWordSpecLike
     with Matchers
     with TestHelper {
   private implicit val appConfig: AppConfig = Settings(system).appConfig
@@ -28,8 +29,8 @@ class ResourceEncoderSpec
 
   private implicit val clock: Clock = Clock.fixed(Instant.ofEpochSecond(3600), ZoneId.systemDefault)
 
-  private val base       = Iri.absolute("http://example.com/").right.value
-  private val voc        = Iri.absolute("http://example.com/voc/").right.value
+  private val base       = Iri.absolute("http://example.com/").rightValue
+  private val voc        = Iri.absolute("http://example.com/voc/").rightValue
   private val iri        = base + "id"
   private val subject    = Anonymous
   private val projectRef = ProjectRef(genUUID)
@@ -78,7 +79,7 @@ class ResourceEncoderSpec
           |  "@context" : "https://bluebrain.github.io/nexus/contexts/resource.json"
           |}
         """.stripMargin
-      ResourceEncoder.json(resource).right.value shouldEqual parse(expected).right.value
+      ResourceEncoder.json(resource).rightValue shouldEqual parse(expected).rightValue
     }
 
     "encode resource value in compacted form" in {
@@ -93,7 +94,7 @@ class ResourceEncoderSpec
           |  "foo" : "bar"
           |}
         """.stripMargin
-      ResourceEncoder.json(resourceV).right.value shouldEqual parse(expected).right.value
+      ResourceEncoder.json(resourceV).rightValue shouldEqual parse(expected).rightValue
     }
 
     "encode resource value in expanded form" in {
@@ -107,7 +108,7 @@ class ResourceEncoderSpec
           |  "http://example.com/voc/foo" : "bar"
           |}
         """.stripMargin
-      ResourceEncoder.json(resourceV).right.value shouldEqual parse(expected).right.value
+      ResourceEncoder.json(resourceV).rightValue shouldEqual parse(expected).rightValue
     }
   }
 }

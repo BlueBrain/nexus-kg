@@ -2,12 +2,15 @@ package ch.epfl.bluebrain.nexus.kg.resources
 
 import ch.epfl.bluebrain.nexus.kg.resources.Ref._
 import cats.syntax.show._
+import ch.epfl.bluebrain.nexus.commons.test.EitherValues
 import ch.epfl.bluebrain.nexus.rdf.Iri.{AbsoluteIri, Urn}
 import ch.epfl.bluebrain.nexus.rdf.Vocabulary._
 import ch.epfl.bluebrain.nexus.rdf.syntax.node.unsafe._
-import org.scalatest.{EitherValues, Inspectors, Matchers, WordSpecLike}
+import org.scalatest.Inspectors
+import org.scalatest.matchers.should.Matchers
+import org.scalatest.wordspec.AnyWordSpecLike
 
-class RefSpec extends WordSpecLike with Matchers with Inspectors with EitherValues {
+class RefSpec extends AnyWordSpecLike with Matchers with Inspectors with EitherValues {
 
   "A Ref" should {
 
@@ -19,9 +22,9 @@ class RefSpec extends WordSpecLike with Matchers with Inspectors with EitherValu
         url"http://ex.com?rev=1&tag=this&other=value".value -> Revision(url"http://ex.com?other=value", 1L),
         url"http://ex.com?other=value".value                -> Latest(url"http://ex.com?other=value"),
         url"http://ex.com#fragment".value                   -> Latest(url"http://ex.com#fragment"),
-        Urn("urn:ex:a/b/c").right.value                     -> Latest(Urn("urn:ex:a/b/c").right.value),
-        Urn("urn:ex:a/b/c?=rev=1").right.value              -> Revision(Urn("urn:ex:a/b/c").right.value, 1L),
-        Urn("urn:ex:a?=tag=this&other=value").right.value   -> Ref.Tag(Urn("urn:ex:a?=other=value").right.value, "this")
+        Urn("urn:ex:a/b/c").rightValue                      -> Latest(Urn("urn:ex:a/b/c").rightValue),
+        Urn("urn:ex:a/b/c?=rev=1").rightValue               -> Revision(Urn("urn:ex:a/b/c").rightValue, 1L),
+        Urn("urn:ex:a?=tag=this&other=value").rightValue    -> Ref.Tag(Urn("urn:ex:a?=other=value").rightValue, "this")
       )
       forAll(list) {
         case (iri, ref) => Ref(iri) shouldEqual ref

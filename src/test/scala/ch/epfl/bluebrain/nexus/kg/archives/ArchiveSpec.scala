@@ -4,7 +4,7 @@ import java.time.{Clock, Instant, ZoneId}
 
 import cats.effect.IO
 import ch.epfl.bluebrain.nexus.admin.client.types.Project
-import ch.epfl.bluebrain.nexus.commons.test.Randomness
+import ch.epfl.bluebrain.nexus.commons.test.{EitherValues, Randomness}
 import ch.epfl.bluebrain.nexus.commons.test.io.IOEitherValues
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity.{Anonymous, Subject}
 import ch.epfl.bluebrain.nexus.kg.TestHelper
@@ -23,12 +23,14 @@ import ch.epfl.bluebrain.nexus.rdf.syntax._
 import io.circe.syntax._
 import io.circe.{Encoder, Json}
 import org.mockito.{IdiomaticMockito, Mockito}
-import org.scalatest._
+import org.scalatest.{BeforeAndAfter, Inspectors}
+import org.scalatest.matchers.should.Matchers
+import org.scalatest.wordspec.AnyWordSpecLike
 
 import scala.concurrent.duration._
 
 class ArchiveSpec
-    extends WordSpec
+    extends AnyWordSpecLike
     with Matchers
     with TestHelper
     with Randomness
@@ -39,7 +41,7 @@ class ArchiveSpec
     with BeforeAndAfter {
 
   private implicit val cache            = mock[ProjectCache[IO]]
-  private implicit val config           = ArchivesConfig(1 second, 1 second, 3)
+  private implicit val config           = ArchivesConfig(1.second, 1.second, 3)
   private implicit val clock            = Clock.fixed(Instant.EPOCH, ZoneId.systemDefault())
   private implicit val subject: Subject = Anonymous
 
@@ -107,7 +109,7 @@ class ArchiveSpec
             "@type"     -> nxv.Archive.prefix.asJson
           )
           .appendContextOf(archiveCtx)
-      json.asGraph(id.value).right.value
+      json.asGraph(id.value).rightValue
     }
 
     def error(field: String) = s"'$field' field does not have the right format."
@@ -120,7 +122,7 @@ class ArchiveSpec
       val rev1            = genInt().toLong
       val originalSource1 = true
       val path1Str        = s"${genString()}/${genString()}/${genString()}.ext"
-      val path1           = Path.rootless(path1Str).right.value
+      val path1           = Path.rootless(path1Str).rightValue
       val resource1Json = jsonResource(
         id = Some(id1),
         rev = Some(rev1),

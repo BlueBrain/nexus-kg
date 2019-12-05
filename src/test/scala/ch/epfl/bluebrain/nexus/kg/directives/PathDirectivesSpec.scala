@@ -8,21 +8,28 @@ import akka.http.scaladsl.server.Route
 import akka.http.scaladsl.testkit.ScalatestRouteTest
 import cats.syntax.show._
 import ch.epfl.bluebrain.nexus.admin.client.types.Project
+import ch.epfl.bluebrain.nexus.commons.test.EitherValues
 import ch.epfl.bluebrain.nexus.kg.TestHelper
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary._
 import ch.epfl.bluebrain.nexus.kg.directives.PathDirectives._
 import ch.epfl.bluebrain.nexus.rdf.Iri
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
-import org.scalatest.{EitherValues, Matchers, WordSpecLike}
+import org.scalatest.matchers.should.Matchers
+import org.scalatest.wordspec.AnyWordSpecLike
 
-class PathDirectivesSpec extends WordSpecLike with Matchers with ScalatestRouteTest with EitherValues with TestHelper {
+class PathDirectivesSpec
+    extends AnyWordSpecLike
+    with Matchers
+    with ScalatestRouteTest
+    with EitherValues
+    with TestHelper {
 
   "A PathDirectives" should {
-    val creator = Iri.absolute("http://example.com/subject").right.value
+    val creator = Iri.absolute("http://example.com/subject").rightValue
     val mappings = Map(
-      "nxv"   -> Iri.absolute("https://bluebrain.github.io/nexus/vocabulary/").right.value,
-      "a"     -> Iri.absolute("https://www.w3.org/1999/02/22-rdf-syntax-ns#type").right.value,
-      "alias" -> Iri.absolute("https://www.w3.org/1999/02").right.value
+      "nxv"   -> Iri.absolute("https://bluebrain.github.io/nexus/vocabulary/").rightValue,
+      "a"     -> Iri.absolute("https://www.w3.org/1999/02/22-rdf-syntax-ns#type").rightValue,
+      "alias" -> Iri.absolute("https://www.w3.org/1999/02").rightValue
     )
     implicit val project: Project =
       Project(
@@ -30,7 +37,7 @@ class PathDirectivesSpec extends WordSpecLike with Matchers with ScalatestRouteT
         "project",
         "organization",
         None,
-        Iri.absolute("http://example.com/base/").right.value,
+        Iri.absolute("http://example.com/base/").rightValue,
         genIri,
         mappings,
         genUUID,

@@ -11,6 +11,7 @@ import cats.data.EitherT
 import cats.syntax.show._
 import ch.epfl.bluebrain.nexus.admin.client.types.Project
 import ch.epfl.bluebrain.nexus.commons.circe.syntax._
+import ch.epfl.bluebrain.nexus.commons.test.EitherValues
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity.{Anonymous, User}
 import ch.epfl.bluebrain.nexus.iam.client.types.{AccessControlList, AccessControlLists, Caller, Permission}
 import ch.epfl.bluebrain.nexus.kg.archives.Archive.{File, Resource}
@@ -34,14 +35,16 @@ import io.circe.{Json, Printer}
 import monix.eval.Task
 import monix.execution.Scheduler.Implicits.global
 import org.mockito.{ArgumentMatchersSugar, IdiomaticMockito, Mockito}
-import org.scalatest._
+import org.scalatest.{BeforeAndAfter, OptionValues}
 import org.scalatest.concurrent.ScalaFutures
+import org.scalatest.matchers.should.Matchers
+import org.scalatest.wordspec.AnyWordSpecLike
 
 import scala.concurrent.duration._
 
 class FetchResourceSpec
     extends TestKit(ActorSystem("FetchResourceSpec"))
-    with WordSpecLike
+    with AnyWordSpecLike
     with Matchers
     with IdiomaticMockito
     with ArgumentMatchersSugar
@@ -51,7 +54,7 @@ class FetchResourceSpec
     with ScalaFutures
     with OptionValues {
 
-  override implicit def patienceConfig: PatienceConfig = PatienceConfig(5 second, 150 milliseconds)
+  override implicit def patienceConfig: PatienceConfig = PatienceConfig(5.second, 150.milliseconds)
 
   private implicit val resources: Resources[Task] = mock[Resources[Task]]
   private implicit val files: Files[Task]         = mock[Files[Task]]
@@ -103,7 +106,7 @@ class FetchResourceSpec
   "Fetching content from a ResourceDescription" should {
 
     "succeed on resource with original payload" in new Ctx {
-      val somePath    = Path.rootless("some/path").right.value
+      val somePath    = Path.rootless("some/path").rightValue
       val description = Resource(id, project, None, None, originalSource = true, Some(somePath))
       resources.fetchSource(idRes) shouldReturn EitherT.rightT[Task, Rejection](json)
       val fetch                                  = fetchResource()
@@ -119,7 +122,7 @@ class FetchResourceSpec
       val jsonWithCtx = json deepMerge ctx
       val finalJson   = jsonWithCtx deepMerge Json.obj("@id" -> Json.fromString(id.asString))
       // format: off
-      val resourceValue = Value(jsonWithCtx, ctx.contextValue, jsonWithCtx.deepMerge(finalJson).asGraph(IriNode(id)).right.value)
+      val resourceValue = Value(jsonWithCtx, ctx.contextValue, jsonWithCtx.deepMerge(finalJson).asGraph(IriNode(id)).rightValue)
       // format: on
       val resourceV = ResourceF.simpleV(idRes, resourceValue)
 
@@ -127,7 +130,7 @@ class FetchResourceSpec
       val fetch                                  = fetchResource()
       val ArchiveSource(bytes, rPath, _, source) = fetch(description).value.runToFuture.futureValue.value
       val response                               = printer.print(finalJson.addContext(resourceCtxUri).sortKeys(AppConfig.orderedKeys))
-      rPath shouldEqual Iri.Path.rootless(s"${project.show}/${urlEncode(id.asString)}.json").right.value.pctEncoded
+      rPath shouldEqual Iri.Path.rootless(s"${project.show}/${urlEncode(id.asString)}.json").rightValue.pctEncoded
       bytes.toInt shouldEqual response.size
       consume(source) shouldEqual response
     }
@@ -135,7 +138,7 @@ class FetchResourceSpec
     "return none on resource when caller has no read permissions" in new Ctx {
       val description = Resource(id, project, None, None, originalSource = true, None)
       val acls =
-        AccessControlLists(Path(s"/${genString()}").right.value -> resourceAcls(AccessControlList(myUser -> Set(read))))
+        AccessControlLists(Path(s"/${genString()}").rightValue -> resourceAcls(AccessControlList(myUser -> Set(read))))
       resources.fetchSource(idRes) shouldReturn EitherT.rightT[Task, Rejection](json)
       val fetch = fetchResource(acls = acls)
       fetch(description).value.runToFuture.futureValue shouldEqual None

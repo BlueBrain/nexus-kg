@@ -32,7 +32,7 @@ import ch.epfl.bluebrain.nexus.storage.client.types.{FileAttributes => StorageFi
 import com.amazonaws.auth._
 import com.amazonaws.regions.AwsRegionProvider
 
-import scala.collection.JavaConverters._
+import scala.jdk.CollectionConverters._
 import scala.util.Try
 
 /**
@@ -374,9 +374,9 @@ object Storage {
     for {
       default   <- c.downField(nxv.default).focus.as[Boolean].onError(res.id.ref, nxv.default.prefix)
       volume    <- c.downField(nxv.volume).focus.as[String].map(Paths.get(_)).onError(res.id.ref, nxv.volume.prefix)
-      read      <- c.downField(nxv.readPermission).focus.as[Permission].orElse(config.disk.readPermission).onError(res.id.ref, nxv.readPermission.prefix)
-      write     <- c.downField(nxv.writePermission).focus.as[Permission].orElse(config.disk.writePermission).onError(res.id.ref, nxv.writePermission.prefix)
-      fileSize  <- c.downField(nxv.maxFileSize).focus.as[Long].orElse(config.disk.maxFileSize).onError(res.id.ref, nxv.maxFileSize.prefix)
+      read      <- c.downField(nxv.readPermission).focus.as[Permission].withDefault(config.disk.readPermission).onError(res.id.ref, nxv.readPermission.prefix)
+      write     <- c.downField(nxv.writePermission).focus.as[Permission].withDefault(config.disk.writePermission).onError(res.id.ref, nxv.writePermission.prefix)
+      fileSize  <- c.downField(nxv.maxFileSize).focus.as[Long].withDefault(config.disk.maxFileSize).onError(res.id.ref, nxv.maxFileSize.prefix)
     } yield DiskStorage(res.id.parent, res.id.value, res.rev, res.deprecated, default, config.disk.digestAlgorithm, volume, read, write, fileSize)
     // format: on
   }
@@ -389,13 +389,13 @@ object Storage {
     // format: off
     for {
       default       <- c.downField(nxv.default).focus.as[Boolean].onError(res.id.ref, nxv.default.prefix)
-      endpoint      <- c.downField(nxv.endpoint).focus.as[Uri].orElse(config.remoteDisk.endpoint).onError(res.id.ref, nxv.endpoint.prefix)
+      endpoint      <- c.downField(nxv.endpoint).focus.as[Uri].withDefault(config.remoteDisk.endpoint).onError(res.id.ref, nxv.endpoint.prefix)
       credentials   <- if(endpoint == config.remoteDisk.endpoint) c.downField(nxv.credentials).focus.asOption[String].map(_ orElse config.remoteDisk.defaultCredentials.map(_.value)).onError(res.id.ref, nxv.credentials.prefix)
                        else c.downField(nxv.credentials).focus.asOption[String].onError(res.id.ref, nxv.credentials.prefix)
       folder        <- c.downField(nxv.folder).focus.as[String].onError(res.id.ref, nxv.folder.prefix)
-      read          <- c.downField(nxv.readPermission).focus.as[Permission].orElse(config.remoteDisk.readPermission).onError(res.id.ref, nxv.readPermission.prefix)
-      write         <- c.downField(nxv.writePermission).focus.as[Permission].orElse(config.remoteDisk.writePermission).onError(res.id.ref, nxv.writePermission.prefix)
-      fileSize      <- c.downField(nxv.maxFileSize).focus.as[Long].orElse(config.remoteDisk.maxFileSize).onError(res.id.ref, nxv.maxFileSize.prefix)
+      read          <- c.downField(nxv.readPermission).focus.as[Permission].withDefault(config.remoteDisk.readPermission).onError(res.id.ref, nxv.readPermission.prefix)
+      write         <- c.downField(nxv.writePermission).focus.as[Permission].withDefault(config.remoteDisk.writePermission).onError(res.id.ref, nxv.writePermission.prefix)
+      fileSize      <- c.downField(nxv.maxFileSize).focus.as[Long].withDefault(config.remoteDisk.maxFileSize).onError(res.id.ref, nxv.maxFileSize.prefix)
     } yield RemoteDiskStorage(res.id.parent, res.id.value, res.rev, res.deprecated, default, config.remoteDisk.digestAlgorithm, endpoint, credentials, folder, read, write, fileSize)
     // format: on
   }
@@ -408,9 +408,9 @@ object Storage {
       bucket    <- c.downField(nxv.bucket).focus.as[String].onError(res.id.ref, nxv.bucket.prefix)
       endpoint  <- c.downField(nxv.endpoint).focus.asOption[String].onError(res.id.ref, nxv.endpoint.prefix)
       region    <- c.downField(nxv.region).focus.asOption[String].onError(res.id.ref, nxv.region.prefix)
-      read      <- c.downField(nxv.readPermission).focus.as[Permission].orElse(config.amazon.readPermission).onError(res.id.ref, nxv.readPermission.prefix)
-      write     <- c.downField(nxv.writePermission).focus.as[Permission].orElse(config.amazon.writePermission).onError(res.id.ref, nxv.writePermission.prefix)
-      fileSize  <- c.downField(nxv.maxFileSize).focus.as[Long].orElse(config.amazon.maxFileSize).onError(res.id.ref, nxv.maxFileSize.prefix)
+      read      <- c.downField(nxv.readPermission).focus.as[Permission].withDefault(config.amazon.readPermission).onError(res.id.ref, nxv.readPermission.prefix)
+      write     <- c.downField(nxv.writePermission).focus.as[Permission].withDefault(config.amazon.writePermission).onError(res.id.ref, nxv.writePermission.prefix)
+      fileSize  <- c.downField(nxv.maxFileSize).focus.as[Long].withDefault(config.amazon.maxFileSize).onError(res.id.ref, nxv.maxFileSize.prefix)
       akOpt     <- c.downField(nxv.accessKey).focus.asOption[String].onError(res.id.ref, nxv.accessKey.prefix)
       skOpt     <- c.downField(nxv.secretKey).focus.asOption[String].onError(res.id.ref, nxv.secretKey.prefix)
     } yield S3Storage(res.id.parent, res.id.value, res.rev, res.deprecated, default, config.amazon.digestAlgorithm, bucket, S3Settings((akOpt, skOpt).mapN(S3Credentials), endpoint, region), read, write, fileSize)

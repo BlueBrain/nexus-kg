@@ -6,6 +6,7 @@ import java.time.{Clock, Instant, ZoneId, ZoneOffset}
 import akka.actor.ActorSystem
 import akka.testkit.TestKit
 import ch.epfl.bluebrain.nexus.admin.client.types.Project
+import ch.epfl.bluebrain.nexus.commons.test.EitherValues
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity.{Anonymous, User}
 import ch.epfl.bluebrain.nexus.kg.TestHelper
@@ -21,12 +22,13 @@ import ch.epfl.bluebrain.nexus.rdf.syntax._
 import ch.epfl.bluebrain.nexus.rdf.instances._
 import ch.epfl.bluebrain.nexus.rdf.{Iri, Node}
 import io.circe.Json
-import org.scalatest.{EitherValues, Matchers, WordSpecLike}
+import org.scalatest.matchers.should.Matchers
+import org.scalatest.wordspec.AnyWordSpecLike
 
 //noinspection NameBooleanParameters
 class ResourceFSpec
     extends TestKit(ActorSystem("ResourceFSpec"))
-    with WordSpecLike
+    with AnyWordSpecLike
     with Matchers
     with EitherValues
     with TestHelper {
@@ -39,11 +41,11 @@ class ResourceFSpec
     implicit val clock: Clock = Clock.fixed(Instant.ofEpochSecond(3600), ZoneId.systemDefault())
 
     val identity: Identity = User("dmontero", "someRealm")
-    val userIri            = Iri.absolute(s"${appConfig.iam.basePublicIri.asUri}/realms/someRealm/users/dmontero").right.value
-    val anonIri            = Iri.absolute(s"${appConfig.iam.basePublicIri.asUri}/anonymous").right.value
+    val userIri            = Iri.absolute(s"${appConfig.iam.basePublicIri.asUri}/realms/someRealm/users/dmontero").rightValue
+    val anonIri            = Iri.absolute(s"${appConfig.iam.basePublicIri.asUri}/anonymous").rightValue
 
     val projectRef = ProjectRef(genUUID)
-    val id         = Iri.absolute(s"http://example.com/${projectRef.id}").right.value
+    val id         = Iri.absolute(s"http://example.com/${projectRef.id}").rightValue
     val resId      = Id(projectRef, id)
     val json       = Json.obj("key" -> Json.fromString("value"))
     val schema     = Ref(shaclSchemaUri)

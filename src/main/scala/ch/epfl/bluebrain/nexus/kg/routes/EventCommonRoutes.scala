@@ -43,7 +43,7 @@ private[routes] abstract class EventCommonRoutes(implicit as: ActorSystem, confi
   )(implicit enc: Encoder[Event]): Source[ServerSentEvent, NotUsed] =
     pq.eventsByTag(tag, offset)
       .flatMapConcat(ee => Source(eventToSse(ee).toList))
-      .keepAlive(10 seconds, () => ServerSentEvent.heartbeat)
+      .keepAlive(10.seconds, () => ServerSentEvent.heartbeat)
 
   /**
     * Extract [[Offset]] from `Last-Event-ID` HTTP header.

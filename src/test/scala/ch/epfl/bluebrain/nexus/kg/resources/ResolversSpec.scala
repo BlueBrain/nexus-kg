@@ -8,7 +8,7 @@ import cats.syntax.show._
 import ch.epfl.bluebrain.nexus.admin.client.types.Project
 import ch.epfl.bluebrain.nexus.commons.test
 import ch.epfl.bluebrain.nexus.commons.test.io.{IOEitherValues, IOOptionValues}
-import ch.epfl.bluebrain.nexus.commons.test.{ActorSystemFixture, CirceEq}
+import ch.epfl.bluebrain.nexus.commons.test.{ActorSystemFixture, CirceEq, EitherValues}
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity._
 import ch.epfl.bluebrain.nexus.iam.client.types._
 import ch.epfl.bluebrain.nexus.kg.TestHelper
@@ -29,10 +29,13 @@ import ch.epfl.bluebrain.nexus.rdf.Iri.Path./
 import ch.epfl.bluebrain.nexus.rdf.instances._
 import ch.epfl.bluebrain.nexus.rdf.syntax._
 import ch.epfl.bluebrain.nexus.rdf.{Iri, RootedGraph}
+import com.github.ghik.silencer.silent
 import io.circe.Json
 import org.mockito.{IdiomaticMockito, Mockito}
 import org.scalactic.Equality
-import org.scalatest._
+import org.scalatest.{BeforeAndAfter, Inspectors, OptionValues}
+import org.scalatest.matchers.should.Matchers
+import org.scalatest.wordspec.AnyWordSpecLike
 
 import scala.concurrent.ExecutionContext
 import scala.concurrent.duration._
@@ -43,7 +46,7 @@ class ResolversSpec
     extends ActorSystemFixture("ResolversSpec", true)
     with IOEitherValues
     with IOOptionValues
-    with WordSpecLike
+    with AnyWordSpecLike
     with IdiomaticMockito
     with Matchers
     with OptionValues
@@ -54,7 +57,7 @@ class ResolversSpec
     with BeforeAndAfter
     with CirceEq {
 
-  override implicit def patienceConfig: PatienceConfig = PatienceConfig(3 second, 15 milliseconds)
+  override implicit def patienceConfig: PatienceConfig = PatienceConfig(3.second, 15.milliseconds)
 
   private implicit val appConfig             = Settings(system).appConfig
   private implicit val clock: Clock          = Clock.fixed(Instant.ofEpochSecond(3600), ZoneId.systemDefault())
@@ -99,10 +102,10 @@ class ResolversSpec
     implicit lazy val caller =
       Caller(Anonymous, Set(Anonymous, Group("bbp-ou-neuroinformatics", "ldap2"), User("dmontero", "ldap")))
     val projectRef = ProjectRef(genUUID)
-    val base       = Iri.absolute(s"http://example.com/base/").right.value
-    val id         = Iri.absolute(s"http://example.com/$genUUID").right.value
+    val base       = Iri.absolute(s"http://example.com/base/").rightValue
+    val id         = Iri.absolute(s"http://example.com/$genUUID").rightValue
     val resId      = Id(projectRef, id)
-    val voc        = Iri.absolute(s"http://example.com/voc/").right.value
+    val voc        = Iri.absolute(s"http://example.com/voc/").rightValue
     // format: off
     implicit val project = Project(resId.value, "proj", "org", None, base, voc, Map.empty, projectRef.id, genUUID, 1L, deprecated = false, Instant.EPOCH, caller.subject.id, Instant.EPOCH, caller.subject.id)
     val crossResolver = CrossProjectResolver(Set(nxv.Schema), List(project1.ref, project2.ref), identities, projectRef, url"http://example.com/id".value, 1L, false, 20)
@@ -130,8 +133,7 @@ class ResolversSpec
       val graph = (json deepMerge Json.obj("@id" -> Json.fromString(id.asString)))
         .replaceContext(resolverCtx)
         .asGraph(resId.value)
-        .right
-        .value
+        .rightValue
 
       val resourceV =
         ResourceF.simpleV(resId, Value(json, resolverCtx.contextValue, graph), rev, schema = resolverRef, types = types)
@@ -144,6 +146,7 @@ class ResolversSpec
   private implicit val ordering: Ordering[Identity] = (x: Identity, y: Identity) =>
     x.id.asString compareTo y.id.asString
 
+  @silent // the definition is not recognized as used
   private implicit val eqCrossProject: Equality[CrossProjectResolver[ProjectRef]] =
     (a: CrossProjectResolver[ProjectRef], b: Any) => {
       Try {
@@ -253,7 +256,7 @@ class ResolversSpec
         val result = resolvers.fetch(resId).value.accepted
         resolvers.fetchSource(resId).value.accepted should equalIgnoreArrayOrder(resolverSource())
         val expected = resourceV(resolverForGraph(resId.value))
-        val json     = removeMetadata(result.value.graph).as[Json](fullCtx).right.value.removeKeys("@context")
+        val json     = removeMetadata(result.value.graph).as[Json](fullCtx).rightValue.removeKeys("@context")
         json should equalIgnoreArrayOrder(resolverForGraph(resId.value))
         result.value.ctx shouldEqual expected.value.ctx
         result shouldEqual expected.copy(value = result.value)
@@ -270,7 +273,7 @@ class ResolversSpec
         val resultLatest   = resolvers.fetch(resId, 2L).value.accepted
         val expectedLatest = resourceV(resolverUpdatedForGraph, 2L)
         resultLatest.value.ctx shouldEqual expectedLatest.value.ctx
-        val json1 = removeMetadata(resultLatest.value.graph).as[Json](fullCtx).right.value.removeKeys("@context")
+        val json1 = removeMetadata(resultLatest.value.graph).as[Json](fullCtx).rightValue.removeKeys("@context")
         json1 should equalIgnoreArrayOrder(resolverUpdatedForGraph)
         resultLatest shouldEqual expectedLatest.copy(value = resultLatest.value)
 
@@ -279,7 +282,7 @@ class ResolversSpec
         val result   = resolvers.fetch(resId, 1L).value.accepted
         val expected = resourceV(resolverForGraph(resId.value))
         result.value.ctx shouldEqual expected.value.ctx
-        val json2 = removeMetadata(result.value.graph).as[Json](fullCtx).right.value.removeKeys("@context")
+        val json2 = removeMetadata(result.value.graph).as[Json](fullCtx).rightValue.removeKeys("@context")
         json2 should equalIgnoreArrayOrder(resolverForGraph(resId.value))
         result shouldEqual expected.copy(value = result.value)
       }

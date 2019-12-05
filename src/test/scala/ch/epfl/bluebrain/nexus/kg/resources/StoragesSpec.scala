@@ -9,7 +9,7 @@ import cats.syntax.show._
 import ch.epfl.bluebrain.nexus.admin.client.types.Project
 import ch.epfl.bluebrain.nexus.commons.test
 import ch.epfl.bluebrain.nexus.commons.test.io.{IOEitherValues, IOOptionValues}
-import ch.epfl.bluebrain.nexus.commons.test.{ActorSystemFixture, CirceEq}
+import ch.epfl.bluebrain.nexus.commons.test.{ActorSystemFixture, CirceEq, EitherValues}
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity._
 import ch.epfl.bluebrain.nexus.iam.client.types.Permission
 import ch.epfl.bluebrain.nexus.kg.TestHelper
@@ -32,7 +32,9 @@ import ch.epfl.bluebrain.nexus.rdf.syntax._
 import ch.epfl.bluebrain.nexus.rdf.{Iri, RootedGraph}
 import io.circe.Json
 import org.mockito.{ArgumentMatchersSugar, IdiomaticMockito, Mockito}
-import org.scalatest._
+import org.scalatest.{BeforeAndAfter, Inspectors, OptionValues}
+import org.scalatest.matchers.should.Matchers
+import org.scalatest.wordspec.AnyWordSpecLike
 
 import scala.concurrent.ExecutionContext
 import scala.concurrent.duration._
@@ -40,9 +42,9 @@ import scala.concurrent.duration._
 //noinspection TypeAnnotation
 class StoragesSpec
     extends ActorSystemFixture("StoragesSpec", true)
+    with AnyWordSpecLike
     with IOEitherValues
     with IOOptionValues
-    with WordSpecLike
     with IdiomaticMockito
     with ArgumentMatchersSugar
     with Matchers
@@ -54,7 +56,7 @@ class StoragesSpec
     with BeforeAndAfter
     with CirceEq {
 
-  override implicit def patienceConfig: PatienceConfig = PatienceConfig(3 second, 15 milliseconds)
+  override implicit def patienceConfig: PatienceConfig = PatienceConfig(3.second, 15.milliseconds)
 
   private implicit val appConfig             = Settings(system).appConfig
   private implicit val clock: Clock          = Clock.fixed(Instant.ofEpochSecond(3600), ZoneId.systemDefault())
@@ -84,10 +86,10 @@ class StoragesSpec
   trait Base {
     implicit val subject: Subject = Anonymous
     val projectRef                = ProjectRef(genUUID)
-    val base                      = Iri.absolute(s"http://example.com/base/").right.value
-    val id                        = Iri.absolute(s"http://example.com/$genUUID").right.value
+    val base                      = Iri.absolute(s"http://example.com/base/").rightValue
+    val id                        = Iri.absolute(s"http://example.com/$genUUID").rightValue
     val resId                     = Id(projectRef, id)
-    val voc                       = Iri.absolute(s"http://example.com/voc/").right.value
+    val voc                       = Iri.absolute(s"http://example.com/voc/").rightValue
     // format: off
     implicit val project = Project(resId.value, "proj", "org", None, base, voc, Map.empty, projectRef.id, genUUID, 1L, deprecated = false, Instant.EPOCH, subject.id, Instant.EPOCH, subject.id)
     // format: on
@@ -126,8 +128,7 @@ class StoragesSpec
       val graph = (json deepMerge Json.obj("@id" -> Json.fromString(id.asString)))
         .replaceContext(ctx)
         .asGraph(resId.value)
-        .right
-        .value
+        .rightValue
 
       val resourceV =
         ResourceF.simpleV(resId, Value(json, ctx.contextValue, graph), rev, schema = storageRef, types = types)

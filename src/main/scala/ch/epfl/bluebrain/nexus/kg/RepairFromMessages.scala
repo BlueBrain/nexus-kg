@@ -8,7 +8,7 @@ import akka.persistence.cassandra.query.scaladsl.CassandraReadJournal
 import akka.persistence.query.PersistenceQuery
 import ch.epfl.bluebrain.nexus.kg.resources.{Id, ProjectRef, Repo, ResId}
 import ch.epfl.bluebrain.nexus.rdf.Iri
-import journal.Logger
+import com.typesafe.scalalogging.Logger
 import monix.eval.Task
 import monix.execution.Scheduler
 import monix.execution.schedulers.CanBlock

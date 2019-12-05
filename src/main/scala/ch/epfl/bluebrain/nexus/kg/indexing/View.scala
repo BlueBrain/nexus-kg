@@ -41,12 +41,12 @@ import ch.epfl.bluebrain.nexus.rdf.instances._
 import ch.epfl.bluebrain.nexus.rdf.syntax._
 import ch.epfl.bluebrain.nexus.rdf.{Graph, RootedGraph}
 import io.circe.{parser, Json}
-import journal.Logger
+import com.typesafe.scalalogging.Logger
 import org.apache.jena.query.QueryFactory
 import shapeless.Typeable.ValueTypeable
 import shapeless.{TypeCase, Typeable}
 
-import scala.collection.JavaConverters._
+import scala.jdk.CollectionConverters._
 import scala.concurrent.duration.FiniteDuration
 import scala.util.{Failure, Success, Try}
 
@@ -312,10 +312,10 @@ object View {
     def filter(c: GraphCursor): Either[Rejection, Filter] =
       // format: off
       for {
-        schemas <- c.downField(nxv.resourceSchemas).values.asListOf[AbsoluteIri].orElse(List.empty).map(_.toSet).onError(res.id.ref, nxv.resourceSchemas.prefix)
-        types <- c.downField(nxv.resourceTypes).values.asListOf[AbsoluteIri].orElse(List.empty).map(_.toSet).onError(res.id.ref, nxv.resourceTypes.prefix)
+        schemas <- c.downField(nxv.resourceSchemas).values.asListOf[AbsoluteIri].withDefault(List.empty).map(_.toSet).onError(res.id.ref, nxv.resourceSchemas.prefix)
+        types <- c.downField(nxv.resourceTypes).values.asListOf[AbsoluteIri].withDefault(List.empty).map(_.toSet).onError(res.id.ref, nxv.resourceTypes.prefix)
         tag <- c.downField(nxv.resourceTag).focus.asOption[String].flatMap(nonEmpty).onError(res.id.ref, nxv.resourceTag.prefix)
-        includeDep <- c.downField(nxv.includeDeprecated).focus.as[Boolean].orElse(true).onError(res.id.ref, nxv.includeDeprecated.prefix)
+        includeDep <- c.downField(nxv.includeDeprecated).focus.as[Boolean].withDefault(true).onError(res.id.ref, nxv.includeDeprecated.prefix)
       } yield Filter(schemas, types, tag, includeDep)
     // format: on
 
@@ -325,8 +325,8 @@ object View {
         uuid          <- c.downField(nxv.uuid).focus.as[UUID].onError(res.id.ref, nxv.uuid.prefix)
         mapping       <- c.downField(nxv.mapping).focus.as[String].flatMap(parse).onError(res.id.ref, nxv.mapping.prefix)
         f             <- filter(c)
-        includeMeta   <- c.downField(nxv.includeMetadata).focus.as[Boolean].orElse(false).onError(res.id.ref, nxv.includeMetadata.prefix)
-        sourceAsText  <- c.downField(nxv.sourceAsText).focus.as[Boolean].orElse(false).onError(res.id.ref, nxv.sourceAsText.prefix)
+        includeMeta   <- c.downField(nxv.includeMetadata).focus.as[Boolean].withDefault(false).onError(res.id.ref, nxv.includeMetadata.prefix)
+        sourceAsText  <- c.downField(nxv.sourceAsText).focus.as[Boolean].withDefault(false).onError(res.id.ref, nxv.sourceAsText.prefix)
       } yield
         ElasticSearchView(mapping, f, includeMeta, sourceAsText, res.id.parent, res.id.value, uuid, res.rev, res.deprecated)
       // format: on
@@ -401,7 +401,7 @@ object View {
         sourceTpe     <- sourceC.downField(rdf.tpe).focus.as[AbsoluteIri].onError(res.id.ref, "@type")
         _             <- if(sourceTpe == nxv.ProjectEventStream.value) Right(()) else Left(InvalidResourceFormat(res.id.ref, s"Invalid '@type' field '$sourceTpe'. Recognized types are '${nxv.ProjectEventStream.value}'."))
         filterSource  <- filter(sourceC)
-        includeMeta   <- sourceC.downField(nxv.includeMetadata).focus.as[Boolean].orElse(false).onError(res.id.ref, nxv.includeMetadata.prefix)
+        includeMeta   <- sourceC.downField(nxv.includeMetadata).focus.as[Boolean].withDefault(false).onError(res.id.ref, nxv.includeMetadata.prefix)
         projs         <- projections(c.downField(nxv.projections).downSet)
         rebuildCursor  = c.downField(nxv.rebuildStrategy)
         rebuildTpe    <- rebuildCursor.downField(rdf.tpe).focus.as[AbsoluteIri].onError(res.id.ref, "@type")
@@ -417,7 +417,7 @@ object View {
       for {
         uuid          <- c.downField(nxv.uuid).focus.as[UUID].onError(res.id.ref, nxv.uuid.prefix)
         f             <- filter(c)
-        includeMeta   <- c.downField(nxv.includeMetadata).focus.as[Boolean].orElse(false).onError(res.id.ref, nxv.includeMetadata.prefix)
+        includeMeta   <- c.downField(nxv.includeMetadata).focus.as[Boolean].withDefault(false).onError(res.id.ref, nxv.includeMetadata.prefix)
       } yield
         SparqlView(f, includeMeta, res.id.parent, res.id.value, uuid, res.rev, res.deprecated)
     // format: on

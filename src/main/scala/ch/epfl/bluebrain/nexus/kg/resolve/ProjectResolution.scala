@@ -9,7 +9,7 @@ import ch.epfl.bluebrain.nexus.kg.cache._
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig.iriResolution
 import ch.epfl.bluebrain.nexus.kg.resolve.Resolver._
 import ch.epfl.bluebrain.nexus.kg.resources._
-import journal.Logger
+import com.typesafe.scalalogging.Logger
 import monix.eval.Task
 
 /**
