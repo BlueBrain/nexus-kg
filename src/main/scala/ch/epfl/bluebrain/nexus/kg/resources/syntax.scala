@@ -11,6 +11,7 @@ import ch.epfl.bluebrain.nexus.commons.rdf.syntax._
 import ch.epfl.bluebrain.nexus.iam.client.types._
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig.HttpConfig
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary.nxv
+import ch.epfl.bluebrain.nexus.kg.resources.ProjectIdentifier.{ProjectLabel, ProjectRef}
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection.InvalidResourceFormat
 import ch.epfl.bluebrain.nexus.kg.storage.Crypto
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
@@ -201,5 +202,10 @@ object syntax {
       * Decrypts the ''value'' using the implicitly available ''key''
       */
     def decrypt(implicit key: SecretKey): String = Crypto.decrypt(key, value)
+  }
+
+  implicit class IdentitiesSyntax(private val identities: Seq[Identity]) extends AnyVal {
+    def foundInCaller(implicit caller: Caller): Boolean =
+      identities.forall(caller.identities.contains)
   }
 }

@@ -348,6 +348,8 @@ object AppConfig {
       nxv.maxScore.prefix,
       nxv.results.prefix,
       nxv.score.prefix,
+      nxv.sourceId.prefix,
+      nxv.projectionId.prefix,
       "totalEvents",
       "processedEvents",
       "evaluatedEvents",

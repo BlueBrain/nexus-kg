@@ -7,17 +7,15 @@ import akka.util.Timeout
 import cats.effect.{Async, ContextShift, IO}
 import cats.implicits._
 import ch.epfl.bluebrain.nexus.admin.client.types.Project
-import ch.epfl.bluebrain.nexus.commons.search.QueryResult.UnscoredQueryResult
-import ch.epfl.bluebrain.nexus.commons.search.QueryResults
-import ch.epfl.bluebrain.nexus.commons.search.QueryResults.UnscoredQueryResults
 import ch.epfl.bluebrain.nexus.kg.KgError
 import ch.epfl.bluebrain.nexus.kg.async.ProjectViewCoordinatorActor.Msg._
-import ch.epfl.bluebrain.nexus.kg.cache.Caches
+import ch.epfl.bluebrain.nexus.kg.cache.{Caches, ProjectCache}
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig
-import ch.epfl.bluebrain.nexus.kg.indexing.Statistics
-import ch.epfl.bluebrain.nexus.kg.indexing.View.{CompositeView, IndexedView}
+import ch.epfl.bluebrain.nexus.kg.indexing.View.IndexedView
+import ch.epfl.bluebrain.nexus.kg.indexing.{IdentifiedProgress, Statistics}
 import ch.epfl.bluebrain.nexus.kg.resources.syntax._
-import ch.epfl.bluebrain.nexus.kg.resources.{IdentifiedValue, OrganizationRef, ProjectRef, Resources}
+import ch.epfl.bluebrain.nexus.kg.resources.{OrganizationRef, Resources}
+import ch.epfl.bluebrain.nexus.kg.resources.ProjectIdentifier.ProjectRef
 import ch.epfl.bluebrain.nexus.kg.routes.Clients
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import ch.epfl.bluebrain.nexus.sourcing.projections.Projections
@@ -47,83 +45,72 @@ class ProjectViewCoordinator[F[_]](cache: Caches[F], ref: ActorRef)(
   private implicit val contextShift: ContextShift[IO] = IO.contextShift(ec)
   private val log                                     = Logger[this.type]
 
+  private type IdStatsSet  = Set[IdentifiedProgress[Statistics]]
+  private type IdOffsetSet = Set[IdentifiedProgress[Offset]]
+
   /**
     * Fetches view statistics for a given view.
     *
-    * @param viewId the view unique identifier on a project
-    * @return Some(statistics) if view exists, None otherwise wrapped in [[F]]
+    * @param viewId      the view unique identifier on a project
+    * @param sourceIdOpt the optional source unique identifier on the target view
     */
-  def statistics(viewId: AbsoluteIri)(implicit project: Project): F[Option[Statistics]] = {
-    val msgF = IO.fromFuture(IO(ref ? FetchStatistics(project.uuid, viewId))).to[F]
-    parse[Statistics](msgF).recoverWith(logAndRaiseError(project.show, "statistics"))
-  }
+  def statistics(viewId: AbsoluteIri, sourceIdOpt: Option[AbsoluteIri])(
+      implicit project: Project
+  ): F[Option[IdStatsSet]] =
+    fetchAllStatistics(viewId)
+      .map(_.filter { idStats =>
+        idStats.projectionId.isEmpty && sourceIdOpt.forall(idStats.sourceId.contains)
+      })
+      .map(emptyToNone)
 
   /**
-    * Fetches view statistics for a given projection.
+    * Fetches view statistics for a given projection(s).
     *
-    * @param viewId       the view unique identifier on a project
-    * @param projectionId the projection unique identifier on the target view
-    * @return Some(statistics) if projection exists, None otherwise wrapped in [[F]]
+    * @param viewId          the view unique identifier on a project
+    * @param sourceIdOpt     the optional source unique identifier on the target view
+    * @param projectionIdOpt the optional projection unique identifier on the target view
     */
-  def statistics(viewId: AbsoluteIri, projectionId: AbsoluteIri)(implicit project: Project): F[Option[Statistics]] = {
-    val msgF = IO.fromFuture(IO(ref ? FetchProjectionStatistics(project.uuid, viewId, projectionId))).to[F]
-    parse[Statistics](msgF).recoverWith(logAndRaiseError(project.show, "statistics"))
-  }
+  def projectionStats(viewId: AbsoluteIri, sourceIdOpt: Option[AbsoluteIri], projectionIdOpt: Option[AbsoluteIri])(
+      implicit project: Project
+  ): F[Option[IdStatsSet]] =
+    fetchAllStatistics(viewId)
+      .map(_.filter { idStats =>
+        idStats.projectionId.isDefined &&
+        projectionIdOpt.forall(idStats.projectionId.contains) &&
+        sourceIdOpt.forall(idStats.sourceId.contains)
+      })
+      .map(emptyToNone)
 
   /**
     * Fetches view offset.
     *
-    * @param viewId the view unique identifier on a project
-    * @return Some(offset) if view exists, None otherwise wrapped in [[F]]
+    * @param viewId      the view unique identifier on a project
+    * @param sourceIdOpt the optional source unique identifier on the target view
     */
-  def offset(viewId: AbsoluteIri)(implicit project: Project): F[Option[Offset]] = {
-    val msgF = IO.fromFuture(IO(ref ? FetchOffset(project.uuid, viewId))).to[F]
-    parse[Offset](msgF).recoverWith(logAndRaiseError(project.show, "progress"))
-  }
+  def offset(viewId: AbsoluteIri, sourceIdOpt: Option[AbsoluteIri])(implicit project: Project): F[Option[IdOffsetSet]] =
+    fetchAllOffsets(viewId)
+      .map(_.filter { idOffsets =>
+        idOffsets.projectionId.isEmpty && sourceIdOpt.forall(idOffsets.sourceId.contains)
+      })
+      .map(emptyToNone)
 
   /**
-    * Fetches view offset for a given projection.
+    * Fetches view offset for a given projection(s).
     *
-    * @param viewId       the view unique identifier on a project
-    * @param projectionId the projection unique identifier on the target view
-    * @return Some(offset) if projection exists, None otherwise wrapped in [[F]]
+    * @param viewId          the view unique identifier on a project
+    * @param sourceIdOpt     the optional source unique identifier on the target view
+    * @param projectionIdOpt the optional projection unique identifier on the target view
     */
-  def offset(viewId: AbsoluteIri, projectionId: AbsoluteIri)(implicit project: Project): F[Option[Offset]] = {
-    val msgF = IO.fromFuture(IO(ref ? FetchProjectionOffset(project.uuid, viewId, projectionId))).to[F]
-    parse[Offset](msgF).recoverWith(logAndRaiseError(project.show, "progress"))
-  }
-
-  /**
-    * Fetches statistics for all projections inside a composite view.
-    *
-    * @param view the view to fetch the statistics for
-    * @return [[QueryResults[Statistics]]] wrapped in [[F]]
-    */
-  def projectionsStatistic(
-      view: CompositeView
-  )(implicit project: Project): F[QueryResults[IdentifiedValue[Statistics]]] =
-    view.projections.toList
-      .map(projection => statistics(view.id, projection.view.id).map(IdentifiedValue(projection.view.id, _)))
-      .sequence
-      .map { results =>
-        val collected = results.collect { case IdentifiedValue(id, Some(value)) => IdentifiedValue(id, value) }
-        UnscoredQueryResults(collected.size.toLong, collected.map(UnscoredQueryResult.apply))
-      }
-
-  /**
-    * Fetches progress for all projections inside a composite view.
-    *
-    * @param view the view to fetch the statistics for
-    * @return [[QueryResults[Offset]]] wrapped in [[F]]
-    */
-  def projectionsOffset(view: CompositeView)(implicit project: Project): F[QueryResults[IdentifiedValue[Offset]]] =
-    view.projections.toList
-      .map(projection => offset(view.id, projection.view.id).map(IdentifiedValue(projection.view.id, _)))
-      .sequence
-      .map { results =>
-        val collected = results.collect { case IdentifiedValue(id, Some(value)) => IdentifiedValue(id, value) }
-        UnscoredQueryResults(collected.size.toLong, collected.map(UnscoredQueryResult.apply))
-      }
+  def projectionOffset(viewId: AbsoluteIri, sourceIdOpt: Option[AbsoluteIri], projectionIdOpt: Option[AbsoluteIri])(
+      implicit project: Project
+  ): F[Option[IdOffsetSet]] =
+    fetchAllOffsets(viewId)
+      .map(_.filter { idOffsets =>
+        idOffsets.projectionId.isDefined &&
+        projectionIdOpt.forall(idOffsets.projectionId.contains) &&
+        sourceIdOpt.forall(idOffsets.sourceId.contains)
+      })
+      .map(emptyToNone)
 
   /**
     * Starts the project view coordinator for the provided project sending a Start message to the
@@ -163,31 +150,22 @@ class ProjectViewCoordinator[F[_]](cache: Caches[F], ref: ActorRef)(
     */
   def restart(viewId: AbsoluteIri)(implicit project: Project): F[Option[Unit]] = {
     val msgF = IO.fromFuture(IO(ref ? RestartView(project.uuid, viewId))).to[F]
-    parse[Ack](msgF).recoverWith(logAndRaiseError(project.show, "restart")).map(_.map(_ => ()))
+    parseOpt[Ack](msgF).recoverWith(logAndRaiseError(project.show, "restart")).map(_.map(_ => ()))
   }
 
   /**
     * Triggers restart of a composite view where the passed projection will start from the initial progress.
     *
     * @param viewId       the view unique identifier on a project
-    * @param projectionId the projection unique identifier on the target view
+    * @param sourceIdOpt     the optional source unique identifier on the target view
+    * @param projectionIdOpt the optional projection unique identifier on the target view
     * @return Some(())) if projection exists, None otherwise wrapped in [[F]]
     */
-  def restart(viewId: AbsoluteIri, projectionId: AbsoluteIri)(implicit project: Project): F[Option[Unit]] = {
-    val msgF = IO.fromFuture(IO(ref ? RestartProjection(project.uuid, viewId, projectionId))).to[F]
-    parse[Ack](msgF).recoverWith(logAndRaiseError(project.show, "restart")).map(_.map(_ => ()))
-  }
-
-  /**
-    * Triggers restart of a composite view where all the projection will start from the initial progress.
-    *
-    * @param project project to which the view belongs
-    * @param viewId       the view unique identifier on a project
-    * @return Some(())) if view exists, None otherwise wrapped in [[F]]
-    */
-  def restartProjections(viewId: AbsoluteIri)(implicit project: Project): F[Option[Unit]] = {
-    val msgF = IO.fromFuture(IO(ref ? RestartProjections(project.uuid, viewId))).to[F]
-    parse[Ack](msgF).recoverWith(logAndRaiseError(project.show, "restart")).map(_.map(_ => ()))
+  def restart(viewId: AbsoluteIri, sourceIdOpt: Option[AbsoluteIri], projectionIdOpt: Option[AbsoluteIri])(
+      implicit project: Project
+  ): F[Option[Unit]] = {
+    val msgF = IO.fromFuture(IO(ref ? RestartProjection(project.uuid, viewId, sourceIdOpt, projectionIdOpt))).to[F]
+    parseOpt[Ack](msgF).recoverWith(logAndRaiseError(project.show, "restart")).map(_.map(_ => ()))
   }
 
   /**
@@ -202,7 +180,7 @@ class ProjectViewCoordinator[F[_]](cache: Caches[F], ref: ActorRef)(
       F.delay(ref ! ProjectChanges(newProject.uuid, newProject))
     else F.unit
 
-  private def parse[A](msgF: F[Any])(implicit A: ClassTag[A], project: Project): F[Option[A]] =
+  private def parseOpt[A](msgF: F[Any])(implicit A: ClassTag[A], project: Project): F[Option[A]] =
     msgF.flatMap[Option[A]] {
       case Some(A(value)) => F.pure(Some(value))
       case None           => F.pure(None)
@@ -211,6 +189,31 @@ class ProjectViewCoordinator[F[_]](cache: Caches[F], ref: ActorRef)(
           s"Received unexpected reply from the project view coordinator actor: '$other' for project '${project.show}'."
         F.raiseError(KgError.InternalError(msg))
     }
+
+  private def parseSet[A](msgF: F[Any])(implicit SetA: ClassTag[Set[A]], project: Project): F[Set[A]] =
+    msgF.flatMap[Set[A]] {
+      case SetA(value) => F.pure(value)
+      case other =>
+        val msg =
+          s"Received unexpected reply from the project view coordinator actor: '$other' for project '${project.show}'."
+        F.raiseError(KgError.InternalError(msg))
+    }
+
+  private def fetchAllStatistics(viewId: AbsoluteIri)(implicit project: Project): F[IdStatsSet] = {
+    val msgF = IO.fromFuture(IO(ref ? FetchStatistics(project.uuid, viewId))).to[F]
+    parseSet[IdentifiedProgress[Statistics]](msgF).recoverWith(logAndRaiseError(project.show, "statistics"))
+  }
+
+  private def fetchAllOffsets(
+      viewId: AbsoluteIri
+  )(implicit project: Project): F[IdOffsetSet] = {
+    val msgF = IO.fromFuture(IO(ref ? FetchOffset(project.uuid, viewId))).to[F]
+    parseSet[IdentifiedProgress[Offset]](msgF).recoverWith(logAndRaiseError(project.show, "progress"))
+  }
+
+  private def emptyToNone[A](set: Set[A]): Option[Set[A]] =
+    if (set.isEmpty) None
+    else Some(set)
 
   private def logAndRaiseError[A](label: String, action: String): PartialFunction[Throwable, F[A]] = {
     case _: AskTimeoutException =>
@@ -230,7 +233,8 @@ object ProjectViewCoordinator {
       implicit config: AppConfig,
       as: ActorSystem,
       clients: Clients[Task],
-      P: Projections[Task, String]
+      P: Projections[Task, String],
+      projectCache: ProjectCache[Task]
   ): ProjectViewCoordinator[Task] = {
     val coordinatorRef = ProjectViewCoordinatorActor.start(resources, cache.view, None, config.cluster.shards)
     new ProjectViewCoordinator[Task](cache, coordinatorRef)

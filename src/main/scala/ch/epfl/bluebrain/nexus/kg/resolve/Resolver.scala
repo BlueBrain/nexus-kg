@@ -3,21 +3,18 @@ package ch.epfl.bluebrain.nexus.kg.resolve
 import cats.Monad
 import cats.data.EitherT
 import cats.implicits._
-import ch.epfl.bluebrain.nexus.iam.client.types.Identity._
 import ch.epfl.bluebrain.nexus.iam.client.types.{Identity, Permission}
 import ch.epfl.bluebrain.nexus.kg._
 import ch.epfl.bluebrain.nexus.kg.cache.ProjectCache
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary._
 import ch.epfl.bluebrain.nexus.kg.resolve.Resolver._
-import ch.epfl.bluebrain.nexus.kg.resources.Rejection.{InvalidResourceFormat, LabelsNotFound, ProjectsNotFound}
+import ch.epfl.bluebrain.nexus.kg.resources.ProjectIdentifier.ProjectRef
+import ch.epfl.bluebrain.nexus.kg.resources.Rejection.InvalidResourceFormat
 import ch.epfl.bluebrain.nexus.kg.resources._
 import ch.epfl.bluebrain.nexus.kg.resources.syntax._
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
-import ch.epfl.bluebrain.nexus.rdf.Vocabulary._
-import ch.epfl.bluebrain.nexus.rdf.cursor.GraphCursor
-import ch.epfl.bluebrain.nexus.rdf.instances._
 import ch.epfl.bluebrain.nexus.rdf.syntax._
-import shapeless.TypeCase
+import shapeless.{TypeCase, Typeable}
 
 /**
   * Enumeration of Resolver types.
@@ -50,35 +47,21 @@ sealed trait Resolver extends Product with Serializable {
   def priority: Int
 
   /**
-    * Attempts to convert the current resolver to a labeled resolver when required. This conversion is only targetting ''CrossProjectResolver[ProjectRef]'',
-    * returning all the other resolvers unchanged.
-    * For the case of ''CrossProjectResolver[ProjectRef]'', the conversion is successful when the the mapping ''projectRef -> projectLabel'' exists on the ''cache''
+    * Converts the ProjectRefs into ProjectLabels when found on the cache
     */
-  def labeled[F[_]](implicit projectCache: ProjectCache[F], F: Monad[F]): EitherT[F, Rejection, Resolver] =
+  def labeled[F[_]: Monad](implicit projectCache: ProjectCache[F]): EitherT[F, Rejection, Resolver] =
     this match {
-      case r @ CrossProjectResolver(_, `List[ProjectRef]`(projectRefs), _, _, _, _, _, _) =>
-        EitherT(projectCache.getProjectLabels(projectRefs).map(resultOrFailures).map {
-          case Right(result)  => Right(r.copy(projects = result.map { case (_, label) => label }.toList))
-          case Left(projects) => Left(LabelsNotFound(projects))
-        })
-      case o =>
-        EitherT.rightT(o)
+      case r: CrossProjectResolver => r.projects.traverse(_.toLabel[F]).map(labels => r.copy(projects = labels))
+      case r                       => EitherT.rightT(r)
     }
 
   /**
-    * Attempts to convert the current resolver to a referenced resolver when required. This conversion is only targetting ''CrossProjectResolver[ProjectLabel]'',
-    * returning all the other resolvers unchanged.
-    * For the case of ''CrossProjectResolver[ProjectLabel]'', the conversion is successful when the the mapping ''projectLabel -> projectRef'' exists on the ''cache''
+    * Converts the ProjectLabels into ProjectRefs when found on the cache
     */
-  def referenced[F[_]](implicit projectCache: ProjectCache[F], F: Monad[F]): EitherT[F, Rejection, Resolver] =
+  def referenced[F[_]: Monad](implicit projectCache: ProjectCache[F]): EitherT[F, Rejection, Resolver] =
     this match {
-      case r @ CrossProjectResolver(_, `List[ProjectLabel]`(projectLabels), _, _, _, _, _, _) =>
-        EitherT(projectCache.getProjectRefs(projectLabels).map(resultOrFailures).map {
-          case Right(result)  => Right(r.copy(projects = result.map { case (_, ref) => ref }.toList))
-          case Left(projects) => Left(ProjectsNotFound(projects))
-        })
-      case o =>
-        EitherT.rightT(o)
+      case r: CrossProjectResolver => r.projects.traverse(_.toRef[F]).map(refs => r.copy(projects = refs))
+      case r                       => EitherT.rightT(r)
     }
 }
 
@@ -101,47 +84,15 @@ object Resolver {
         priority <- c.downField(nxv.priority).focus.as[Int].onError(res.id.ref, nxv.priority.prefix)
       } yield InProjectResolver(id.parent, id.value, res.rev, res.deprecated, priority)
 
-    def crossProject: Either[Rejection, CrossProjectResolver[_]] = {
+    def crossProject: Either[Rejection, CrossProjectResolver] =
       // format: off
-      val result = for {
-        ids   <- identities(c.downField(nxv.identities).downSet)
-        prio  <- c.downField(nxv.priority).focus.as[Int].onError(res.id.ref, nxv.priority.prefix)
-        types <- c.downField(nxv.resourceTypes).values.asListOf[AbsoluteIri].withDefault(List.empty).map(_.toSet).onError(res.id.ref, nxv.resourceTypes.prefix)
-      } yield CrossProjectResolver(types, List.empty[String], ids, id.parent, id.value, res.rev, res.deprecated, prio)
+      for {
+        ids       <- identities(res.id, c.downField(nxv.identities).downSet)
+        prio      <- c.downField(nxv.priority).focus.as[Int].onError(res.id.ref, nxv.priority.prefix)
+        projects  <- c.downField(nxv.projects).values.asListOf[ProjectIdentifier].onError(res.id.ref, nxv.projects.prefix)
+        types     <- c.downField(nxv.resourceTypes).values.asListOf[AbsoluteIri].withDefault(List.empty).map(_.toSet).onError(res.id.ref, nxv.resourceTypes.prefix)
+      } yield CrossProjectResolver(types, projects.toList, ids, id.parent, id.value, res.rev, res.deprecated, prio)
       // format: on
-      result.flatMap { r =>
-        val nodes = c.downField(nxv.projects).values
-        nodes.asListOf[ProjectLabel].onError(res.id.ref, nxv.projects.prefix) match {
-          case Right(projectLabels) =>
-            Right(r.copy(projects = projectLabels.toList))
-          case Left(_) =>
-            nodes
-              .asListOf[ProjectRef]
-              .onError(res.id.ref, nxv.projects.prefix)
-              .map(refs => r.copy(projects = refs.toList))
-        }
-      }
-    }
-
-    def identities(iter: Iterable[GraphCursor]): Either[Rejection, List[Identity]] =
-      iter.toList.foldM(List.empty[Identity]) { (acc, innerCursor) =>
-        identity(innerCursor).map(_ :: acc)
-      }
-
-    def identity(c: GraphCursor): Either[Rejection, Identity] = {
-      lazy val anonymous =
-        c.downField(rdf.tpe).focus.as[AbsoluteIri].toOption.collectFirst { case nxv.Anonymous.value => Anonymous }
-      lazy val realm         = c.downField(nxv.realm).focus.as[String]
-      lazy val user          = (c.downField(nxv.subject).focus.as[String], realm).mapN(User.apply).toOption
-      lazy val group         = (c.downField(nxv.group).focus.as[String], realm).mapN(Group.apply).toOption
-      lazy val authenticated = realm.map(Authenticated.apply).toOption
-      (anonymous orElse user orElse group orElse authenticated).toRight(
-        InvalidResourceFormat(
-          res.id.ref,
-          "The provided payload could not be mapped to a resolver because the identity format is wrong"
-        )
-      )
-    }
 
     if (Set(nxv.Resolver.value, nxv.CrossProject.value).subsetOf(res.types)) crossProject
     else if (Set(nxv.Resolver.value, nxv.InProject.value).subsetOf(res.types)) inProject
@@ -173,17 +124,20 @@ object Resolver {
   /**
     * A resolver that can look across several projects.
     */
-  final case class CrossProjectResolver[P](
+  final case class CrossProjectResolver(
       resourceTypes: Set[AbsoluteIri],
-      projects: List[P],
+      projects: List[ProjectIdentifier],
       identities: List[Identity],
       ref: ProjectRef,
       id: AbsoluteIri,
       rev: Long,
       deprecated: Boolean,
       priority: Int
-  ) extends Resolver
+  ) extends Resolver {
 
-  private[resolve] val `List[ProjectRef]`   = TypeCase[List[ProjectRef]]
-  private[resolve] val `List[ProjectLabel]` = TypeCase[List[ProjectLabel]]
+    def projectsBy[T <: ProjectIdentifier: Typeable]: List[T] = {
+      val tpe = TypeCase[T]
+      projects.collect { case tpe(project) => project }
+    }
+  }
 }

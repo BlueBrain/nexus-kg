@@ -8,6 +8,7 @@ import ch.epfl.bluebrain.nexus.commons.http.directives.StatusFrom
 import ch.epfl.bluebrain.nexus.commons.shacl.ValidationReport
 import ch.epfl.bluebrain.nexus.kg.KgError
 import ch.epfl.bluebrain.nexus.kg.config.Contexts.errorCtxUri
+import ch.epfl.bluebrain.nexus.kg.resources.ProjectIdentifier.{ProjectLabel, ProjectRef}
 import ch.epfl.bluebrain.nexus.kg.resources.syntax._
 import ch.epfl.bluebrain.nexus.rdf.instances._
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
@@ -131,20 +132,20 @@ object Rejection {
       )
 
   /**
-    * Signals the impossibility to resolve the project reference for project labels.
+    * Signals the impossibility to resolve the project reference for project label.
     *
-    * @param labels the project labels were references were not found
+    * @param label the project label where the reference was not found
     */
-  final case class ProjectsNotFound(labels: Set[ProjectLabel])
-      extends Rejection(s"Project references for labels '${labels.map(_.show).mkString(", ")}' not found.")
+  final case class ProjectRefNotFound(label: ProjectLabel)
+      extends Rejection(s"Project reference for label '${label.show}' not found.")
 
   /**
-    * Signals the impossibility to resolve the labels for project references.
+    * Signals the impossibility to resolve the label for project references.
     *
-    * @param projects the project references where labels were not found
+    * @param project the project reference where the label was not found
     */
-  final case class LabelsNotFound(projects: Set[ProjectRef])
-      extends Rejection(s"Labels for projects with ref '${projects.map(_.show).mkString(", ")}' not found.")
+  final case class ProjectLabelNotFound(project: ProjectRef)
+      extends Rejection(s"Label for project with reference '${project.show}' not found.")
 
   /**
     * Signals an attempt to interact with a resource with an incorrect revision.
@@ -218,7 +219,8 @@ object Rejection {
     * Signals that the logged caller does not have one of the provided identities
     *
     */
-  final case class InvalidIdentity(reason: String) extends Rejection(reason)
+  final case class InvalidIdentity(reason: String = "The caller doesn't have some of the provided identities")
+      extends Rejection(reason)
 
   /**
     * Constructs a Rejection from a [[ch.epfl.bluebrain.nexus.rdf.jena.JenaModel.JenaModelErr]].
@@ -272,10 +274,10 @@ object Rejection {
     case NoStatsForAggregateView     => StatusCodes.BadRequest
     case _: UnexpectedState          => StatusCodes.InternalServerError
     case ArchiveElementNotFound      => StatusCodes.NotFound
-    case _: LabelsNotFound           => StatusCodes.NotFound
+    case _: ProjectLabelNotFound     => StatusCodes.NotFound
     case _: NotFound                 => StatusCodes.NotFound
     case _: ProjectNotFound          => StatusCodes.NotFound
-    case _: ProjectsNotFound         => StatusCodes.NotFound
+    case _: ProjectRefNotFound       => StatusCodes.NotFound
     case _: IncorrectRev             => StatusCodes.Conflict
     case _: ResourceAlreadyExists    => StatusCodes.Conflict
     case _: FileDigestAlreadyExists  => StatusCodes.Conflict

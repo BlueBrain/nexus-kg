@@ -109,14 +109,13 @@ class SchemaRoutesSpec
   //noinspection NameBooleanParameters
   abstract class Context(perms: Set[Permission] = manageResolver) extends RoutesFixtures {
 
-    projectCache.getBy(label) shouldReturn Task.pure(Some(projectMeta))
+    projectCache.get(label) shouldReturn Task.pure(Some(projectMeta))
     projectCache.getLabel(projectRef) shouldReturn Task.pure(Some(label))
     projectCache.get(projectRef) shouldReturn Task.pure(Some(projectMeta))
 
     iamClient.identities shouldReturn Task.pure(Caller(user, Set(Anonymous)))
     val acls = AccessControlLists(/ -> resourceAcls(AccessControlList(Anonymous -> perms)))
     iamClient.acls(any[Path], any[Boolean], any[Boolean])(any[Option[AuthToken]]) shouldReturn Task.pure(acls)
-    projectCache.getProjectLabels(Set(projectRef)) shouldReturn Task.pure(Map(projectRef -> Some(label)))
 
     val schema = jsonContentOf("/schemas/simple.json") deepMerge Json
       .obj("@id" -> Json.fromString(id.value.show))

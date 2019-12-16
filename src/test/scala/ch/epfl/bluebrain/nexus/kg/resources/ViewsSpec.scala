@@ -30,6 +30,7 @@ import ch.epfl.bluebrain.nexus.kg.indexing.View
 import ch.epfl.bluebrain.nexus.kg.indexing.View.{ElasticSearchView, Filter}
 import ch.epfl.bluebrain.nexus.kg.indexing.ViewEncoder._
 import ch.epfl.bluebrain.nexus.kg.resolve.{Materializer, ProjectResolution, Resolver, StaticResolution}
+import ch.epfl.bluebrain.nexus.kg.resources.ProjectIdentifier.{ProjectLabel, ProjectRef}
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection._
 import ch.epfl.bluebrain.nexus.kg.resources.ResourceF.Value
 import ch.epfl.bluebrain.nexus.kg.resources.syntax._
@@ -77,21 +78,20 @@ class ViewsSpec
   private implicit val clock: Clock          = Clock.fixed(Instant.ofEpochSecond(3600), ZoneId.systemDefault())
   private implicit val ctx: ContextShift[IO] = IO.contextShift(ExecutionContext.global)
   private implicit val timer: Timer[IO]      = IO.timer(ExecutionContext.global)
-
-  private implicit val repo          = Repo[IO].ioValue
-  private implicit val projectCache  = mock[ProjectCache[IO]]
-  private implicit val viewCache     = mock[ViewCache[IO]]
-  private implicit val sparqlClient  = mock[BlazegraphClient[IO]]
-  private implicit val adminClient   = mock[AdminClient[IO]]
-  private implicit val iamClient     = mock[IamClient[IO]]
-  private implicit val storageClient = mock[StorageClient[IO]]
-  private implicit val rsearchClient = mock[HttpClient[IO, QueryResults[Json]]]
-  private implicit val taskJson      = mock[HttpClient[Task, Json]]
-  private implicit val untyped       = HttpClient.untyped[Task]
-  private implicit val esClient      = mock[ElasticSearchClient[IO]]
-  private val aclsCache              = mock[AclsCache[IO]]
-  private implicit val resolverCache = mock[ResolverCache[IO]]
-  private implicit val clients       = Clients()
+  private implicit val repo                  = Repo[IO].ioValue
+  private implicit val projectCache          = mock[ProjectCache[IO]]
+  private implicit val viewCache             = mock[ViewCache[IO]]
+  private implicit val sparqlClient          = mock[BlazegraphClient[IO]]
+  private implicit val adminClient           = mock[AdminClient[IO]]
+  private implicit val iamClient             = mock[IamClient[IO]]
+  private implicit val storageClient         = mock[StorageClient[IO]]
+  private implicit val rsearchClient         = mock[HttpClient[IO, QueryResults[Json]]]
+  private implicit val taskJson              = mock[HttpClient[Task, Json]]
+  private implicit val untyped               = HttpClient.untyped[Task]
+  private implicit val esClient              = mock[ElasticSearchClient[IO]]
+  private val aclsCache                      = mock[AclsCache[IO]]
+  private implicit val resolverCache         = mock[ResolverCache[IO]]
+  private implicit val clients               = Clients()
 
   private val resolution =
     new ProjectResolution(repo, resolverCache, projectCache, StaticResolution[IO](iriResolution), mock[AclsCache[IO]])
@@ -99,16 +99,13 @@ class ViewsSpec
 
   resolverCache.get(any[ProjectRef]) shouldReturn IO.pure(List.empty[Resolver])
   // format: off
-  val project1 = Project(genIri, genString(), genString(), None, genIri, genIri, Map.empty, genUUID, genUUID, 1L, deprecated = false, Instant.EPOCH, genIri, Instant.EPOCH, genIri)
-  val project2 = Project(genIri, genString(), genString(), None, genIri, genIri, Map.empty, genUUID, genUUID, 1L, deprecated = false, Instant.EPOCH, genIri, Instant.EPOCH, genIri)
+  val project1 = Project(genIri, genString(), genString(), None, genIri, genIri, Map.empty, UUID.fromString("64b202b4-1060-42b5-9b4f-8d6a9d0d9113"), genUUID, 1L, deprecated = false, Instant.EPOCH, genIri, Instant.EPOCH, genIri)
+  val project2 = Project(genIri, genString(), genString(), None, genIri, genIri, Map.empty, UUID.fromString("d23d9578-255b-4e46-9e65-5c254bc9ad0a"), genUUID, 1L, deprecated = false, Instant.EPOCH, genIri, Instant.EPOCH, genIri)
   // format: on
-  projectCache.getBy(ProjectLabel("account1", "project1")) shouldReturn IO.pure(Some(project1))
-  projectCache.getBy(ProjectLabel("account1", "project2")) shouldReturn IO.pure(Some(project2))
+  projectCache.get(ProjectLabel("account1", "project1")) shouldReturn IO.pure(Some(project1))
+  projectCache.get(ProjectLabel("account1", "project2")) shouldReturn IO.pure(Some(project2))
   val label1 = ProjectLabel("account1", "project1")
   val label2 = ProjectLabel("account1", "project2")
-  projectCache.getProjectRefs(Set(label1, label2)) shouldReturn IO.pure(
-    Map(label1 -> Option(project1.ref), label2 -> Option(project2.ref))
-  )
 
   private val views: Views[IO] = Views[IO]
 
@@ -143,11 +140,11 @@ class ViewsSpec
       AccessControlLists(/ -> resourceAcls(AccessControlList(caller.subject -> Set(View.write, View.query))))
 
     def matchesIgnoreId(that: View): View => Boolean = {
-      case view: View.AggregateElasticSearchView[_] => view.copy(uuid = that.uuid) == that
-      case view: View.AggregateSparqlView[_]        => view.copy(uuid = that.uuid) == that
-      case view: ElasticSearchView                  => view.copy(uuid = that.uuid) == that
-      case view: View.SparqlView                    => view.copy(uuid = that.uuid) == that
-      case view: View.CompositeView                 => view.copy(uuid = that.uuid) == that
+      case view: View.AggregateElasticSearchView => view.copy(uuid = that.uuid) == that
+      case view: View.AggregateSparqlView        => view.copy(uuid = that.uuid) == that
+      case view: ElasticSearchView               => view.copy(uuid = that.uuid) == that
+      case view: View.SparqlView                 => view.copy(uuid = that.uuid) == that
+      case view: View.CompositeView              => view.copy(uuid = that.uuid) == that
     }
 
   }
@@ -261,26 +258,31 @@ class ViewsSpec
       }
 
       "prevent creating an AggregatedElasticSearchView when project not found in the cache" in new Base {
-        val label1 = ProjectLabel("account2", "project1")
-        val label2 = ProjectLabel("account2", "project2")
-        projectCache.getProjectRefs(Set(label1, label2)) shouldReturn IO(Map(label1 -> None, label2 -> None))
+        val label1      = ProjectLabel("account2", "project1")
+        val label2      = ProjectLabel("account2", "project2")
+        val ref2        = ProjectRef(genUUID)
+        val project2Mod = project1.copy(label = label2.value, organizationLabel = label2.organization, uuid = ref2.id)
+        projectCache.get(label1) shouldReturn IO(None)
+        projectCache.get(label2) shouldReturn IO(Some(project2Mod))
         val json = viewFrom(jsonContentOf("/view/aggelasticview-2.json"))
-        views.create(json).value.rejected[ProjectsNotFound] shouldEqual ProjectsNotFound(Set(label1, label2))
+        views.create(json).value.rejected[ProjectRefNotFound] shouldEqual ProjectRefNotFound(label1)
       }
 
       "prevent creating an AggregatedElasticSearchView when view not found in the cache" in new Base {
-        val label1 = ProjectLabel("account2", "project1")
-        val label2 = ProjectLabel("account2", "project2")
-        val ref1   = ProjectRef(genUUID)
-        val ref2   = ProjectRef(genUUID)
-        projectCache.getProjectRefs(Set(label1, label2)) shouldReturn IO(
-          Map(label1 -> Some(ref1), label2 -> Some(ref2))
-        )
+        val label1      = ProjectLabel("account2", "project1")
+        val label2      = ProjectLabel("account2", "project2")
+        val ref1        = ProjectRef(genUUID)
+        val ref2        = ProjectRef(genUUID)
+        val project1Mod = project1.copy(label = label1.value, organizationLabel = label1.organization, uuid = ref1.id)
+        val project2Mod = project1.copy(label = label2.value, organizationLabel = label2.organization, uuid = ref2.id)
+        projectCache.get(label1) shouldReturn IO(Some(project1Mod))
+        projectCache.get(label2) shouldReturn IO(Some(project2Mod))
+
         viewCache.get(ref1) shouldReturn IO(Set.empty[View])
         viewCache.get(ref2) shouldReturn IO(Set.empty[View])
 
         val json = viewFrom(jsonContentOf("/view/aggelasticview-2.json"))
-        views.create(json).value.rejected[NotFound] shouldEqual NotFound(url"http://example.com/id4".value.ref)
+        views.create(json).value.rejected[NotFound]
       }
 
       "prevent creating a view with the id passed on the call not matching the @id on the payload" in new EsViewMocked {

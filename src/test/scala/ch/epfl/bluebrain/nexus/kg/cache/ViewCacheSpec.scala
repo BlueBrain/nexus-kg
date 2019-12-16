@@ -10,9 +10,9 @@ import ch.epfl.bluebrain.nexus.kg.config.Vocabulary.nxv
 import ch.epfl.bluebrain.nexus.kg.config.{AppConfig, Settings}
 import ch.epfl.bluebrain.nexus.kg.indexing.View
 import ch.epfl.bluebrain.nexus.kg.indexing.View.CompositeView.Projection.{ElasticSearchProjection, SparqlProjection}
-import ch.epfl.bluebrain.nexus.kg.indexing.View.CompositeView.Source
+import ch.epfl.bluebrain.nexus.kg.indexing.View.CompositeView.Source.ProjectEventStream
 import ch.epfl.bluebrain.nexus.kg.indexing.View._
-import ch.epfl.bluebrain.nexus.kg.resources.{ProjectLabel, ProjectRef}
+import ch.epfl.bluebrain.nexus.kg.resources.ProjectIdentifier.{ProjectLabel, ProjectRef}
 import io.circe.Json
 import monix.eval.Task
 import monix.execution.Scheduler.Implicits.global
@@ -69,7 +69,7 @@ class ViewCacheSpec
   val sparqlViewsProj2: Set[SparqlView] =
     List.fill(5)(sparqlView.copy(id = genIri + "sparql2", uuid = genUUID, ref = ref2)).toSet
   val compositeView = CompositeView(
-    Source(Filter(), false),
+    Set(ProjectEventStream(genIri, genUUID, Filter(), includeMetadata = false)),
     Set(ElasticSearchProjection("", esViewsProj1.head, Json.obj()), SparqlProjection("", sparqlViewsProj1.head)),
     None,
     ref1,
@@ -113,7 +113,7 @@ class ViewCacheSpec
       cache.getProjectionBy[SparqlView](ref1, compositeView.id, sparqlView.id).runToFuture.futureValue shouldEqual
         Some(sparqlView)
       cache.getProjectionBy[SparqlView](ref1, compositeView.id, defaultView.id).runToFuture.futureValue shouldEqual
-        Some(defaultView)
+        None
     }
 
     "list views" in {
@@ -138,13 +138,13 @@ class ViewCacheSpec
       val serialization = new Serialization(system.asInstanceOf[ExtendedActorSystem])
       "parameterized with ProjectRef" in {
         val bytes = serialization.serialize(aggRefsView).success.value
-        val out   = serialization.deserialize(bytes, classOf[AggregateElasticSearchView[ProjectRef]]).success.value
+        val out   = serialization.deserialize(bytes, classOf[AggregateElasticSearchView]).success.value
         out shouldEqual aggRefsView
       }
 
       "parameterized with ProjectLabel" in {
         val bytes = serialization.serialize(aggLabelsView).success.value
-        val out   = serialization.deserialize(bytes, classOf[AggregateElasticSearchView[ProjectLabel]]).success.value
+        val out   = serialization.deserialize(bytes, classOf[AggregateElasticSearchView]).success.value
         out shouldEqual aggLabelsView
       }
     }

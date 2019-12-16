@@ -14,17 +14,20 @@ import ch.epfl.bluebrain.nexus.commons.search.QueryResults.UnscoredQueryResults
 import ch.epfl.bluebrain.nexus.commons.sparql.client.{BlazegraphClient, SparqlResults}
 import ch.epfl.bluebrain.nexus.commons.test.io.IOValues
 import ch.epfl.bluebrain.nexus.commons.test.{CirceEq, Resources}
+import ch.epfl.bluebrain.nexus.iam.client.config.IamClientConfig
 import ch.epfl.bluebrain.nexus.kg.TestHelper
 import ch.epfl.bluebrain.nexus.kg.config.Contexts._
-import ch.epfl.bluebrain.nexus.kg.config.Settings
+import ch.epfl.bluebrain.nexus.kg.config.{AppConfig, Settings}
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary._
 import ch.epfl.bluebrain.nexus.kg.indexing.View.CompositeView.Projection.{ElasticSearchProjection, SparqlProjection}
+import ch.epfl.bluebrain.nexus.kg.indexing.View.CompositeView.Source.ProjectEventStream
 import ch.epfl.bluebrain.nexus.kg.indexing.View.CompositeView.{Interval, Projection, Source}
 import ch.epfl.bluebrain.nexus.kg.indexing.View._
 import ch.epfl.bluebrain.nexus.kg.indexing.View.Filter
 import ch.epfl.bluebrain.nexus.kg.indexing.ViewEncoder._
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection.InvalidResourceFormat
-import ch.epfl.bluebrain.nexus.kg.resources.{Id, ProjectLabel, ProjectRef}
+import ch.epfl.bluebrain.nexus.kg.resources.Id
+import ch.epfl.bluebrain.nexus.kg.resources.ProjectIdentifier.{ProjectLabel, ProjectRef}
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import ch.epfl.bluebrain.nexus.rdf.syntax._
 import io.circe.Json
@@ -50,22 +53,25 @@ class ViewSpec
     with ArgumentMatchersSugar
     with IOValues {
 
-  private implicit val clock = Clock.fixed(Instant.ofEpochSecond(3600), ZoneId.systemDefault())
-
-  private implicit val appConfig = Settings(system).appConfig
-  implicit val timer             = IO.timer(system.dispatcher)
-
-  private implicit val client: BlazegraphClient[IO] = mock[BlazegraphClient[IO]]
+  private implicit val clock: Clock                     = Clock.fixed(Instant.ofEpochSecond(3600), ZoneId.systemDefault())
+  private implicit val appConfig: AppConfig             = Settings(system).appConfig
+  private implicit val iamClientConfig: IamClientConfig = IamClientConfig(genIri, genIri, "prefix")
+  private implicit val client: BlazegraphClient[IO]     = mock[BlazegraphClient[IO]]
 
   "A View" when {
 
     def compositeview(
         id1: AbsoluteIri = url"http://example.com/es".value,
-        id2: AbsoluteIri = url"http://example.com/sparql".value
+        id2: AbsoluteIri = url"http://example.com/sparql".value,
+        source1Id: AbsoluteIri = url"http://example.com/source1".value
     ) =
       jsonContentOf(
         "/view/composite-view.json",
-        Map(quote("{projection1_id}") -> id1.asString, quote("{projection2_id}") -> id2.asString)
+        Map(
+          quote("{projection1_id}") -> id1.asString,
+          quote("{projection2_id}") -> id2.asString,
+          quote("{source1_id}")     -> source1Id.asString
+        )
       ).appendContextOf(viewCtx)
 
     val mapping              = jsonContentOf("/elasticsearch/mapping.json")
@@ -85,8 +91,15 @@ class ViewSpec
       "@base"  -> Json.fromString("http://example.com/base/"),
       "@vocab" -> Json.fromString("http://example.com/vocab/")
     )
-
-    val source = Source(Filter(Set(nxv.Resource, nxv.Schema), Set(tpe1, tpe2), Some("one")), includeMetadata = true)
+    val sourceFilter = Filter(Set(nxv.Resource, nxv.Schema), Set(tpe1, tpe2), Some("one"))
+    val source: Set[Source] = Set(
+      ProjectEventStream(
+        url"http://example.com/source1".value,
+        UUID.fromString("247d223b-1d38-4c6e-8fed-f9a8c2ccb4a3"),
+        sourceFilter,
+        includeMetadata = true
+      )
+    )
     val esProjection = ElasticSearchProjection(
       "CONSTRUCT {{resource_id} ?p ?o} WHERE {?s ?p ?o}",
       ElasticSearchView(

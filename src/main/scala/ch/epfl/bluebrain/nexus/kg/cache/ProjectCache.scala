@@ -9,7 +9,8 @@ import cats.implicits._
 import ch.epfl.bluebrain.nexus.admin.client.types.Project
 import ch.epfl.bluebrain.nexus.commons.cache.{KeyValueStore, KeyValueStoreConfig}
 import ch.epfl.bluebrain.nexus.kg.resources.syntax._
-import ch.epfl.bluebrain.nexus.kg.resources.{OrganizationRef, ProjectLabel, ProjectRef}
+import ch.epfl.bluebrain.nexus.kg.resources.{OrganizationRef, ProjectIdentifier}
+import ch.epfl.bluebrain.nexus.kg.resources.ProjectIdentifier._
 
 /**
   * The project cache backed by a KeyValueStore using akka Distributed Data
@@ -24,19 +25,15 @@ class ProjectCache[F[_]] private (store: KeyValueStore[F, UUID, Project])(implic
   }
 
   /**
-    * Attempts to fetch the project resource with the provided ''label''
+    * Attempts to fetch the project with the provided ''identifier''
     *
-    * @param label the organization and project labels
+    * @param identifier the project unique reference
     */
-  def getBy(label: ProjectLabel): F[Option[Project]] =
-    store.findValue(p => p.projectLabel == label)
-
-  /**
-    * Attempts to fetch the project with the provided ''ref''
-    *
-    * @param ref the project unique reference
-    */
-  def get(ref: ProjectRef): F[Option[Project]] = super.get(ref.id)
+  def get(identifier: ProjectIdentifier): F[Option[Project]] =
+    identifier match {
+      case label: ProjectLabel => store.findValue(_.projectLabel == label)
+      case ref: ProjectRef     => super.get(ref.id)
+    }
 
   /**
     * Attempts to fetch the project with the provided ''ref'' and ''orgRef''
@@ -54,22 +51,6 @@ class ProjectCache[F[_]] private (store: KeyValueStore[F, UUID, Project])(implic
     */
   def getLabel(ref: ProjectRef): F[Option[ProjectLabel]] =
     get(ref.id).map(_.map(project => project.projectLabel))
-
-  /**
-    * Attempts to convert the set of ''ProjectRef'' to ''ProjectLabel'' looking up at each ref.
-    *
-    * @param refs the set of ''ProjectRef''
-    */
-  def getProjectLabels(refs: Iterable[ProjectRef]): F[Map[ProjectRef, Option[ProjectLabel]]] =
-    refs.toList.traverse(ref => getLabel(ref).map(ref -> _)).map(_.toMap)
-
-  /**
-    * Attempts to convert the set of ''ProjectLabel'' to ''ProjectRef'' looking up at each label.
-    *
-    * @param labels the set of ''ProjectLabel''
-    */
-  def getProjectRefs(labels: Iterable[ProjectLabel]): F[Map[ProjectLabel, Option[ProjectRef]]] =
-    labels.toList.traverse(label => getBy(label).map(label -> _.map(_.ref))).map(_.toMap)
 
   /**
     * Fetches all the projects that belong to the provided organization

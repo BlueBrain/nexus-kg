@@ -10,7 +10,7 @@ import ch.epfl.bluebrain.nexus.kg.resolve.Resolver._
 import ch.epfl.bluebrain.nexus.rdf.Graph.Triple
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import ch.epfl.bluebrain.nexus.rdf.Node._
-import ch.epfl.bluebrain.nexus.rdf.{Graph, Node, RootedGraph}
+import ch.epfl.bluebrain.nexus.rdf.{Graph, RootedGraph}
 import ch.epfl.bluebrain.nexus.rdf.Node.literal
 import ch.epfl.bluebrain.nexus.rdf.Vocabulary._
 import ch.epfl.bluebrain.nexus.rdf.encoder.GraphEncoder.EncoderResult
@@ -27,15 +27,9 @@ object ResolverEncoder {
   implicit def resolverGraphEncoder(implicit config: IamClientConfig): GraphEncoder[Id, Resolver] =
     GraphEncoder {
       case (rootNode, r: InProjectResolver) => RootedGraph(rootNode, r.mainTriples(nxv.InProject))
-      case (rootNode, r @ CrossProjectResolver(resTypes, _, identities, _, _, _, _, _)) =>
-        val projectsLiteral: List[Node] = r match {
-          case CrossProjectResolver(_, `List[ProjectRef]`(projects), _, _, _, _, _, _) =>
-            projects.map(p => literal(p.show))
-          case CrossProjectResolver(_, `List[ProjectLabel]`(projects), _, _, _, _, _, _) =>
-            projects.map(p => literal(p.show))
-        }
+      case (rootNode, r @ CrossProjectResolver(resTypes, projects, identities, _, _, _, _, _)) =>
         val triples = r.mainTriples(nxv.CrossProject) ++ r.triplesFor(identities) ++ r.triplesFor(resTypes)
-        val graph   = Graph(triples).add(rootNode, nxv.projects, projectsLiteral)
+        val graph   = Graph(triples).add(rootNode, nxv.projects, projects.map(_.show).map(literal))
         RootedGraph(rootNode, graph)
     }
 

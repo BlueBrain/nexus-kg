@@ -2,7 +2,7 @@ package ch.epfl.bluebrain.nexus.kg.resources
 
 import java.util.UUID
 
-import cats.data.EitherT
+import cats.data.{EitherT, OptionT}
 import cats.effect.Effect
 import cats.implicits._
 import cats.{Id => CId}
@@ -16,13 +16,16 @@ import ch.epfl.bluebrain.nexus.iam.client.types.Identity.Subject
 import ch.epfl.bluebrain.nexus.iam.client.types.{AccessControlLists, Caller}
 import ch.epfl.bluebrain.nexus.kg.cache.{ProjectCache, ViewCache}
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig
+import ch.epfl.bluebrain.nexus.kg.config.AppConfig._
 import ch.epfl.bluebrain.nexus.kg.config.Contexts._
 import ch.epfl.bluebrain.nexus.kg.config.Schemas._
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary._
 import ch.epfl.bluebrain.nexus.kg.indexing.View
-import ch.epfl.bluebrain.nexus.kg.indexing.View.{AggregateView, ElasticSearchView, SparqlView}
+import ch.epfl.bluebrain.nexus.kg.indexing.View._
+import ch.epfl.bluebrain.nexus.kg.indexing.View.CompositeView.Source.CrossProjectEventStream
 import ch.epfl.bluebrain.nexus.kg.indexing.ViewEncoder._
 import ch.epfl.bluebrain.nexus.kg.resolve.Materializer
+import ch.epfl.bluebrain.nexus.kg.resources.ProjectIdentifier.ProjectRef
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection.NotFound._
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection._
 import ch.epfl.bluebrain.nexus.kg.resources.ResourceF.Value
@@ -64,9 +67,11 @@ class Views[F[_]](repo: Repo[F])(
     * @return either a rejection or the newly created resource in the F context
     */
   def create(source: Json)(implicit acls: AccessControlLists, caller: Caller, project: Project): RejOrResource[F] =
-    materializer(transformSave(source)).flatMap {
-      case (id, Value(_, _, graph)) => create(Id(project.ref, id), graph)
-    }
+    for {
+      materialized <- materializer(transformSave(source))
+      (id, value) = materialized
+      created <- create(Id(project.ref, id), value.graph)
+    } yield created
 
   /**
     * Creates a new view.
@@ -291,8 +296,23 @@ class Views[F[_]](repo: Repo[F])(
       ResourceF.simpleV(resId, Value(Json.obj(), Json.obj(), graph), rev = rev, types = types, schema = viewRef)
     EitherT.fromEither[F](View(resource)).flatMap {
       case es: ElasticSearchView => validateElasticSearchMappings(resId, es).map(_ => es)
-      case agg: AggregateView[_] => agg.referenced[F](caller, acls)
-      case view                  => EitherT.rightT(view)
+      case agg: AggregateView =>
+        agg.referenced[F].flatMap {
+          case v: AggregateView =>
+            val viewRefs = v.value.collect { case ViewRef(projectRef: ProjectRef, viewId) => projectRef -> viewId }
+            val eitherFoundViews = viewRefs.toList.traverse {
+              case (projectRef, viewId) =>
+                OptionT(viewCache.get(projectRef).map(_.find(_.id == viewId))).toRight(notFound(viewId.ref))
+            }
+            eitherFoundViews.map(_ => v)
+          case v => EitherT.rightT(v)
+        }
+
+      case view: CompositeView =>
+        val identities = view.sourcesBy[CrossProjectEventStream].toSeq.flatMap(_.identities)
+        if (identities.foundInCaller) view.referenced[F]
+        else EitherT.leftT[F, View](InvalidIdentity())
+      case view => view.referenced[F]
     }
   }
 
@@ -310,21 +330,33 @@ class Views[F[_]](repo: Repo[F])(
   private def transformSave(source: Json, uuidField: String = uuid())(implicit project: Project): Json = {
     val transformed = source.addContext(viewCtxUri) deepMerge Json.obj(nxv.uuid.prefix -> Json.fromString(uuidField))
     val withMapping = toText(transformed, nxv.mapping.prefix)
-    withMapping.hcursor
+    val projectionsTransform = withMapping.hcursor
       .get[Vector[Json]](nxv.projections.prefix)
       .map { projections =>
         val pTransformed = projections.map { projection =>
           val flattened = toText(projection, nxv.mapping.prefix, nxv.context.prefix)
-          addIfMissing(flattened, "@id", generateId(project.base)) deepMerge Json
-            .obj(nxv.uuid.prefix -> UUID.randomUUID().toString.asJson)
+          val withId    = addIfMissing(flattened, "@id", generateId(project.base))
+          addIfMissing(withId, nxv.uuid.prefix, UUID.randomUUID().toString)
         }
         withMapping deepMerge Json.obj(nxv.projections.prefix -> pTransformed.asJson)
       }
       .getOrElse(withMapping)
+
+    projectionsTransform.hcursor
+      .get[Vector[Json]](nxv.sources.prefix)
+      .map { sources =>
+        val sourceTransformed = sources.map { source =>
+          val withId = addIfMissing(source, "@id", generateId(project.base))
+          addIfMissing(withId, nxv.uuid.prefix, UUID.randomUUID().toString)
+        }
+        projectionsTransform deepMerge Json.obj(nxv.sources.prefix -> sourceTransformed.asJson)
+      }
+      .getOrElse(projectionsTransform)
+
   }
 
-  private def addIfMissing[A: Encoder](json: Json, field: String, value: A): Json =
-    if (json.hcursor.downField(field).succeeded) json else json deepMerge Json.obj(field -> value.asJson)
+  private def addIfMissing[A: Encoder](json: Json, key: String, value: A): Json =
+    if (json.hcursor.downField(key).succeeded) json else json deepMerge Json.obj(key -> value.asJson)
 
   private def toText(json: Json, fields: String*) =
     fields.foldLeft(json) { (acc, field) =>
@@ -337,21 +369,17 @@ class Views[F[_]](repo: Repo[F])(
   private def extractUuidFrom(source: Json): String =
     source.hcursor.get[String](nxv.uuid.prefix).getOrElse(uuid())
 
-  private def outputResource(originalResource: ResourceV)(implicit project: Project): EitherT[F, Rejection, ResourceV] =
-    View(originalResource) match {
-      case Right(view) =>
-        view.labeled.flatMap { labeledView =>
-          val graph = labeledView.asGraph[CId]
-          val value =
-            Value(
-              originalResource.value.source,
-              viewCtx.contextValue,
-              RootedGraph(graph.rootNode, graph.triples ++ originalResource.metadata())
-            )
-          EitherT.rightT(originalResource.copy(value = value))
-        }
-      case _ => EitherT.rightT(originalResource)
+  private def outputResource(
+      originalResource: ResourceV
+  )(implicit project: Project): EitherT[F, Rejection, ResourceV] = {
+
+    def toGraph(v: View): EitherT[F, Rejection, ResourceF[Value]] = {
+      val graph  = v.asGraph[CId]
+      val rooted = RootedGraph(graph.rootNode, graph.triples ++ originalResource.metadata())
+      EitherT.rightT(originalResource.copy(value = Value(originalResource.value.source, viewCtx.contextValue, rooted)))
     }
+    View(originalResource).map(_.labeled[F].flatMap(toGraph)).getOrElse(EitherT.rightT(originalResource))
+  }
 }
 
 object Views {
@@ -385,7 +413,7 @@ object Views {
 
   private def fromText(json: Json, fields: String*) =
     fields.foldLeft(json) { (acc, field) =>
-      acc.hcursor.get[String](field).flatMap(parse(_)) match {
+      acc.hcursor.get[String](field).flatMap(parse) match {
         case Right(parsed) => acc deepMerge Json.obj(field -> parsed)
         case _             => acc
       }

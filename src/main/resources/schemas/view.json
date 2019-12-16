@@ -58,7 +58,14 @@
           "path": "nxv:sources",
           "name": "Sources",
           "description": "The set of sources.",
-          "node": "this:SourceShape"
+          "or": [
+            {
+              "node": "this:ProjectEventStreamShape"
+            },
+            {
+              "node": "this:CrossProjectEventStreamShape"
+            }
+          ]
         },
         {
           "path": "nxv:rebuildStrategy",
@@ -84,8 +91,8 @@
       ]
     },
     {
-      "@id": "this:SourceShape",
-      "nodeKind": "sh:BlankNode",
+      "@id": "this:ProjectEventStreamShape",
+      "nodeKind": "sh:BlankNodeOrIRI",
       "sh:closed": true,
       "property": [
         {
@@ -96,6 +103,14 @@
           "sh:hasValue": {
             "@id": "nxv:ProjectEventStream"
           }
+        },
+        {
+          "path": "nxv:uuid",
+          "name": "UUID",
+          "description": "The underlying uuid generated for this source.",
+          "datatype": "xsd:string",
+          "pattern": "^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89aAbB][a-f0-9]{3}-[a-f0-9]{12}$",
+          "minCount": 1
         },
         {
           "path": "nxv:resourceTypes",
@@ -126,6 +141,96 @@
           "name": "Include deprecated",
           "description": "flag to include or exclude deprecated resources on the indexed Document",
           "datatype": "xsd:boolean"
+        }
+      ]
+    },
+    {
+      "@id": "this:CrossProjectEventStreamShape",
+      "nodeKind": "sh:BlankNodeOrIRI",
+      "sh:closed": true,
+      "property": [
+        {
+          "path": "rdf:type",
+          "name": "RDF type CrossProjectEventStream",
+          "description": "The CrossProjectEventStream source RDF type.",
+          "nodeKind": "sh:IRI",
+          "sh:hasValue": {
+            "@id": "nxv:CrossProjectEventStream"
+          }
+        },
+        {
+          "path": "nxv:uuid",
+          "name": "UUID",
+          "description": "The underlying uuid generated for this source.",
+          "datatype": "xsd:string",
+          "pattern": "^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89aAbB][a-f0-9]{3}-[a-f0-9]{12}$",
+          "minCount": 1
+        },
+        {
+          "path": "nxv:resourceTypes",
+          "name": "Resource types",
+          "description": "The set of types absolute iris used in the view.",
+          "nodeKind": "sh:IRI"
+        },
+        {
+          "path": "nxv:resourceSchemas",
+          "name": "Resource schemas",
+          "description": "The set of schemas absolute iris used in the view.",
+          "nodeKind": "sh:IRI"
+        },
+        {
+          "path": "nxv:resourceTag",
+          "name": "Resource tag",
+          "description": "The tag for which indexing will be triggered",
+          "datatype": "xsd:string"
+        },
+        {
+          "path": "nxv:includeMetadata",
+          "name": "Include metadata",
+          "description": "flag to include or exclude metadata on the indexed Document",
+          "datatype": "xsd:boolean"
+        },
+        {
+          "path": "nxv:includeDeprecated",
+          "name": "Include deprecated",
+          "description": "flag to include or exclude deprecated resources on the indexed Document",
+          "datatype": "xsd:boolean"
+        },
+        {
+          "path": "nxv:project",
+          "name": "UUID",
+          "description": "The project label.",
+          "datatype": "xsd:string",
+          "minCount": 1
+        },
+        {
+          "path": "nxv:identities",
+          "name": "User identities",
+          "description": "The identities used to enforce security into this source.",
+          "minCount": 1,
+          "or": [
+            {
+              "node": "this:GroupIdentityShape"
+            },
+            {
+              "node": "this:GroupIdentityShapeWithType"
+            },
+            {
+              "node": "this:UserIdentityShape"
+            },
+            {
+              "node": "this:UserIdentityShapeWithType"
+            },
+            {
+              "node": "this:AuthenticatedIdentityShape"
+            },
+            {
+              "node": "this:AuthenticatedIdentityShapeWithType"
+            },
+            {
+              "node": "this:AnonymousIdentityShape"
+            }
+          ]
         }
       ]
     },
@@ -510,6 +615,186 @@
           "nodeKind": "sh:IRI",
           "minCount": 1,
           "maxCount": 1
+        }
+      ]
+    },
+    {
+      "@id": "this:GroupIdentityShape",
+      "@type": "sh:NodeShape",
+      "nodeKind": "sh:BlankNode",
+      "sh:closed": true,
+      "property": [
+        {
+          "path": "nxv:realm",
+          "name": "Realm",
+          "description": "The OIDC Provider realm.",
+          "datatype": "xsd:string",
+          "minCount": 1,
+          "maxCount": 1
+        },
+        {
+          "path": "nxv:group",
+          "name": "Group",
+          "description": "The OIDC Provider group.",
+          "datatype": "xsd:string",
+          "minCount": 1,
+          "maxCount": 1
+        }
+      ]
+    },
+    {
+      "@id": "this:GroupIdentityShapeWithType",
+      "@type": "sh:NodeShape",
+      "nodeKind": "sh:BlankNode",
+      "sh:closed": true,
+      "property": [
+        {
+          "path": "rdf:type",
+          "name": "RDF types",
+          "description": "The rdf types.",
+          "nodeKind": "sh:IRI",
+          "minCount": 1,
+          "maxCount": 1,
+          "sh:hasValue": {
+            "@id": "nxv:Group"
+          }
+        },
+        {
+          "path": "nxv:realm",
+          "name": "Realm",
+          "description": "The OIDC Provider realm.",
+          "datatype": "xsd:string",
+          "minCount": 1,
+          "maxCount": 1
+        },
+        {
+          "path": "nxv:group",
+          "name": "Group",
+          "description": "The OIDC Provider group.",
+          "datatype": "xsd:string",
+          "minCount": 1,
+          "maxCount": 1
+        }
+      ]
+    },
+    {
+      "@id": "this:UserIdentityShape",
+      "@type": "sh:NodeShape",
+      "nodeKind": "sh:BlankNode",
+      "sh:closed": true,
+      "property": [
+        {
+          "path": "nxv:realm",
+          "name": "Realm",
+          "description": "The OIDC Provider realm.",
+          "datatype": "xsd:string",
+          "minCount": 1,
+          "maxCount": 1
+        },
+        {
+          "path": "nxv:subject",
+          "name": "Subject",
+          "description": "The OIDC Provider subject.",
+          "datatype": "xsd:string",
+          "minCount": 1,
+          "maxCount": 1
+        }
+      ]
+    },
+    {
+      "@id": "this:UserIdentityShapeWithType",
+      "@type": "sh:NodeShape",
+      "nodeKind": "sh:BlankNode",
+      "sh:closed": true,
+      "property": [
+        {
+          "path": "rdf:type",
+          "name": "RDF types",
+          "description": "The rdf types.",
+          "nodeKind": "sh:IRI",
+          "minCount": 1,
+          "maxCount": 1,
+          "sh:hasValue": {
+            "@id": "nxv:User"
+          }
+        },
+        {
+          "path": "nxv:realm",
+          "name": "Realm",
+          "description": "The OIDC Provider realm.",
+          "datatype": "xsd:string",
+          "minCount": 1,
+          "maxCount": 1
+        },
+        {
+          "path": "nxv:subject",
+          "name": "Subject",
+          "description": "The OIDC Provider subject.",
+          "datatype": "xsd:string",
+          "minCount": 1,
+          "maxCount": 1
+        }
+      ]
+    },
+    {
+      "@id": "this:AuthenticatedIdentityShape",
+      "@type": "sh:NodeShape",
+      "nodeKind": "sh:BlankNode",
+      "sh:closed": true,
+      "property": [
+        {
+          "path": "nxv:realm",
+          "name": "Realm",
+          "description": "The OIDC Provider realm.",
+          "datatype": "xsd:string",
+          "minCount": 1,
+          "maxCount": 1
+        }
+      ]
+    },
+    {
+      "@id": "this:AuthenticatedIdentityShapeWithType",
+      "@type": "sh:NodeShape",
+      "nodeKind": "sh:BlankNode",
+      "sh:closed": true,
+      "property": [
+        {
+          "path": "rdf:type",
+          "name": "RDF types",
+          "description": "The rdf types.",
+          "nodeKind": "sh:IRI",
+          "minCount": 1,
+          "maxCount": 1,
+          "sh:hasValue": {
+            "@id": "nxv:Authenticated"
+          }
+        },
+        {
+          "path": "nxv:realm",
+          "name": "Realm",
+          "description": "The OIDC Provider realm.",
+          "datatype": "xsd:string",
+          "minCount": 1,
+          "maxCount": 1
+        }
+      ]
+    },
+    {
+      "@id": "this:AnonymousIdentityShape",
+      "@type": "sh:NodeShape",
+      "nodeKind": "sh:BlankNode",
+      "sh:closed": true,
+      "property": [
+        {
+          "path": "rdf:type",
+          "name": "RDF types",
+          "description": "The rdf types.",
+          "nodeKind": "sh:IRI",
+          "minCount": 1,
+          "maxCount": 1,
+          "sh:hasValue": {
+            "@id": "nxv:Anonymous"
+          }
         }
       ]
     }

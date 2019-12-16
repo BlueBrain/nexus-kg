@@ -1,9 +1,19 @@
 {
-  "@context" : "https://bluebrain.github.io/nexus/contexts/statistics.json",
-  "discardedEvents" : 1,
-  "evaluatedEvents" : 7,
-  "failedEvents" : 2,
-  "processedEvents" : 10,
-  "remainingEvents" : 2,
-  "totalEvents" : 12
+  "@context" : [
+    "https://bluebrain.github.io/nexus/contexts/search.json",
+    "https://bluebrain.github.io/nexus/contexts/resource.json",
+    "https://bluebrain.github.io/nexus/contexts/statistics.json"
+  ],
+  "_total" : 1,
+  "_results" : [
+    {
+      "projectionId": "https://bluebrain.github.io/nexus/vocabulary/defaultElasticSearchIndex",
+      "totalEvents" : 12,
+      "processedEvents" : 10,
+      "evaluatedEvents" : 7,
+      "remainingEvents" : 2,
+      "discardedEvents" : 1,
+      "failedEvents" : 2
+    }
+  ]
 }

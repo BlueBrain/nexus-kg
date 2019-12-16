@@ -20,6 +20,7 @@ import ch.epfl.bluebrain.nexus.kg.config.Settings
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary._
 import ch.epfl.bluebrain.nexus.kg.resolve.Resolver.{CrossProjectResolver, InProjectResolver}
 import ch.epfl.bluebrain.nexus.kg.resolve.{Materializer, ProjectResolution, StaticResolution}
+import ch.epfl.bluebrain.nexus.kg.resources.ProjectIdentifier.{ProjectLabel, ProjectRef}
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection._
 import ch.epfl.bluebrain.nexus.kg.resources.ResourceF._
 import ch.epfl.bluebrain.nexus.kg.resources.syntax._
@@ -85,12 +86,10 @@ class ResolversSpec
   val label2 = ProjectLabel("account1", "project2")
   projectCache.get(project1.ref) shouldReturn IO.pure(Some(project1))
   projectCache.get(project2.ref) shouldReturn IO.pure(Some(project2))
-  projectCache.getBy(ProjectLabel("account1", "project1")) shouldReturn IO.pure(Some(project1))
-  projectCache.getBy(ProjectLabel("account1", "project2")) shouldReturn IO.pure(Some(project2))
+  projectCache.get(ProjectLabel("account1", "project1")) shouldReturn IO.pure(Some(project1))
+  projectCache.get(ProjectLabel("account1", "project2")) shouldReturn IO.pure(Some(project2))
   projectCache.getLabel(project1.ref) shouldReturn IO.pure(Some(label1))
   projectCache.getLabel(project2.ref) shouldReturn IO.pure(Some(label2))
-  projectCache.getProjectRefs(List(label1, label2)) shouldReturn
-    IO.pure(Map(label1 -> Option(project1.ref), label2 -> Option(project2.ref)))
 
   aclsCache.list shouldReturn IO(AccessControlLists(/ -> resourceAcls(AccessControlList(user -> Set(read)))))
 
@@ -147,10 +146,10 @@ class ResolversSpec
     x.id.asString compareTo y.id.asString
 
   @silent // the definition is not recognized as used
-  private implicit val eqCrossProject: Equality[CrossProjectResolver[ProjectRef]] =
-    (a: CrossProjectResolver[ProjectRef], b: Any) => {
+  private implicit val eqCrossProject: Equality[CrossProjectResolver] =
+    (a: CrossProjectResolver, b: Any) => {
       Try {
-        val that = b.asInstanceOf[CrossProjectResolver[ProjectRef]]
+        val that = b.asInstanceOf[CrossProjectResolver]
         that.copy(identities = identities.sorted) == a.copy(identities = identities.sorted)
       }.getOrElse(false)
     }
@@ -187,11 +186,12 @@ class ResolversSpec
       "prevent creating an CrossProject when project not found in the cache" in new Base {
         val label1 = ProjectLabel("account2", "project1")
         val label2 = ProjectLabel("account2", "project2")
-        projectCache.getProjectRefs(List(label1, label2)) shouldReturn IO(Map(label1 -> None, label2 -> None))
         val json = resolver.removeKeys("projects") deepMerge Json.obj(
           "projects" -> Json.arr(Json.fromString("account2/project1"), Json.fromString("account2/project2"))
         )
-        resolvers.create(resId, json).value.rejected[ProjectsNotFound] shouldEqual ProjectsNotFound(Set(label1, label2))
+        projectCache.get(label1) shouldReturn IO(None)
+        projectCache.get(label2) shouldReturn IO(None)
+        resolvers.create(resId, json).value.rejected[ProjectRefNotFound] shouldEqual ProjectRefNotFound(label1)
       }
 
       "prevent creating a CrossProject resolver when the caller does not have some of the resolver identities" in new Base {
@@ -245,10 +245,6 @@ class ResolversSpec
 
       def resolverForGraph(id: AbsoluteIri) =
         jsonContentOf("/resolve/cross-project-to-graph.json", Map(quote("{id}") -> id.asString))
-
-      projectCache.getProjectLabels(List(project1.ref, project2.ref)) shouldReturn IO(
-        Map(project1.ref -> Some(label1), project2.ref -> Some(label2))
-      )
 
       "return a resolver" in new Base {
         resolverCache.put(crossResolver.copy(id = resId.value, priority = 50)) shouldReturn IO.pure(())

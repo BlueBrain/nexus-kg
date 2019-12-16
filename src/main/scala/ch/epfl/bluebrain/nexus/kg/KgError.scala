@@ -4,7 +4,8 @@ import akka.http.scaladsl.model.{StatusCodes, Uri}
 import cats.syntax.show._
 import ch.epfl.bluebrain.nexus.commons.http.directives.StatusFrom
 import ch.epfl.bluebrain.nexus.kg.config.Contexts.errorCtxUri
-import ch.epfl.bluebrain.nexus.kg.resources.{ProjectLabel, Ref}
+import ch.epfl.bluebrain.nexus.kg.resources.Ref
+import ch.epfl.bluebrain.nexus.kg.resources.ProjectIdentifier.ProjectLabel
 import ch.epfl.bluebrain.nexus.rdf.syntax._
 import com.github.ghik.silencer.silent
 import io.circe.generic.extras.Configuration

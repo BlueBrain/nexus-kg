@@ -4,6 +4,7 @@ import akka.http.scaladsl.model.Uri.Path
 import akka.http.scaladsl.model.{ContentType, ContentTypes}
 import ch.epfl.bluebrain.nexus.commons.test.{EitherValues, Randomness}
 import ch.epfl.bluebrain.nexus.kg.TestHelper
+import ch.epfl.bluebrain.nexus.kg.resources.ProjectIdentifier.ProjectRef
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection.InvalidResourceFormat
 import ch.epfl.bluebrain.nexus.kg.resources.file.File.{FileDescription, LinkDescription}
 import ch.epfl.bluebrain.nexus.rdf.syntax._

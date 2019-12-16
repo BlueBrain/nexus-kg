@@ -7,7 +7,7 @@ import java.util.{Properties, UUID}
 import cats.data.EitherT
 import cats.effect.{Effect, Timer}
 import cats.implicits._
-import cats.{Functor, Monad, Show}
+import cats.{Functor, Monad}
 import ch.epfl.bluebrain.nexus.admin.client.types.Project
 import ch.epfl.bluebrain.nexus.commons.search.FromPagination
 import ch.epfl.bluebrain.nexus.commons.search.QueryResult.UnscoredQueryResult
@@ -20,16 +20,18 @@ import ch.epfl.bluebrain.nexus.kg.config.AppConfig
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig.CompositeViewConfig
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary.nxv
 import ch.epfl.bluebrain.nexus.kg.indexing.SparqlLink.{SparqlExternalLink, SparqlResourceLink}
+import ch.epfl.bluebrain.nexus.kg.indexing.View.{query, read, AggregateView, CompositeView, ViewRef}
 import ch.epfl.bluebrain.nexus.kg.indexing.View.CompositeView.Projection._
+import ch.epfl.bluebrain.nexus.kg.indexing.View.CompositeView.Source.{CrossProjectEventStream, ProjectEventStream}
 import ch.epfl.bluebrain.nexus.kg.indexing.View.CompositeView.{Interval, Projection, Source}
 import ch.epfl.bluebrain.nexus.kg.indexing.View.SparqlView._
-import ch.epfl.bluebrain.nexus.kg.indexing.View._
+import ch.epfl.bluebrain.nexus.kg.resources.ProjectIdentifier.ProjectRef
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection._
 import ch.epfl.bluebrain.nexus.kg.resources.ResourceF.metaKeys
 import ch.epfl.bluebrain.nexus.kg.resources._
 import ch.epfl.bluebrain.nexus.kg.resources.syntax._
 import ch.epfl.bluebrain.nexus.kg.routes.Clients
-import ch.epfl.bluebrain.nexus.kg.{resultOrFailures, KgError}
+import ch.epfl.bluebrain.nexus.kg.{identities, KgError}
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import ch.epfl.bluebrain.nexus.rdf.Node.IriNode
 import ch.epfl.bluebrain.nexus.rdf.Vocabulary.rdf
@@ -40,14 +42,14 @@ import ch.epfl.bluebrain.nexus.rdf.encoder.NodeEncoderError.IllegalConversion
 import ch.epfl.bluebrain.nexus.rdf.instances._
 import ch.epfl.bluebrain.nexus.rdf.syntax._
 import ch.epfl.bluebrain.nexus.rdf.{Graph, RootedGraph}
-import io.circe.{parser, Json}
 import com.typesafe.scalalogging.Logger
+import io.circe.{parser, Json}
 import org.apache.jena.query.QueryFactory
 import shapeless.Typeable.ValueTypeable
 import shapeless.{TypeCase, Typeable}
 
-import scala.jdk.CollectionConverters._
 import scala.concurrent.duration.FiniteDuration
+import scala.jdk.CollectionConverters._
 import scala.util.{Failure, Success, Try}
 
 /**
@@ -87,74 +89,47 @@ sealed trait View extends Product with Serializable {
     s"${ref.id}_${uuid}_$rev"
 
   /**
-    * Attempts to convert the current view to a labeled view when required. This conversion is only targetting ''AggregateElasticSearchView of ViewRef[ProjectRef]'',
-    * returning all the other views unchanged.
-    * For the case of ''AggregateView of ViewRef[ProjectRef]'', the conversion is successful when the the mapping ''projectRef -> projectLabel'' exists on the ''cache''
+    * Converts the ProjectRefs into ProjectLabels when found on the cache
     */
-  def labeled[F[_]](implicit projectCache: ProjectCache[F], F: Monad[F]): EitherT[F, Rejection, View] =
+  def labeled[F[_]: Monad](implicit projectCache: ProjectCache[F]): EitherT[F, Rejection, View] =
     this match {
-      case v: AggregateView[_] =>
-        v.value match {
-          case `Set[ViewRef[ProjectRef]]`(viewRefs) =>
-            val projectRefs = viewRefs.map(_.project)
-            EitherT(projectCache.getProjectLabels(projectRefs).map(resultOrFailures).map {
-              case Right(res)     => Right(v.toValue(viewRefs.map { case ViewRef(ref, id) => ViewRef(res(ref), id) }))
-              case Left(projects) => Left(LabelsNotFound(projects))
-            })
-          case _ => EitherT.rightT(v)
+      case v: AggregateView =>
+        v.value.toList.traverse { case ViewRef(project, id) => project.toLabel[F].map(ViewRef(_, id)) }.map(v.make)
+      case v: CompositeView =>
+        val labeledSources: EitherT[F, Rejection, List[Source]] = v.sources.toList.traverse {
+          case source: ProjectEventStream      => EitherT.rightT(source)
+          case source: CrossProjectEventStream => source.project.toLabel[F].map(label => source.copy(project = label))
         }
-      case o => EitherT.rightT(o)
+        labeledSources.map(sources => v.copy(sources = sources.toSet))
+      case other => EitherT.rightT(other)
     }
 
   /**
-    * Attempts to convert the current view to a referenced view when required. This conversion is only targetting ''AggregateElasticSearchView of ViewRef[ProjectLabel]'',
-    * returning all the other views unchanged.
-    * For the case of ''AggregateView of ViewRef[ProjectLabel]'',
-    * the conversion is successful when the the mapping ''projectLabel -> projectRef'' and the viewId exists on the ''cache''
+    * Converts the ProjectLabels into ProjectRefs when found on the cache
+    * respecting the views/query and resources/read permissions
     */
-  def referenced[F[_]](
-      caller: Caller,
-      acls: AccessControlLists
-  )(implicit projectCache: ProjectCache[F], viewCache: ViewCache[F], F: Monad[F]): EitherT[F, Rejection, View] =
+  def referenced[F[_]: Monad](
+      implicit projectCache: ProjectCache[F],
+      acls: AccessControlLists,
+      caller: Caller
+  ): EitherT[F, Rejection, View] =
     this match {
-      case v: AggregateView[_] =>
-        v.value match {
-          case `Set[ViewRef[ProjectLabel]]`(viewLabels) =>
-            val labelIris = viewLabels.foldLeft(Map.empty[ProjectLabel, Set[AbsoluteIri]]) { (acc, c) =>
-              acc + (c.project -> (acc.getOrElse(c.project, Set.empty) + c.id))
-            }
-            val projectsPerms = caller.hasPermission(acls, labelIris.keySet, query)
-            val inaccessible  = labelIris.keySet -- projectsPerms
-            if (inaccessible.nonEmpty) EitherT.leftT[F, View](ProjectsNotFound(inaccessible))
-            else {
-              val labelToRef = projectCache.getProjectRefs(labelIris.keySet)
-              EitherT(labelToRef.map(resultOrFailures(_).left.map(ProjectsNotFound))).flatMap { projMap =>
-                val view: View = v.toValue(viewLabels.map { case ViewRef(label, id) => ViewRef(projMap(label), id) })
-                projMap.foldLeft(EitherT.rightT[F, Rejection](view)) {
-                  case (acc, (label, ref)) =>
-                    acc.flatMap { _ =>
-                      EitherT(viewCache.get(ref).map { views =>
-                        val toTarget = labelIris.getOrElse(label, Set.empty)
-                        val found = v match {
-                          case _: AggregateElasticSearchView[_] =>
-                            views.collect { case es: ElasticSearchView if toTarget.contains(es.id) => es.id }
-                          case _: AggregateSparqlView[_] =>
-                            views.collect { case sparql: SparqlView if toTarget.contains(sparql.id) => sparql.id }
-                        }
-                        (toTarget -- found).headOption.map(iri => NotFound(iri.ref)).toLeft(view)
-                      })
-                    }
-                }
-              }
-            }
-          case _ => EitherT.rightT(v)
+      case v: AggregateView =>
+        v.value.toList.traverse { case ViewRef(project, id) => project.toRef[F](query).map(ViewRef(_, id)) }.map(v.make)
+      case v: CompositeView =>
+        val labeledSources: EitherT[F, Rejection, List[Source]] = v.sources.toList.traverse {
+          case source: ProjectEventStream => EitherT.rightT(source)
+          case source: CrossProjectEventStream =>
+            source.project.toRef[F](read).map(label => source.copy(project = label))
         }
-      case v => EitherT.rightT(v)
+        labeledSources.map(sources => v.copy(sources = sources.toSet))
+      case other => EitherT.rightT(other)
     }
 }
 
 object View {
 
+  val read: Permission     = Permission.unsafe("resources/read")
   val query: Permission    = Permission.unsafe("views/query")
   val write: Permission    = Permission.unsafe("views/write")
   private val idTemplating = "{resource_id}"
@@ -225,7 +200,7 @@ object View {
   /**
     * Enumeration of indexed view types.
     */
-  sealed trait IndexedView extends View with FilteredView {
+  sealed trait IndexedView extends View {
 
     /**
       * The progress id for this view
@@ -236,43 +211,44 @@ object View {
   /**
     * Enumeration of multiple view types.
     */
-  sealed trait AggregateView[P] extends View {
+  sealed trait AggregateView extends View {
 
     /**
       * @return the set of views that this view connects to when performing searches
       */
-    def value: Set[ViewRef[P]]
+    def value: Set[ViewRef]
 
     @SuppressWarnings(Array("RepeatedCaseBody"))
-    def toValue[PP](newValue: Set[ViewRef[PP]]): AggregateView[PP] = this match {
-      case agg: AggregateElasticSearchView[_] => agg.copy(value = newValue)
-      case agg: AggregateSparqlView[_]        => agg.copy(value = newValue)
+    def make(newValue: List[ViewRef]): AggregateView = this match {
+      case agg: AggregateElasticSearchView => agg.copy(value = newValue.toSet)
+      case agg: AggregateSparqlView        => agg.copy(value = newValue.toSet)
     }
 
     /**
       * Return the views with ''views/query'' permissions that are not deprecated from the provided ''viewRefs''
       *
-      * @param viewRefs the provided set of view references
       */
-    def queryableViews[F[_]: Monad, T <: View: Typeable](viewRefs: Set[ViewRef[ProjectRef]])(
+    def queryableViews[F[_], T <: View: Typeable](
         implicit projectCache: ProjectCache[F],
+        F: Monad[F],
         viewCache: ViewCache[F],
         caller: Caller,
         acls: AccessControlLists
     ): F[Set[T]] =
-      viewRefs.toList.foldM(Set.empty[T]) {
-        case (acc, ViewRef(ref, id)) =>
+      value.toList.foldM(Set.empty[T]) {
+        case (acc, ViewRef(ref: ProjectRef, id)) =>
           (viewCache.getBy[T](ref, id) -> projectCache.getLabel(ref)).mapN {
             case (Some(view), Some(label)) if !view.deprecated && caller.hasPermission(acls, label, query) => acc + view
             case _                                                                                         => acc
           }
+        case (acc, _) => F.pure(acc)
       }
   }
 
   /**
     * Enumeration of single view types.
     */
-  sealed trait SingleView extends IndexedView {
+  sealed trait SingleView extends IndexedView with FilteredView {
 
     /**
       * The index value for this view
@@ -394,21 +370,55 @@ object View {
             }
             .map(_.toSet): Either[Rejection, Set[Projection]]
 
+      def currentProjectSource(c: GraphCursor): Either[Rejection, Source] =
+        // format: off
+        for {
+          id          <- c.focus.as[AbsoluteIri].onError(res.id.ref, "@id")
+          filter      <- filter(c)
+          uuid        <- c.downField(nxv.uuid).focus.as[UUID].onError(id.ref, nxv.uuid.prefix)
+          includeMeta <- c.downField(nxv.includeMetadata).focus.as[Boolean].withDefault(false).onError(id.ref, nxv.includeMetadata.prefix)
+        } yield ProjectEventStream(id, uuid, filter, includeMeta)
+      // format: on
+
       // format: off
-      val sourceC = c.downField(nxv.sources)
+      def crossProjectSource(c: GraphCursor): Either[Rejection, Source] =
+        for {
+          id                  <- c.focus.as[AbsoluteIri].onError(res.id.ref, "@id")
+          filter              <- filter(c)
+          uuid                <- c.downField(nxv.uuid).focus.as[UUID].onError(id.ref, nxv.uuid.prefix)
+          includeMeta         <- c.downField(nxv.includeMetadata).focus.as[Boolean].withDefault(false).onError(id.ref, nxv.includeMetadata.prefix)
+          projectIdentifier   <- c.downField(nxv.project).focus.as[ProjectIdentifier].onError(id.ref, "project")
+          ids                 <- identities(res.id, c.downField(nxv.identities).downSet)
+        } yield CrossProjectEventStream(id, uuid, filter, includeMeta, projectIdentifier, ids)
+      // format: on
+
+      def sources(iter: Iterable[GraphCursor]): Either[Rejection, Set[Source]] =
+        if (iter.size > config.maxSources)
+          Left(InvalidResourceFormat(res.id.ref, s"The number of sources cannot exceed ${config.maxSources}"))
+        else
+          iter.toList
+            .foldM(List.empty[Source]) { (acc, innerCursor) =>
+              innerCursor.downField(rdf.tpe).focus.as[AbsoluteIri].onError(res.id.ref, "@type").flatMap {
+                case tpe if tpe == nxv.ProjectEventStream.value      => currentProjectSource(innerCursor).map(_ :: acc)
+                case tpe if tpe == nxv.CrossProjectEventStream.value => crossProjectSource(innerCursor).map(_ :: acc)
+                case tpe =>
+                  val err = s"sources @type with value '$tpe' is not supported."
+                  Left(InvalidResourceFormat(res.id.ref, err): Rejection)
+              }
+            }
+            .map(_.toSet): Either[Rejection, Set[Source]]
+
+      // format: off
       for {
         uuid          <- c.downField(nxv.uuid).focus.as[UUID].onError(res.id.ref, nxv.uuid.prefix)
-        sourceTpe     <- sourceC.downField(rdf.tpe).focus.as[AbsoluteIri].onError(res.id.ref, "@type")
-        _             <- if(sourceTpe == nxv.ProjectEventStream.value) Right(()) else Left(InvalidResourceFormat(res.id.ref, s"Invalid '@type' field '$sourceTpe'. Recognized types are '${nxv.ProjectEventStream.value}'."))
-        filterSource  <- filter(sourceC)
-        includeMeta   <- sourceC.downField(nxv.includeMetadata).focus.as[Boolean].withDefault(false).onError(res.id.ref, nxv.includeMetadata.prefix)
-        projs         <- projections(c.downField(nxv.projections).downSet)
+        projections   <- projections(c.downField(nxv.projections).downSet)
+        sources       <- sources(c.downField(nxv.sources).downSet)
         rebuildCursor  = c.downField(nxv.rebuildStrategy)
         rebuildTpe    <- rebuildCursor.downField(rdf.tpe).focus.asOption[AbsoluteIri].onError(res.id.ref, "@type")
-        _             <- if(rebuildTpe == Some(nxv.Interval.value) || rebuildTpe == None)  Right(()) else Left(InvalidResourceFormat(res.id.ref, s"${nxv.rebuildStrategy.prefix} @type with value '$rebuildTpe' is not supported."))
+        _             <- if(rebuildTpe.contains(nxv.Interval.value) || rebuildTpe.isEmpty)  Right(()) else Left(InvalidResourceFormat(res.id.ref, s"${nxv.rebuildStrategy.prefix} @type with value '$rebuildTpe' is not supported."))
         interval      <- rebuildCursor.downField(nxv.value).focus.asOption[FiniteDuration].onError(res.id.ref, "value")
         _             <- validateRebuild(interval)
-      } yield CompositeView (Source(filterSource, includeMeta), projs, interval.map(Interval), res.id.parent, res.id.value, uuid, res.rev, res.deprecated)
+      } yield CompositeView (sources, projections, interval.map(Interval), res.id.parent, res.id.value, uuid, res.rev, res.deprecated)
       // format: on
     }
 
@@ -422,37 +432,25 @@ object View {
         SparqlView(f, includeMeta, res.id.parent, res.id.value, uuid, res.rev, res.deprecated)
     // format: on
 
-    def viewRefs[A: NodeEncoder: Show](cursor: List[GraphCursor]): Either[Rejection, Set[ViewRef[A]]] =
-      cursor.foldM(Set.empty[ViewRef[A]]) { (acc, blankC) =>
+    def viewRefs(cursor: List[GraphCursor]): Either[Rejection, Set[ViewRef]] =
+      cursor.foldM(Set.empty[ViewRef]) { (acc, blankC) =>
         for {
-          project <- blankC.downField(nxv.project).focus.as[A].onError(res.id.ref, nxv.project.prefix)
+          project <- blankC.downField(nxv.project).focus.as[ProjectIdentifier].onError(res.id.ref, nxv.project.prefix)
           id      <- blankC.downField(nxv.viewId).focus.as[AbsoluteIri].onError(res.id.ref, nxv.viewId.prefix)
         } yield acc + ViewRef(project, id)
       }
 
     def aggregatedEsView(): Either[Rejection, View] =
-      c.downField(nxv.uuid).focus.as[UUID].onError(res.id.ref, nxv.uuid.prefix).flatMap { uuid =>
-        val cursorList = c.downField(nxv.views).downSet.toList
-        viewRefs[ProjectLabel](cursorList) match {
-          case Right(labels) =>
-            Right(AggregateElasticSearchView(labels, res.id.parent, uuid, res.id.value, res.rev, res.deprecated))
-          case Left(_) =>
-            viewRefs[ProjectRef](cursorList)
-              .map(refs => AggregateElasticSearchView(refs, res.id.parent, uuid, res.id.value, res.rev, res.deprecated))
-        }
-      }
+      for {
+        uuid     <- c.downField(nxv.uuid).focus.as[UUID].onError(res.id.ref, nxv.uuid.prefix)
+        viewRefs <- viewRefs(c.downField(nxv.views).downSet.toList)
+      } yield AggregateElasticSearchView(viewRefs, res.id.parent, uuid, res.id.value, res.rev, res.deprecated)
 
     def aggregatedSparqlView(): Either[Rejection, View] =
-      c.downField(nxv.uuid).focus.as[UUID].onError(res.id.ref, nxv.uuid.prefix).flatMap { uuid =>
-        val cursorList = c.downField(nxv.views).downSet.toList
-        viewRefs[ProjectLabel](cursorList) match {
-          case Right(labels) =>
-            Right(AggregateSparqlView(labels, res.id.parent, uuid, res.id.value, res.rev, res.deprecated))
-          case Left(_) =>
-            viewRefs[ProjectRef](cursorList)
-              .map(refs => AggregateSparqlView(refs, res.id.parent, uuid, res.id.value, res.rev, res.deprecated))
-        }
-      }
+      for {
+        uuid     <- c.downField(nxv.uuid).focus.as[UUID].onError(res.id.ref, nxv.uuid.prefix)
+        viewRefs <- viewRefs(c.downField(nxv.views).downSet.toList)
+      } yield AggregateSparqlView(viewRefs, res.id.parent, uuid, res.id.value, res.rev, res.deprecated)
 
     if (Set(nxv.View.value, nxv.ElasticSearchView.value).subsetOf(res.types)) elasticSearch()
     else if (Set(nxv.View.value, nxv.SparqlView.value).subsetOf(res.types)) sparql()
@@ -700,7 +698,7 @@ object View {
   /**
     * Composite view. A source generates a temporary Sparql index which then is used to generate a set of indices
     *
-    * @param source          the source
+    * @param sources          the source
     * @param projections     a set of indices created out of the temporary sparql index
     * @param rebuildStrategy the optional strategy to rebuild the projections
     * @param ref             a reference to the project that the view belongs to
@@ -710,7 +708,7 @@ object View {
     * @param deprecated      the deprecation state of the view
     */
   final case class CompositeView(
-      source: Source,
+      sources: Set[Source],
       projections: Set[Projection],
       rebuildStrategy: Option[Interval],
       ref: ProjectRef,
@@ -719,22 +717,51 @@ object View {
       rev: Long,
       deprecated: Boolean
   ) extends IndexedView {
-    override def filter: Filter = source.filter
 
     override def progressId(implicit config: AppConfig): String =
       defaultSparqlView.progressId
 
     def defaultSparqlView: SparqlView =
-      SparqlView(filter, source.includeMetadata, ref, nxv.defaultSparqlIndex.value, uuid, rev, deprecated)
+      SparqlView(Filter(), includeMetadata = true, ref, nxv.defaultSparqlIndex.value, uuid, rev, deprecated)
+
+    def sparqlView(source: Source): SparqlView =
+      SparqlView(source.filter, source.includeMetadata, ref, nxv.defaultSparqlIndex.value, uuid, rev, deprecated)
+
+    def progressId(sourceId: AbsoluteIri): String = sourceId.asString
+
+    def progressId(sourceId: AbsoluteIri, projectionId: AbsoluteIri): String = s"${sourceId}_$projectionId"
+
+    def projectionsProgress(sourceIdOpt: Option[AbsoluteIri], projectionIdsOpt: Option[AbsoluteIri]): Set[String] =
+      (sourceIdOpt, projectionIdsOpt) match {
+        case (Some(sId), Some(pId)) => Set(progressId(sId, pId))
+        case (Some(sId), _)         => projections.map(p => progressId(sId, p.view.id))
+        case (_, Some(pId))         => sources.map(s => progressId(s.id, pId))
+        case _                      => for (s <- sources; p <- projections) yield progressId(s.id, p.view.id)
+      }
 
     def projectionsBy[T <: Projection: Typeable]: Set[T] = {
       val tpe = TypeCase[T]
       projections.collect { case tpe(projection) => projection }
     }
 
-    def projectionView(id: AbsoluteIri): Option[SingleView] = {
-      projections.collectFirst { case projection if projection.view.id == id => projection.view }
+    def sourcesBy[T <: Source: Typeable]: Set[T] = {
+      val tpe = TypeCase[T]
+      sources.collect { case tpe(source) => source }
     }
+
+    def source(sourceId: AbsoluteIri): Option[Source] =
+      sources.find(_.id == sourceId)
+
+    def projectSource(sourceId: AbsoluteIri): Option[ProjectRef] =
+      source(sourceId).map {
+        case CrossProjectEventStream(_, _, _, _, pRef: ProjectRef, _) => pRef
+        case _                                                        => ref
+      }
+
+    def projectsSource: Set[ProjectRef] =
+      sourcesBy[CrossProjectEventStream].collect {
+        case CrossProjectEventStream(_, _, _, _, pRef: ProjectRef, _) => pRef
+      } + ref
 
     def nextRestart(previous: Option[Instant]): Option[Instant] =
       (previous, rebuildStrategy).mapN { case (p, Interval(v)) => p.plusMillis(v.toMillis) }
@@ -743,8 +770,25 @@ object View {
 
   object CompositeView {
 
-    // TODO: This will be a sealed trait with different options: InProject, CrossProject and CrossDeployment
-    final case class Source(filter: Filter, includeMetadata: Boolean)
+    sealed trait Source extends Product with Serializable {
+      def filter: Filter
+      def includeMetadata: Boolean
+      def id: AbsoluteIri
+      def uuid: UUID
+    }
+
+    object Source {
+      final case class ProjectEventStream(id: AbsoluteIri, uuid: UUID, filter: Filter, includeMetadata: Boolean)
+          extends Source
+      final case class CrossProjectEventStream(
+          id: AbsoluteIri,
+          uuid: UUID,
+          filter: Filter,
+          includeMetadata: Boolean,
+          project: ProjectIdentifier,
+          identities: List[Identity]
+      ) extends Source
+    }
 
     final case class Interval(value: FiniteDuration)
 
@@ -765,7 +809,7 @@ object View {
         * @param res the resource
         * @return a Sparql query results response
         */
-      def runQuery[F[_]: Effect: Timer](res: ResourceV)(implicit client: BlazegraphClient[F]): F[SparqlResults] =
+      def runQuery[F[_]: Effect: Timer](res: ResourceV)(client: BlazegraphClient[F]): F[SparqlResults] =
         client.queryRaw(query.replaceAll(quote(idTemplating), s"<${res.id.value.asString}>"))
     }
 
@@ -792,11 +836,11 @@ object View {
             logger: Logger,
             project: Project
         ): F[Option[Unit]] = {
-          val rootNode = IriNode(res.id.value)
-          val finalCtx =
-            if (view.includeMetadata) view.ctx.appendContextOf(Json.obj("@context" -> context)) else context
-          val metaGraph = if (view.includeMetadata) Graph(graph.triples ++ res.metadata(metadataOpts)) else graph
-          val client    = clients.elasticSearch.withRetryPolicy(config.elasticSearch.indexing.retry)
+          val rootNode   = IriNode(res.id.value)
+          val contextObj = Json.obj("@context" -> context)
+          val finalCtx   = if (view.includeMetadata) view.ctx.appendContextOf(contextObj) else contextObj
+          val metaGraph  = if (view.includeMetadata) Graph(graph.triples ++ res.metadata(metadataOpts)) else graph
+          val client     = clients.elasticSearch.withRetryPolicy(config.elasticSearch.indexing.retry)
           RootedGraph(rootNode, metaGraph).as[Json](finalCtx) match {
             case Left(err) =>
               val msg =
@@ -848,32 +892,14 @@ object View {
     * @param rev        the view revision
     * @param deprecated the deprecation state of the view
     */
-  final case class AggregateElasticSearchView[P](
-      value: Set[ViewRef[P]],
+  final case class AggregateElasticSearchView(
+      value: Set[ViewRef],
       ref: ProjectRef,
       uuid: UUID,
       id: AbsoluteIri,
       rev: Long,
       deprecated: Boolean
-  ) extends AggregateView[P] {
-
-    /**
-      * Fetches each View from the ViewRefs and checks its deprecation status. It also checks if the permission for the project where the view is located
-      * for the current client is ''views/query''.
-      */
-    def queryableIndices[F[_]](
-        implicit projectCache: ProjectCache[F],
-        viewCache: ViewCache[F],
-        acls: AccessControlLists,
-        caller: Caller,
-        config: AppConfig,
-        F: Monad[F]
-    ): F[Set[String]] =
-      value match {
-        case `Set[ViewRef[ProjectRef]]`(viewRefs) => queryableViews[F, ElasticSearchView](viewRefs).map(_.map(_.index))
-        case _                                    => F.pure(Set.empty)
-      }
-  }
+  ) extends AggregateView
 
   /**
     * Aggregation of [[SparqlView]].
@@ -885,42 +911,19 @@ object View {
     * @param rev        the view revision
     * @param deprecated the deprecation state of the view
     */
-  final case class AggregateSparqlView[P](
-      value: Set[ViewRef[P]],
+  final case class AggregateSparqlView(
+      value: Set[ViewRef],
       ref: ProjectRef,
       uuid: UUID,
       id: AbsoluteIri,
       rev: Long,
       deprecated: Boolean
-  ) extends AggregateView[P] {
-
-    /**
-      * Fetches each View from the ViewRefs and checks its deprecation status. It also checks if the permission for the project where the view is located
-      * for the current client is ''views/query''.
-      */
-    def queryableViews[F[_]](
-        implicit projectCache: ProjectCache[F],
-        viewCache: ViewCache[F],
-        acls: AccessControlLists,
-        caller: Caller,
-        F: Monad[F]
-    ): F[Set[SparqlView]] =
-      value match {
-        case `Set[ViewRef[ProjectRef]]`(viewRefs) => queryableViews[F, SparqlView](viewRefs)
-        case _                                    => F.pure(Set.empty)
-      }
-  }
+  ) extends AggregateView
 
   /**
     * A view reference is a unique way to identify a view
     * @param project the project reference
     * @param id the view id
-    * @tparam P the generic type of the project reference
     */
-  final case class ViewRef[P](project: P, id: AbsoluteIri) {
-    def map[A](a: A): ViewRef[A] = copy(project = a)
-  }
-
-  val `Set[ViewRef[ProjectRef]]` : TypeCase[Set[ViewRef[ProjectRef]]]     = TypeCase[Set[ViewRef[ProjectRef]]]
-  val `Set[ViewRef[ProjectLabel]]` : TypeCase[Set[ViewRef[ProjectLabel]]] = TypeCase[Set[ViewRef[ProjectLabel]]]
+  final case class ViewRef(project: ProjectIdentifier, id: AbsoluteIri)
 }

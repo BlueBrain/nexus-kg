@@ -83,6 +83,7 @@ class ProjectCacheSpec
       forAll(projectsOrg1 ++ projectsOrg2) { proj =>
         cache.replace(proj).runToFuture.futureValue
         cache.get(proj.ref).runToFuture.futureValue shouldEqual Some(proj)
+        cache.get(proj.projectLabel).runToFuture.futureValue shouldEqual Some(proj)
       }
     }
 
@@ -95,16 +96,6 @@ class ProjectCacheSpec
       forAll(projectsOrg1 ++ projectsOrg2) { proj =>
         cache.getLabel(proj.ref).runToFuture.futureValue shouldEqual Some(proj.projectLabel)
       }
-    }
-
-    "get project refs to labels map" in {
-      val expected = projectsOrg1.map(project => project.ref -> Option(project.projectLabel)).toMap
-      cache.getProjectLabels(expected.keySet).runToFuture.futureValue shouldEqual expected
-    }
-
-    "get project labels to refs map" in {
-      val expected = projectsOrg1.map(project => project.projectLabel -> Option(project.ref)).toMap
-      cache.getProjectRefs(expected.keySet).runToFuture.futureValue shouldEqual expected
     }
 
     "deprecate project" in {

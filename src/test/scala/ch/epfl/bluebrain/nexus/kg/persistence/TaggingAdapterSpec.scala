@@ -10,7 +10,8 @@ import ch.epfl.bluebrain.nexus.kg.config.Schemas._
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary._
 import ch.epfl.bluebrain.nexus.kg.persistence.TaggingAdapterSpec.Other
 import ch.epfl.bluebrain.nexus.kg.resources.Event._
-import ch.epfl.bluebrain.nexus.kg.resources.{Id, OrganizationRef, ProjectRef, Ref}
+import ch.epfl.bluebrain.nexus.kg.resources.{Id, OrganizationRef, Ref}
+import ch.epfl.bluebrain.nexus.kg.resources.ProjectIdentifier.ProjectRef
 import io.circe.Json
 import org.scalatest.Inspectors
 import org.scalatest.matchers.should.Matchers

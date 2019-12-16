@@ -76,14 +76,15 @@ object Vocabulary {
     val original_source = PrefixMapping.metadata("original_source")
 
     // CompositeView
-    val sources            = PrefixMapping.prefix("sources")
-    val projections        = PrefixMapping.prefix("projections")
-    val rebuildStrategy    = PrefixMapping.prefix("rebuildStrategy")
-    val context            = PrefixMapping.prefix("context")
-    val query              = PrefixMapping.prefix("query")
-    val ElasticSearch      = PrefixMapping.prefix("ElasticSearch")
-    val Sparql             = PrefixMapping.prefix("Sparql")
-    val ProjectEventStream = PrefixMapping.prefix("ProjectEventStream")
+    val sources                 = PrefixMapping.prefix("sources")
+    val projections             = PrefixMapping.prefix("projections")
+    val rebuildStrategy         = PrefixMapping.prefix("rebuildStrategy")
+    val context                 = PrefixMapping.prefix("context")
+    val query                   = PrefixMapping.prefix("query")
+    val ElasticSearch           = PrefixMapping.prefix("ElasticSearch")
+    val Sparql                  = PrefixMapping.prefix("Sparql")
+    val ProjectEventStream      = PrefixMapping.prefix("ProjectEventStream")
+    val CrossProjectEventStream = PrefixMapping.prefix("CrossProjectEventStream")
 
     // Tagging resource payload vocabulary
     val tag  = PrefixMapping.prefix("tag")
@@ -150,7 +151,9 @@ object Vocabulary {
     val paths = PrefixMapping.prefix("paths")
 
     //Progress offset
-    val offset = PrefixMapping.prefix("offset")
+    val offset       = PrefixMapping.prefix("offset")
+    val projectionId = PrefixMapping.prefix("projectionId")
+    val sourceId     = PrefixMapping.prefix("sourceId")
 
     // @type platform ids
     val Archive                    = PrefixMapping.prefix("Archive")

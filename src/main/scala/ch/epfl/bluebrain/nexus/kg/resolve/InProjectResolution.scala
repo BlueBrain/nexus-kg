@@ -1,5 +1,6 @@
 package ch.epfl.bluebrain.nexus.kg.resolve
 
+import ch.epfl.bluebrain.nexus.kg.resources.ProjectIdentifier.ProjectRef
 import ch.epfl.bluebrain.nexus.kg.resources._
 
 /**

@@ -13,7 +13,8 @@ import ch.epfl.bluebrain.nexus.iam.client.types.AuthToken
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity.Subject
 import ch.epfl.bluebrain.nexus.kg.cache.ProjectCache
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig.PersistenceConfig
-import ch.epfl.bluebrain.nexus.kg.resources.{OrganizationRef, ProjectInitializer, ProjectRef, ResourceV}
+import ch.epfl.bluebrain.nexus.kg.resources.{OrganizationRef, ProjectInitializer, ResourceV}
+import ch.epfl.bluebrain.nexus.kg.resources.ProjectIdentifier.ProjectRef
 import ch.epfl.bluebrain.nexus.sourcing.projections.Message
 import ch.epfl.bluebrain.nexus.sourcing.projections.ProgressFlow.PairMsg
 

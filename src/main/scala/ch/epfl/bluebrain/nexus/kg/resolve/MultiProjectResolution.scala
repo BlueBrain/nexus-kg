@@ -1,12 +1,10 @@
 package ch.epfl.bluebrain.nexus.kg.resolve
 
 import cats.Monad
-import cats.instances.list._
-import cats.syntax.flatMap._
-import cats.syntax.functor._
-import cats.syntax.traverse._
+import cats.implicits._
 import ch.epfl.bluebrain.nexus.iam.client.types._
 import ch.epfl.bluebrain.nexus.kg.cache.ProjectCache
+import ch.epfl.bluebrain.nexus.kg.resources.ProjectIdentifier.ProjectRef
 import ch.epfl.bluebrain.nexus.kg.resources._
 import ch.epfl.bluebrain.nexus.kg.resources.syntax._
 import ch.epfl.bluebrain.nexus.rdf.Iri
@@ -24,7 +22,7 @@ import ch.epfl.bluebrain.nexus.rdf.Iri
   */
 class MultiProjectResolution[F[_]](
     repo: Repo[F],
-    projects: F[List[ProjectRef]],
+    projects: List[ProjectRef],
     types: Set[Iri.AbsoluteIri],
     identities: List[Identity],
     projectCache: ProjectCache[F],
@@ -34,10 +32,8 @@ class MultiProjectResolution[F[_]](
 
   private val read = Permission.unsafe("resources/read")
 
-  override def resolve(ref: Ref): F[Option[Resource]] = {
-    val sequence = projects.flatMap(_.map(p => checkPermsAndResolve(ref, p)).sequence)
-    sequence.map(_.collectFirst { case Some(r) => r })
-  }
+  override def resolve(ref: Ref): F[Option[Resource]] =
+    projects.collectFirstSomeM(pRef => checkPermsAndResolve(ref, pRef))
 
   private def containsAny[A](a: Set[A], b: Set[A]): Boolean = b.isEmpty || b.exists(a.contains)
 
@@ -66,7 +62,7 @@ object MultiProjectResolution {
     */
   def apply[F[_]: Monad](
       repo: Repo[F],
-      projects: F[List[ProjectRef]],
+      projects: List[ProjectRef],
       types: Set[Iri.AbsoluteIri],
       identities: List[Identity],
       projectCache: ProjectCache[F],

@@ -9,7 +9,7 @@ import ch.epfl.bluebrain.nexus.kg.TestHelper
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig._
 import ch.epfl.bluebrain.nexus.kg.config.{AppConfig, Settings}
 import ch.epfl.bluebrain.nexus.kg.resolve.Resolver._
-import ch.epfl.bluebrain.nexus.kg.resources.{ProjectLabel, ProjectRef}
+import ch.epfl.bluebrain.nexus.kg.resources.ProjectIdentifier.{ProjectLabel, ProjectRef}
 import monix.eval.Task
 import monix.execution.Scheduler.Implicits.global
 import org.scalatest.concurrent.ScalaFutures
@@ -38,9 +38,9 @@ class ResolverCacheSpec
   val label2 = ProjectLabel(genString(), genString())
 
   val resolver: InProjectResolver = InProjectResolver(ref1, genIri, 1L, false, 10)
-  val crossRefs: CrossProjectResolver[ProjectRef] =
+  val crossRefs: CrossProjectResolver =
     CrossProjectResolver(Set(genIri), List(ref1, ref2), List(Anonymous), ref1, genIri, 0L, false, 1)
-  val crossLabels: CrossProjectResolver[ProjectLabel] =
+  val crossLabels: CrossProjectResolver =
     CrossProjectResolver(Set(genIri), List(label1, label2), List(Anonymous), ref1, genIri, 0L, false, 1)
 
   val resolverProj1: Set[InProjectResolver] = List.fill(5)(resolver.copy(id = genIri)).toSet
@@ -74,12 +74,12 @@ class ResolverCacheSpec
       val serialization = new Serialization(system.asInstanceOf[ExtendedActorSystem])
       "parameterized with ProjectRef" in {
         val bytes = serialization.serialize(crossRefs).success.value
-        val out   = serialization.deserialize(bytes, classOf[CrossProjectResolver[ProjectRef]]).success.value
+        val out   = serialization.deserialize(bytes, classOf[CrossProjectResolver]).success.value
         out shouldEqual crossRefs
       }
       "parameterized with ProjectLabel" in {
         val bytes = serialization.serialize(crossLabels).success.value
-        val out   = serialization.deserialize(bytes, classOf[CrossProjectResolver[ProjectLabel]]).success.value
+        val out   = serialization.deserialize(bytes, classOf[CrossProjectResolver]).success.value
         out shouldEqual crossLabels
       }
     }
