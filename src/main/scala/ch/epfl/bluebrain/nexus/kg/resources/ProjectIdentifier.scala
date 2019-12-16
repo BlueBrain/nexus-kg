@@ -17,9 +17,30 @@ import io.circe.{Decoder, Encoder}
 
 import scala.util.{Success, Try}
 
+/**
+  * Enumeration of project identifier types
+  */
 sealed trait ProjectIdentifier extends Product with Serializable {
+  /**
+    * Attempts to convert the current ProjectIdentifier to a [[ProjectLabel]] using the passed cache
+    *
+    * @tparam F the effect type
+    */
   def toLabel[F[_]: Applicative](implicit cache: ProjectCache[F]): EitherT[F, Rejection, ProjectLabel]
+
+  /**
+    * Attempts to convert the current ProjectIdentifier to a [[ProjectRef]] using the passed cache
+    *
+    * @tparam F the effect type
+    */
   def toRef[F[_]: Applicative](implicit cache: ProjectCache[F]): EitherT[F, Rejection, ProjectRef]
+
+  /**
+    * Attempts to convert the current ProjectIdentifier to a [[ProjectRef]] using the passed cache.
+    * Before the conversion is applied, the passed ''caller'' must have the passed ''perm'' inside the ''acls'' path.
+    *
+    * @tparam F the effect type
+    */
   def toRef[F[_]: Applicative](
       perm: Permission
   )(implicit acls: AccessControlLists, caller: Caller, cache: ProjectCache[F]): EitherT[F, Rejection, ProjectRef]
