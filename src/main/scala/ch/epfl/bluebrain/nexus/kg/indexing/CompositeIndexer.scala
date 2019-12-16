@@ -127,8 +127,9 @@ object CompositeIndexer {
         val sourceProgressId  = view.progressId(source.id)
         val sparqlClient      = clients.sparql.copy(namespace = sourceView.index).withRetryPolicy(config.sparql.indexing.retry)
         val sparqlClientQuery = sparqlClient.withRetryPolicy(config.sparql.query)
+        val sourceMinProgress = initial.minProgressFilter(pId => pId == sourceProgressId || pId.startsWith(source.id.asString)).offset
 
-        val streamSource: Source[PairMsg[Any], _] = cassandraSource(s"project=${proj.uuid}", sourceProgressId, initial.minProgressFilter(pId => pId == sourceProgressId || pId.startsWith(sourceProgressId)).offset)
+        val streamSource: Source[PairMsg[Any], _] = cassandraSource(s"project=${proj.uuid}", sourceProgressId, sourceMinProgress)
         val mainFlow = ProgressFlowElem[F, Any]
           .collectCast[Event]
           .groupedWithin(indexing.batch, indexing.batchTimeout)

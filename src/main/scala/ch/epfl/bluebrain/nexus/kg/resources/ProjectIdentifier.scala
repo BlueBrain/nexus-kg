@@ -21,6 +21,7 @@ import scala.util.{Success, Try}
   * Enumeration of project identifier types
   */
 sealed trait ProjectIdentifier extends Product with Serializable {
+
   /**
     * Attempts to convert the current ProjectIdentifier to a [[ProjectLabel]] using the passed cache
     *
