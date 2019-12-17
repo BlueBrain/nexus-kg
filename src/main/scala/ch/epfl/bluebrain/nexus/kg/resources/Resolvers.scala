@@ -11,7 +11,7 @@ import ch.epfl.bluebrain.nexus.commons.search.{FromPagination, Pagination}
 import ch.epfl.bluebrain.nexus.commons.shacl.ShaclEngine
 import ch.epfl.bluebrain.nexus.commons.sparql.client.BlazegraphClient
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity.Subject
-import ch.epfl.bluebrain.nexus.iam.client.types.{Caller, Identity}
+import ch.epfl.bluebrain.nexus.iam.client.types.Caller
 import ch.epfl.bluebrain.nexus.kg.cache.{ProjectCache, ResolverCache}
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig._
@@ -316,18 +316,13 @@ class Resolvers[F[_]](repo: Repo[F])(
       implicit caller: Caller
   ): EitherT[F, Rejection, Resolver] = {
 
-    val noIdentities = "The caller doesn't have some of the provided identities on the resolver"
-
-    def foundInCaller(identities: List[Identity]): Boolean =
-      identities.forall(caller.identities.contains)
-
     val resource =
       ResourceF.simpleV(resId, Value(Json.obj(), Json.obj(), graph), rev = rev, types = types, schema = resolverRef)
 
     EitherT.fromEither[F](Resolver(resource)).flatMap {
-      case r: CrossProjectResolver[_] if foundInCaller(r.identities) => r.referenced[F]
-      case _: CrossProjectResolver[_]                                => EitherT.leftT[F, Resolver](InvalidIdentity(noIdentities))
-      case r: InProjectResolver                                      => EitherT.rightT(r)
+      case r: CrossProjectResolver if r.identities.foundInCaller => r.referenced[F]
+      case _: CrossProjectResolver                               => EitherT.leftT[F, Resolver](InvalidIdentity())
+      case r: InProjectResolver                                  => EitherT.rightT(r)
     }
   }
 

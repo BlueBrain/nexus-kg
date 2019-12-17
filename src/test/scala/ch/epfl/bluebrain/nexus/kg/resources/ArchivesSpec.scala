@@ -21,6 +21,7 @@ import ch.epfl.bluebrain.nexus.kg.config.Settings
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary._
 import ch.epfl.bluebrain.nexus.kg.resolve.Resolver.InProjectResolver
 import ch.epfl.bluebrain.nexus.kg.resolve.{Materializer, ProjectResolution, StaticResolution}
+import ch.epfl.bluebrain.nexus.kg.resources.ProjectIdentifier.ProjectRef
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection._
 import ch.epfl.bluebrain.nexus.kg.resources.ResourceF.Value
 import ch.epfl.bluebrain.nexus.kg.resources.syntax._
@@ -94,8 +95,8 @@ class ArchivesSpec
 
     resolverCache.get(project.ref) shouldReturn IO(List(InProjectResolver(project.ref, genIri, 1L, false, 1)))
     resolverCache.get(project2.ref) shouldReturn IO(List(InProjectResolver(project.ref, genIri, 1L, false, 1)))
-    projectCache.getBy(project.projectLabel) shouldReturn IO(Some(project))
-    projectCache.getBy(project2.projectLabel) shouldReturn IO(Some(project2))
+    projectCache.get(project.projectLabel) shouldReturn IO(Some(project))
+    projectCache.get(project2.projectLabel) shouldReturn IO(Some(project2))
 
     val archiveJson = updateId(jsonContentOf("/archive/archive.json"))
     val archiveModel = Archive(

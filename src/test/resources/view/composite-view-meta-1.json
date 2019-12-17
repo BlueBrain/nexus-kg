@@ -6,12 +6,14 @@
   ],
   "sources": [
     {
+      "@id" : "http://example.com/source1",
       "@type": "ProjectEventStream",
       "resourceTypes": ["nxv:MyType", "nxv:MyType2"],
       "resourceSchemas": ["nxv:Resource", "nxv:Schema"],
       "resourceTag": "one",
       "includeDeprecated": true,
-      "includeMetadata": true
+      "includeMetadata": true,
+      "_uuid": "247d223b-1d38-4c6e-8fed-f9a8c2ccb4a3"
     }
   ],
   "projections": [

@@ -12,7 +12,7 @@ import ch.epfl.bluebrain.nexus.commons.cache.{KeyValueStore, KeyValueStoreConfig
 import ch.epfl.bluebrain.nexus.kg.RevisionedValue
 import ch.epfl.bluebrain.nexus.kg.cache.Cache._
 import ch.epfl.bluebrain.nexus.kg.cache.StorageProjectCache._
-import ch.epfl.bluebrain.nexus.kg.resources.ProjectRef
+import ch.epfl.bluebrain.nexus.kg.resources.ProjectIdentifier.ProjectRef
 import ch.epfl.bluebrain.nexus.kg.storage.Storage
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 

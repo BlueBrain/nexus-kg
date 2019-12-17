@@ -4,7 +4,9 @@ import akka.persistence.journal.{Tagged, WriteEventAdapter}
 import cats.syntax.show._
 import ch.epfl.bluebrain.nexus.kg.persistence.TaggingAdapter.EventTag
 import ch.epfl.bluebrain.nexus.kg.resources.Event.{Created, Deprecated, Updated}
-import ch.epfl.bluebrain.nexus.kg.resources.{Event, Id, OrganizationRef, ProjectRef}
+import ch.epfl.bluebrain.nexus.kg.resources.{Event, Id, OrganizationRef}
+import ch.epfl.bluebrain.nexus.kg.resources.ProjectIdentifier.ProjectRef
+
 import ch.epfl.bluebrain.nexus.rdf.Iri
 
 /**

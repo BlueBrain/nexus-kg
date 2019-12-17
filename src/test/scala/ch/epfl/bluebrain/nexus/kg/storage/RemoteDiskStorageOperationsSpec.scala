@@ -8,7 +8,8 @@ import ch.epfl.bluebrain.nexus.commons.test.{ActorSystemFixture, Resources}
 import ch.epfl.bluebrain.nexus.iam.client.types.{AuthToken, Permission}
 import ch.epfl.bluebrain.nexus.kg.TestHelper
 import ch.epfl.bluebrain.nexus.kg.resources.file.File.{Digest, FileAttributes, FileDescription}
-import ch.epfl.bluebrain.nexus.kg.resources.{Id, ProjectRef}
+import ch.epfl.bluebrain.nexus.kg.resources.Id
+import ch.epfl.bluebrain.nexus.kg.resources.ProjectIdentifier.ProjectRef
 import ch.epfl.bluebrain.nexus.kg.storage.Storage.RemoteDiskStorage
 import ch.epfl.bluebrain.nexus.storage.client.StorageClient
 import ch.epfl.bluebrain.nexus.storage.client.types.FileAttributes.{Digest => StorageDigest}

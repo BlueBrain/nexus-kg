@@ -12,7 +12,7 @@ import ch.epfl.bluebrain.nexus.kg.cache.Cache._
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary.nxv
 import ch.epfl.bluebrain.nexus.kg.indexing.View
 import ch.epfl.bluebrain.nexus.kg.indexing.View.{CompositeView, ElasticSearchView, SparqlView}
-import ch.epfl.bluebrain.nexus.kg.resources.ProjectRef
+import ch.epfl.bluebrain.nexus.kg.resources.ProjectIdentifier.ProjectRef
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import shapeless.{TypeCase, Typeable}
 
@@ -79,7 +79,7 @@ class ViewCache[F[_]: Effect: Timer] private (projectToCache: ConcurrentHashMap[
     val T = TypeCase[T]
     getBy[CompositeView](ref, viewId).map { viewOpt =>
       viewOpt.flatMap { view =>
-        val projections = view.projections.map(_.view) + view.defaultSparqlView
+        val projections = view.projections.map(_.view)
         projections.collectFirst { case T(v) if v.id == projectionId => v }
       }
     }

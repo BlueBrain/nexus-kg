@@ -30,6 +30,7 @@ import ch.epfl.bluebrain.nexus.kg.config.Vocabulary._
 import ch.epfl.bluebrain.nexus.kg.indexing.SparqlLink
 import ch.epfl.bluebrain.nexus.kg.indexing.SparqlLink.{SparqlExternalLink, SparqlResourceLink}
 import ch.epfl.bluebrain.nexus.kg.marshallers.instances._
+import ch.epfl.bluebrain.nexus.kg.resources.ProjectIdentifier.{ProjectLabel, ProjectRef}
 import ch.epfl.bluebrain.nexus.kg.resources.ResourceF.Value
 import ch.epfl.bluebrain.nexus.kg.resources._
 import ch.epfl.bluebrain.nexus.rdf.Iri.Path
@@ -107,17 +108,16 @@ class ResourceRoutesSpec
   //noinspection NameBooleanParameters
   abstract class Context(perms: Set[Permission] = manageResources) extends RoutesFixtures {
 
-    projectCache.getBy(label) shouldReturn Task.pure(Some(projectMeta))
+    projectCache.get(label) shouldReturn Task.pure(Some(projectMeta))
     projectCache.get(OrganizationRef(projectMeta.organizationUuid), ProjectRef(projectMeta.uuid)) shouldReturn
       Task(Some(projectMeta))
-    projectCache.getBy(ProjectLabel(projectMeta.organizationUuid.toString, projectMeta.uuid.toString)) shouldReturn
+    projectCache.get(ProjectLabel(projectMeta.organizationUuid.toString, projectMeta.uuid.toString)) shouldReturn
       Task(None)
     projectCache.get(projectRef) shouldReturn Task.pure(Some(projectMeta))
 
     iamClient.identities shouldReturn Task.pure(Caller(user, Set(Anonymous)))
     val acls = AccessControlLists(/ -> resourceAcls(AccessControlList(Anonymous -> perms)))
     iamClient.acls(any[Path], any[Boolean], any[Boolean])(any[Option[AuthToken]]) shouldReturn Task.pure(acls)
-    projectCache.getProjectLabels(Set(projectRef)) shouldReturn Task.pure(Map(projectRef -> Some(label)))
 
     val json = Json.obj("key" -> Json.fromString(genString()))
 

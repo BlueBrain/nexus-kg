@@ -13,9 +13,10 @@ import ch.epfl.bluebrain.nexus.kg.cache.ProjectCache
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig.ArchivesConfig
 import ch.epfl.bluebrain.nexus.kg.config.Contexts._
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary.nxv
-import ch.epfl.bluebrain.nexus.kg.resources.Rejection.{InvalidResourceFormat, ProjectsNotFound}
+import ch.epfl.bluebrain.nexus.kg.resources.Rejection.{InvalidResourceFormat, ProjectRefNotFound}
 import ch.epfl.bluebrain.nexus.kg.resources.syntax._
-import ch.epfl.bluebrain.nexus.kg.resources.{Id, ProjectLabel}
+import ch.epfl.bluebrain.nexus.kg.resources.Id
+import ch.epfl.bluebrain.nexus.kg.resources.ProjectIdentifier.ProjectLabel
 import ch.epfl.bluebrain.nexus.rdf.Iri.{AbsoluteIri, Path}
 import ch.epfl.bluebrain.nexus.rdf.RootedGraph
 import ch.epfl.bluebrain.nexus.rdf.instances._
@@ -145,7 +146,7 @@ class ArchiveSpec
       val id1          = genIri
       val org1         = genString()
       val project1     = genString()
-      cache.getBy(ProjectLabel(org1, project1)) shouldReturn IO(Some(project1Data))
+      cache.get(ProjectLabel(org1, project1)) shouldReturn IO(Some(project1Data))
       val resource1Json = jsonResource(id = Some(id1), project = Some(s"$org1/$project1"))
       val resource1     = Resource(id1, project1Data, None, None, true, None)
 
@@ -153,7 +154,7 @@ class ArchiveSpec
       val id2      = genIri
       val org2     = genString()
       val project2 = genString()
-      cache.getBy(ProjectLabel(org2, project2)) shouldReturn IO(Some(project2Data))
+      cache.get(ProjectLabel(org2, project2)) shouldReturn IO(Some(project2Data))
       val file2Json = jsonFile(id = Some(id2), tag = Some(tag2), project = Some(s"$org2/$project2"))
       val file2     = File(id2, project2Data, None, Some(tag2), None)
       Archive[IO](id.value, graph(resource1Json, file2Json)).value.accepted shouldEqual
@@ -171,11 +172,11 @@ class ArchiveSpec
       val id1      = genIri
       val org1     = genString()
       val project1 = genString()
-      cache.getBy(ProjectLabel(org1, project1)) shouldReturn IO(None)
+      cache.get(ProjectLabel(org1, project1)) shouldReturn IO(None)
       val resource1Json = jsonResource(id = Some(id1), project = Some(s"$org1/$project1"))
 
-      Archive[IO](id.value, graph(resource1Json)).value.rejected[ProjectsNotFound] shouldEqual
-        ProjectsNotFound(Set(ProjectLabel(org1, project1)))
+      Archive[IO](id.value, graph(resource1Json)).value.rejected[ProjectRefNotFound] shouldEqual
+        ProjectRefNotFound(ProjectLabel(org1, project1))
     }
 
     "reject when fields are not matching the target type" in new Ctx {

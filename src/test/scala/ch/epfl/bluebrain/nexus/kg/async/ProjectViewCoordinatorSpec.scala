@@ -17,8 +17,8 @@ import ch.epfl.bluebrain.nexus.kg.config.AppConfig._
 import ch.epfl.bluebrain.nexus.kg.config.Settings
 import ch.epfl.bluebrain.nexus.kg.indexing.View
 import ch.epfl.bluebrain.nexus.kg.indexing.View.CompositeView.Projection.{ElasticSearchProjection, SparqlProjection}
-import ch.epfl.bluebrain.nexus.kg.indexing.View.CompositeView.Source
-import ch.epfl.bluebrain.nexus.kg.indexing.View.{apply => _, _}
+import ch.epfl.bluebrain.nexus.kg.indexing.View.CompositeView.Source.ProjectEventStream
+import ch.epfl.bluebrain.nexus.kg.indexing.View._
 import ch.epfl.bluebrain.nexus.kg.resources.OrganizationRef
 import ch.epfl.bluebrain.nexus.kg.resources.syntax._
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
@@ -68,7 +68,7 @@ class ProjectViewCoordinatorSpec
     val view3             = SparqlView(Filter(), true, project2.ref, genIri, genUUID, 1L, deprecated = false)
     val projection1       = ElasticSearchProjection("query", ElasticSearchView(Json.obj(), Filter(), false, false, project.ref, genIri, genUUID, 1L, false), Json.obj())
     val projection2       = SparqlProjection("query2", SparqlView(Filter(), true, project.ref, genIri, genUUID, 1L, false))
-    val view4             = CompositeView(Source(Filter(Set(genIri)), true), Set(projection1, projection2), None, project.ref, genIri, genUUID, 1L, false)
+    val view4             = CompositeView(Set(ProjectEventStream(genIri, genUUID, Filter(), includeMetadata = false)), Set(projection1, projection2), None, project.ref, genIri, genUUID, 1L, false)
     // format: on
 
     val counterStart            = new AtomicInteger(0)
@@ -113,10 +113,11 @@ class ProjectViewCoordinatorSpec
         override def startCoordinator(
             view: CompositeView,
             proj: Project,
-            restartViews: Set[SingleView],
+            restartProgress: Set[String],
             prevRestart: Option[Instant]
         ): ViewCoordinator =
-          if (view == view4 && proj == project && restartViews == view4.projections.map(_.view)) {
+          if (view == view4 && proj == project) {
+            println(restartProgress)
             counterStartProjections.incrementAndGet()
             ViewCoordinator(coordinator4)
           } else throw new RuntimeException()
@@ -186,7 +187,7 @@ class ProjectViewCoordinatorSpec
     "fetch statistics" in {
       val progress: ProjectionProgress = OffsetProgress(Sequence(2L), 2L, 0L, 1L)
       coordinator1.state() shouldReturn Task(Some(progress))
-      val result = coordinator.statistics(view.id).runToFuture.futureValue.value
+      val result = coordinator.statistics(view.id, None).runToFuture.futureValue.value.head.value
       result.processedEvents shouldEqual 2L
       result.discardedEvents shouldEqual 0L
       result.failedEvents shouldEqual 1L
@@ -194,15 +195,14 @@ class ProjectViewCoordinatorSpec
 
     "do not when coordinator not present fetch statistics" in {
       coordinator3.state() shouldReturn Task(None)
-      coordinator.statistics(view3.id).runToFuture.futureValue shouldEqual None
+      coordinator.projectionStats(view3.id, None, None).runToFuture.futureValue shouldEqual None
     }
 
     "fetch projections statistics" in {
       val progress: ProjectionProgress = OffsetProgress(Sequence(2L), 2L, 0L, 1L)
       coordinator4.state() shouldReturn Task(Some(progress))
-      val result = coordinator.projectionsStatistic(view4).runToFuture.futureValue
-      result.total shouldEqual 2L
-      forAll(result.results.map(_.source.value)) { statistic =>
+      val result = coordinator.projectionStats(view4.id, None, None).runToFuture.futureValue.value
+      forAll(result.map(_.value)) { statistic =>
         statistic.processedEvents shouldEqual 2L
         statistic.discardedEvents shouldEqual 0L
         statistic.failedEvents shouldEqual 1L
@@ -212,15 +212,15 @@ class ProjectViewCoordinatorSpec
     "fetch offset" in {
       val progress: ProjectionProgress = OffsetProgress(Sequence(2L), 2L, 0L, 1L)
       coordinator2.state() shouldReturn Task(Some(progress))
-      coordinator.offset(view2.id).runToFuture.futureValue.value shouldEqual Sequence(2L)
+      coordinator.offset(view2.id, None).runToFuture.futureValue.value.head.value shouldEqual Sequence(2L)
     }
 
     "fetch projections offset" in {
       val progress: ProjectionProgress = OffsetProgress(Sequence(2L), 2L, 0L, 1L)
       coordinator4.state() shouldReturn Task(Some(progress))
-      val result = coordinator.projectionsOffset(view4).runToFuture.futureValue
-      result.total shouldEqual 2L
-      forAll(result.results.map(_.source.value)) { offset =>
+      val result = coordinator.projectionOffset(view4.id, None, None).runToFuture.futureValue.value
+      result.iterator.size shouldEqual 2L
+      forAll(result.map(_.value)) { offset =>
         offset shouldEqual Sequence(2L)
       }
     }
@@ -235,7 +235,7 @@ class ProjectViewCoordinatorSpec
     }
 
     "trigger manual projections restart" in {
-      coordinator.restartProjections(view4.id).runToFuture.futureValue
+      coordinator.restart(view4.id, None, None).runToFuture.futureValue
       currentProjStart.incrementAndGet()
       eventually(coordinator4.stop() wasCalled once)
       eventually(counterStartProjections.get shouldEqual currentProjStart.get)

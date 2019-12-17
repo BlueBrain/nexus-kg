@@ -15,7 +15,9 @@ import ch.epfl.bluebrain.nexus.iam.client.types.Permission
 import ch.epfl.bluebrain.nexus.kg.KgError
 import ch.epfl.bluebrain.nexus.kg.KgError.DownstreamServiceError
 import ch.epfl.bluebrain.nexus.kg.resources.file.File.{Digest, FileAttributes, FileDescription}
-import ch.epfl.bluebrain.nexus.kg.resources.{Id, ProjectRef}
+import ch.epfl.bluebrain.nexus.kg.resources.Id
+import ch.epfl.bluebrain.nexus.kg.resources.ProjectIdentifier.ProjectRef
+
 import ch.epfl.bluebrain.nexus.kg.storage.Storage.{S3Credentials, S3Settings, S3Storage}
 import ch.epfl.bluebrain.nexus.rdf.syntax._
 import com.amazonaws.auth.{AWSStaticCredentialsProvider, AnonymousAWSCredentials}

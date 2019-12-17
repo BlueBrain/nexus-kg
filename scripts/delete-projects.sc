@@ -444,9 +444,8 @@ def deleteProjects(projects: List[ProjectLabel], orgs: List[String])(
 
     def deleteElasticSearch(projects: List[Project]): Task[Unit] =
       Task.delay(println(s"Deleting ElasticSearch indices")) >>
-        projects
-          .map(project => elasticSearchClient.deleteIndex(s"${config.elasticSearchPrefix}${project.uuid}*"))
-          .sequence >> Task.unit
+        projects.traverse(project => elasticSearchClient.deleteIndex(s"${config.elasticSearchPrefix}${project.uuid}*")) >>
+        Task.unit
 
     def deleteCassandra(projects: List[Project]): Task[Unit] = {
       Task.delay(println(s"Deleting cassandra rows for all projects")) >>
@@ -465,10 +464,9 @@ def deleteProjects(projects: List[ProjectLabel], orgs: List[String])(
       }
 
     val resolvedProjects = for {
-      fromOrgs <- orgs.map(adminClient.fetchProjects(_).map(_.results.map(_.source))).sequence.map(_.flatten)
+      fromOrgs <- orgs.traverse(adminClient.fetchProjects(_).map(_.results.map(_.source))).map(_.flatten)
       fromProjects <- projects
-        .map(p => adminClient.fetchProject(p.org, p.project).map(p -> _))
-        .sequence
+        .traverse(p => adminClient.fetchProject(p.org, p.project).map(p -> _))
         .map(collectAndLog)
     } yield fromOrgs ++ fromProjects
     resolvedProjects
@@ -500,7 +498,7 @@ def deleteOrgs(orgs: List[String])(
       }
 
     val resolvedOrgs =
-      orgs.map(label => adminClient.fetchOrganization(label).map(label -> _)).sequence.map(collectAndLog)
+      orgs.traverse(label => adminClient.fetchOrganization(label).map(label -> _)).map(collectAndLog)
     resolvedOrgs.flatMap(deleteCassandra)
   }
 

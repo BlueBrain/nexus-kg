@@ -26,7 +26,8 @@ import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AnyWordSpecLike
 import ch.epfl.bluebrain.nexus.kg.directives.ProjectDirectives._
 import ch.epfl.bluebrain.nexus.kg.marshallers.instances._
-import ch.epfl.bluebrain.nexus.kg.resources.{OrganizationRef, ProjectInitializer, ProjectLabel, ProjectRef}
+import ch.epfl.bluebrain.nexus.kg.resources.{OrganizationRef, ProjectInitializer}
+import ch.epfl.bluebrain.nexus.kg.resources.ProjectIdentifier.{ProjectLabel, ProjectRef}
 import ch.epfl.bluebrain.nexus.kg.routes.Routes
 import ch.epfl.bluebrain.nexus.kg.{Error, KgError, TestHelper}
 import ch.epfl.bluebrain.nexus.rdf.Iri
@@ -234,7 +235,7 @@ class ProjectDirectivesSpec
 
       "fetch the project by label from the cache" in {
 
-        projectCache.getBy(label) shouldReturn Task.pure(Option(projectMeta))
+        projectCache.get(label) shouldReturn Task.pure(Option(projectMeta))
 
         Get("/organization/project") ~> route ~> check {
           responseAs[Project] shouldEqual projectMetaResp
@@ -244,7 +245,7 @@ class ProjectDirectivesSpec
       "fetch the project by UUID from the cache" in {
 
         projectCache.get(orgRef, projectRef) shouldReturn Task.pure(Option(projectMeta))
-        projectCache.getBy(ProjectLabel(orgRef.show, projectRef.show)) shouldReturn Task.pure(None)
+        projectCache.get(ProjectLabel(orgRef.show, projectRef.show)) shouldReturn Task.pure(None)
 
         Get(s"/${orgRef.show}/${projectRef.show}") ~> route ~> check {
           responseAs[Project] shouldEqual projectMetaResp
@@ -253,7 +254,7 @@ class ProjectDirectivesSpec
       }
 
       "fetch the project by label from admin client when not present on the cache" in {
-        projectCache.getBy(label) shouldReturn Task.pure(None)
+        projectCache.get(label) shouldReturn Task.pure(None)
         client.fetchProject("organization", "project") shouldReturn Task.pure(Option(projectMeta))
         initializer(projectMeta, subject) shouldReturn Task.unit
 
@@ -264,7 +265,7 @@ class ProjectDirectivesSpec
 
       "fetch the project by UUID from admin client when not present on the cache" in {
         projectCache.get(orgRef, projectRef) shouldReturn Task.pure(None)
-        projectCache.getBy(ProjectLabel(orgRef.show, projectRef.show)) shouldReturn Task.pure(None)
+        projectCache.get(ProjectLabel(orgRef.show, projectRef.show)) shouldReturn Task.pure(None)
         client.fetchProject(orgRef.id, projectRef.id) shouldReturn Task.pure(Option(projectMeta))
         initializer(projectMeta, subject) shouldReturn Task.unit
 
@@ -276,7 +277,7 @@ class ProjectDirectivesSpec
       "fetch the project by label when UUID not found from admin client nor from the cache" in {
         projectCache.get(orgRef, projectRef) shouldReturn Task.pure(None)
         client.fetchProject(orgRef.id, projectRef.id) shouldReturn Task.pure(None)
-        projectCache.getBy(ProjectLabel(orgRef.show, projectRef.show)) shouldReturn Task.pure(Option(projectMeta))
+        projectCache.get(ProjectLabel(orgRef.show, projectRef.show)) shouldReturn Task.pure(Option(projectMeta))
         initializer(projectMeta, subject) shouldReturn Task.unit
 
         Get(s"/${orgRef.show}/${projectRef.show}") ~> route ~> check {
@@ -285,7 +286,7 @@ class ProjectDirectivesSpec
       }
 
       "fetch the project by label from admin client when cache throws an error" in {
-        projectCache.getBy(label) shouldReturn Task.raiseError(new RuntimeException)
+        projectCache.get(label) shouldReturn Task.raiseError(new RuntimeException)
         client.fetchProject("organization", "project") shouldReturn Task.pure(Option(projectMeta))
         initializer(projectMeta, subject) shouldReturn Task.unit
 
@@ -295,7 +296,7 @@ class ProjectDirectivesSpec
       }
 
       "reject project by label when not found neither in the cache nor calling the admin client" in {
-        projectCache.getBy(label) shouldReturn Task.pure(None)
+        projectCache.get(label) shouldReturn Task.pure(None)
         client.fetchProject("organization", "project") shouldReturn Task.pure(None)
 
         Get("/organization/project") ~> route ~> check {
@@ -306,7 +307,7 @@ class ProjectDirectivesSpec
 
       "reject when admin client signals forbidden" in {
         val label = ProjectLabel("organization", "project")
-        projectCache.getBy(label) shouldReturn Task.pure(None)
+        projectCache.get(label) shouldReturn Task.pure(None)
         client.fetchProject("organization", "project") shouldReturn Task.raiseError(IamClientError.Forbidden(""))
 
         Get("/organization/project") ~> route ~> check {
@@ -317,7 +318,7 @@ class ProjectDirectivesSpec
 
       "reject when admin client signals another error" in {
         val label = ProjectLabel("organization", "project")
-        projectCache.getBy(label) shouldReturn Task.pure(None)
+        projectCache.get(label) shouldReturn Task.pure(None)
         client.fetchProject("organization", "project") shouldReturn
           Task.raiseError(IamClientError.UnknownError(StatusCodes.InternalServerError, ""))
 

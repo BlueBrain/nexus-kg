@@ -13,7 +13,8 @@ import ch.epfl.bluebrain.nexus.kg.KgError.{OrganizationNotFound, ProjectIsDeprec
 import ch.epfl.bluebrain.nexus.kg.cache.ProjectCache
 import ch.epfl.bluebrain.nexus.kg.config.Schemas
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary.nxv
-import ch.epfl.bluebrain.nexus.kg.resources.{OrganizationRef, ProjectInitializer, ProjectLabel, ProjectRef}
+import ch.epfl.bluebrain.nexus.kg.resources.{OrganizationRef, ProjectInitializer}
+import ch.epfl.bluebrain.nexus.kg.resources.ProjectIdentifier._
 import ch.epfl.bluebrain.nexus.kg.resources.syntax._
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import monix.eval.Task
@@ -54,7 +55,7 @@ object ProjectDirectives {
     def projectByLabel(orgLabel: String, projectLabel: String): Directive1[Project] = {
       val label = ProjectLabel(orgLabel, projectLabel)
       val result = projectCache
-        .getBy(label)
+        .get(label)
         .flatMap {
           case value @ Some(_) => Task.pure(value)
           case None            => client.fetchProject(orgLabel, projectLabel).flatMap(initialize)

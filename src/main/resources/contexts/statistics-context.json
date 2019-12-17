@@ -7,6 +7,12 @@
     },
     "lastProcessedEventDateTime": {
       "@type": "xsd:dateTime"
+    },
+    "projectionId": {
+      "@type": "@id"
+    },
+    "sourceId": {
+      "@type": "@id"
     }
   }
 }

@@ -3,6 +3,7 @@ package ch.epfl.bluebrain.nexus.kg
 import cats.data.EitherT
 import cats.effect.Effect
 import cats.syntax.all._
+import ch.epfl.bluebrain.nexus.admin.client.types.Project
 import ch.epfl.bluebrain.nexus.commons.es.client.ElasticSearchClient
 import ch.epfl.bluebrain.nexus.commons.http.HttpClient
 import ch.epfl.bluebrain.nexus.commons.search.QueryResults.UnscoredQueryResults
@@ -16,6 +17,7 @@ import ch.epfl.bluebrain.nexus.kg.archives.Archive
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig
 import ch.epfl.bluebrain.nexus.kg.indexing.SparqlLink
 import ch.epfl.bluebrain.nexus.kg.indexing.View.{ElasticSearchView, SparqlView}
+import ch.epfl.bluebrain.nexus.kg.resources.ProjectIdentifier.ProjectRef
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection.InvalidResource
 import ch.epfl.bluebrain.nexus.kg.resources.file.File.FileAttributes
 import ch.epfl.bluebrain.nexus.kg.routes.SearchParams
@@ -104,9 +106,14 @@ package object resources {
   type LinkResults = QueryResults[SparqlLink]
 
   /**
-    * Rejection or fquery results of type [[SparqlLink]]
+    * Rejection or query results of type [[SparqlLink]]
     */
   type RejOrLinkResults = Either[Rejection, LinkResults]
+
+  /**
+    * Rejection or project [[Project]]
+    */
+  type RejOrProject = Either[Rejection, Project]
 
   implicit def toSubject(implicit caller: Caller): Subject = caller.subject
 

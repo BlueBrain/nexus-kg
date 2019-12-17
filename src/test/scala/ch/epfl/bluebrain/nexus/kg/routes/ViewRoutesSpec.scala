@@ -34,9 +34,8 @@ import ch.epfl.bluebrain.nexus.kg.config.Schemas._
 import ch.epfl.bluebrain.nexus.kg.config.Settings
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary.nxv
 import ch.epfl.bluebrain.nexus.kg.indexing.View.{Filter, _}
-import ch.epfl.bluebrain.nexus.kg.indexing.{Statistics, View}
+import ch.epfl.bluebrain.nexus.kg.indexing.{IdentifiedProgress, Statistics, View}
 import ch.epfl.bluebrain.nexus.kg.marshallers.instances._
-import ch.epfl.bluebrain.nexus.kg.resources.syntax._
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection.NotFound
 import ch.epfl.bluebrain.nexus.kg.resources.ResourceF.Value
 import ch.epfl.bluebrain.nexus.kg.resources._
@@ -46,11 +45,11 @@ import ch.epfl.bluebrain.nexus.rdf.Iri.{AbsoluteIri, Path}
 import ch.epfl.bluebrain.nexus.rdf.instances._
 import ch.epfl.bluebrain.nexus.rdf.syntax._
 import ch.epfl.bluebrain.nexus.storage.client.StorageClient
+import ch.epfl.bluebrain.nexus.sourcing.projections.syntax._
 import com.datastax.driver.core.utils.UUIDs
 import com.typesafe.config.{Config, ConfigFactory}
 import io.circe.generic.auto._
 import io.circe.parser.parse
-import io.circe.syntax._
 import io.circe.Json
 import monix.eval.Task
 import org.mockito.ArgumentMatchers.{eq => Eq}
@@ -126,14 +125,13 @@ class ViewRoutesSpec
   //noinspection NameBooleanParameters
   abstract class Context(perms: Set[Permission] = manageResolver) extends RoutesFixtures {
 
-    projectCache.getBy(label) shouldReturn Task.pure(Some(projectMeta))
+    projectCache.get(label) shouldReturn Task.pure(Some(projectMeta))
     projectCache.getLabel(projectRef) shouldReturn Task.pure(Some(label))
     projectCache.get(projectRef) shouldReturn Task.pure(Some(projectMeta))
 
     iamClient.identities shouldReturn Task.pure(Caller(user, Set(Anonymous)))
     implicit val acls = AccessControlLists(/ -> resourceAcls(AccessControlList(Anonymous -> perms)))
     iamClient.acls(any[Path], any[Boolean], any[Boolean])(any[Option[AuthToken]]) shouldReturn Task.pure(acls)
-    projectCache.getProjectLabels(Set(projectRef)) shouldReturn Task.pure(Map(projectRef -> Some(label)))
 
     val view = jsonContentOf("/view/elasticview.json")
       .removeKeys("_uuid")
@@ -723,9 +721,9 @@ class ViewRoutesSpec
     }
 
     "fetch view statistics" in new Context {
-      val statistics = Statistics(10L, 1L, 2L, 12L, None, None)
+      val statistics = Set(IdentifiedProgress(Statistics(10L, 1L, 2L, 12L, None, None)))
 
-      coordinator.statistics(nxv.defaultSparqlIndex.value) shouldReturn Task(Some(statistics))
+      coordinator.statistics(nxv.defaultSparqlIndex.value, None) shouldReturn Task(Some(statistics))
 
       val endpoints = List(
         s"/v1/views/$organization/$project/graph/statistics",
@@ -734,15 +732,19 @@ class ViewRoutesSpec
       forAll(endpoints) { endpoint =>
         Get(endpoint) ~> addCredentials(oauthToken) ~> routes ~> check {
           status shouldEqual StatusCodes.OK
-          responseAs[Json] shouldEqual jsonContentOf("/view/statistics.json")
+          responseAs[Json] shouldEqual jsonContentOf("/view/statistics.json").removeNestedKeys("projectionId")
         }
       }
     }
 
     "fetch composite view projection statistics" in new Context {
-      val viewId     = urlEncode(compositeView.id)
-      val statistics = Statistics(10L, 1L, 2L, 12L, None, None)
-      coordinator.statistics(compositeView.id, nxv.defaultElasticSearchIndex.value) shouldReturn Task(Some(statistics))
+      val viewId = urlEncode(compositeView.id)
+      val statistics = Set(
+        IdentifiedProgress(None, Some(nxv.defaultElasticSearchIndex.value), Statistics(10L, 1L, 2L, 12L, None, None))
+      )
+
+      coordinator.projectionStats(compositeView.id, None, Some(nxv.defaultElasticSearchIndex.value)) shouldReturn
+        Task(Some(statistics))
 
       val endpoints = List(
         s"/v1/views/$organization/$project/$viewId/projections/documents/statistics",
@@ -759,7 +761,8 @@ class ViewRoutesSpec
 
     "fetch view progress" in new Context {
 
-      coordinator.offset(nxv.defaultSparqlIndex.value) shouldReturn Task(Some(Sequence(2L)))
+      val offset: Set[IdentifiedProgress[Offset]] = Set(IdentifiedProgress(Sequence(2L)))
+      coordinator.offset(nxv.defaultSparqlIndex.value, None) shouldReturn Task(Some(offset))
 
       val endpoints = List(
         s"/v1/views/$organization/$project/graph/progress",
@@ -769,7 +772,8 @@ class ViewRoutesSpec
         Get(endpoint) ~> addCredentials(oauthToken) ~> routes ~> check {
           status shouldEqual StatusCodes.OK
           responseAs[Json] shouldEqual
-            Json.obj("@type" -> "Sequential".asJson, "offset" -> Json.fromLong(2L)).addContext(progressCtxUri)
+            jsonContentOf("/view/progress.json", Map(quote("{type}") -> "Sequential", quote("{value}") -> "2"))
+              .removeNestedKeys("projectionId", "sourceId")
         }
       }
     }
@@ -784,7 +788,9 @@ class ViewRoutesSpec
       forAll(endpoints) { endpoint =>
         Delete(endpoint) ~> addCredentials(oauthToken) ~> routes ~> check {
           status shouldEqual StatusCodes.OK
-          responseAs[Json] shouldEqual Json.obj("@type" -> "NoProgress".asJson).addContext(progressCtxUri)
+          responseAs[Json] shouldEqual
+            jsonContentOf("/view/progress.json", Map(quote("{type}") -> "NoProgress", quote("{value}") -> "1"))
+              .removeNestedKeys("offset", "projectionId", "sourceId")
         }
       }
     }
@@ -794,8 +800,10 @@ class ViewRoutesSpec
       val viewId = urlEncode(compositeView.id)
       val uuid   = UUIDs.timeBased()
 
-      coordinator.offset(compositeView.id, nxv.defaultElasticSearchIndex.value) shouldReturn
-        Task(Some(TimeBasedUUID(uuid)))
+      val offset: Set[IdentifiedProgress[Offset]] =
+        Set(IdentifiedProgress(None, Some(nxv.defaultElasticSearchIndex.value), TimeBasedUUID(uuid)))
+      coordinator.projectionOffset(compositeView.id, None, Some(nxv.defaultElasticSearchIndex.value)) shouldReturn
+        Task(Some(offset))
 
       val endpoints = List(
         s"/v1/views/$organization/$project/$viewId/projections/documents/progress",
@@ -805,10 +813,12 @@ class ViewRoutesSpec
       forAll(endpoints) { endpoint =>
         Get(endpoint) ~> addCredentials(oauthToken) ~> routes ~> check {
           status shouldEqual StatusCodes.OK
+          val time = TimeBasedUUID(uuid).asInstant.toString
           responseAs[Json] shouldEqual
-            Json
-              .obj("@type" -> "TimeBased".asJson, "offset" -> TimeBasedUUID(uuid).asInstant.asJson)
-              .addContext(progressCtxUri)
+            jsonContentOf(
+              "/view/progress.json",
+              Map(quote("{type}") -> "TimeBased", quote("{value}") -> s""""$time"""")
+            ).removeNestedKeys("sourceId")
         }
       }
     }
@@ -817,29 +827,32 @@ class ViewRoutesSpec
       viewCache.getBy[CompositeView](eqTo(projectRef), eqTo(compositeView.id))(any[Typeable[CompositeView]]) shouldReturn
         Task.pure(Some(compositeView))
 
-      val viewId = urlEncode(compositeView.id)
-      val uuid   = UUIDs.timeBased()
+      val viewId          = urlEncode(compositeView.id)
+      val uuid            = UUIDs.timeBased()
+      val sourceId        = genIri
+      val sourceIdEncoded = urlEncode(sourceId)
 
-      val result: QueryResults[IdentifiedValue[Offset]] = UnscoredQueryResults(
-        2L,
-        List(
-          UnscoredQueryResult(IdentifiedValue(sparqlProjection.view.id, TimeBasedUUID(uuid))),
-          UnscoredQueryResult(IdentifiedValue(elasticSearchProjection.view.id, Sequence(2L)))
-        )
-      )
-      coordinator.projectionsOffset(compositeView) shouldReturn Task(result)
+      val offset: Set[IdentifiedProgress[Offset]] =
+        Set(IdentifiedProgress(Some(sourceId), None, TimeBasedUUID(uuid)))
+      coordinator.projectionOffset(compositeView.id, Some(sourceId), None) shouldReturn Task(Some(offset))
 
       val endpoints = List(
-        s"/v1/views/$organization/$project/$viewId/projections/_/progress",
-        s"/v1/resources/$organization/$project/view/$viewId/projections/_/progress"
+        s"/v1/views/$organization/$project/$viewId/projections/_/progress?source=$sourceIdEncoded",
+        s"/v1/resources/$organization/$project/view/$viewId/projections/_/progress?source=$sourceIdEncoded"
       )
 
-      val replace  = Map(quote("{timeOffset}") -> TimeBasedUUID(uuid).asInstant.toString, quote("{seqOffset}") -> "2")
-      val expected = jsonContentOf("/view/progress_projection_list.json", replace)
       forAll(endpoints) { endpoint =>
         Get(endpoint) ~> addCredentials(oauthToken) ~> routes ~> check {
           status shouldEqual StatusCodes.OK
-          responseAs[Json] should equalIgnoreArrayOrder(expected)
+          responseAs[Json] shouldEqual
+            jsonContentOf(
+              "/view/progress.json",
+              Map(
+                quote("{type}")     -> "TimeBased",
+                quote("{value}")    -> s""""${TimeBasedUUID(uuid).asInstant}"""",
+                quote("{sourceId}") -> sourceId.toString()
+              )
+            ).removeNestedKeys("projectionId")
         }
       }
     }
@@ -850,17 +863,8 @@ class ViewRoutesSpec
 
       val viewId = urlEncode(compositeView.id)
 
-      val statistics1 = Statistics(10L, 2L, 1L, 20L, None, None)
-      val statistics2 = Statistics(12L, 0L, 1L, 13L, None, None)
-
-      val result: QueryResults[IdentifiedValue[Statistics]] = UnscoredQueryResults(
-        2L,
-        List(
-          UnscoredQueryResult(IdentifiedValue(sparqlProjection.view.id, statistics1)),
-          UnscoredQueryResult(IdentifiedValue(elasticSearchProjection.view.id, statistics2))
-        )
-      )
-      coordinator.projectionsStatistic(compositeView) shouldReturn Task(result)
+      val statistics = Set(IdentifiedProgress(Statistics(10L, 1L, 2L, 12L, None, None)))
+      coordinator.projectionStats(compositeView.id, None, None) shouldReturn Task(Some(statistics))
 
       val endpoints = List(
         s"/v1/views/$organization/$project/$viewId/projections/_/statistics",
@@ -870,7 +874,7 @@ class ViewRoutesSpec
       forAll(endpoints) { endpoint =>
         Get(endpoint) ~> addCredentials(oauthToken) ~> routes ~> check {
           status shouldEqual StatusCodes.OK
-          responseAs[Json] should equalIgnoreArrayOrder(jsonContentOf("/view/statistics_projection_list.json"))
+          responseAs[Json] shouldEqual jsonContentOf("/view/statistics.json").removeNestedKeys("projectionId")
         }
       }
     }
@@ -879,7 +883,7 @@ class ViewRoutesSpec
 
       val viewId = urlEncode(compositeView.id)
 
-      coordinator.restart(compositeView.id, nxv.defaultElasticSearchIndex.value) shouldReturn Task(Some(()))
+      coordinator.restart(compositeView.id, None, Some(nxv.defaultElasticSearchIndex.value)) shouldReturn Task(Some(()))
 
       val endpoints = List(
         s"/v1/views/$organization/$project/$viewId/projections/documents/progress",
@@ -889,7 +893,9 @@ class ViewRoutesSpec
       forAll(endpoints) { endpoint =>
         Delete(endpoint) ~> addCredentials(oauthToken) ~> routes ~> check {
           status shouldEqual StatusCodes.OK
-          responseAs[Json] shouldEqual Json.obj("@type" -> "NoProgress".asJson).addContext(progressCtxUri)
+          responseAs[Json] shouldEqual
+            jsonContentOf("/view/progress.json", Map(quote("{type}") -> "NoProgress", quote("{value}") -> "1"))
+              .removeNestedKeys("offset", "sourceId")
         }
       }
     }

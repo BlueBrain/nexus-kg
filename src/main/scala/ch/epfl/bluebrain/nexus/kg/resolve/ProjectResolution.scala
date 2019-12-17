@@ -8,6 +8,7 @@ import cats.syntax.traverse._
 import ch.epfl.bluebrain.nexus.kg.cache._
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig.iriResolution
 import ch.epfl.bluebrain.nexus.kg.resolve.Resolver._
+import ch.epfl.bluebrain.nexus.kg.resources.ProjectIdentifier.ProjectRef
 import ch.epfl.bluebrain.nexus.kg.resources._
 import com.typesafe.scalalogging.Logger
 import monix.eval.Task
@@ -52,19 +53,16 @@ class ProjectResolution[F[_]](
   private def toCompositeResolution(resolvers: List[Resolver]): F[CompositeResolution[F]] =
     resolvers
       .filterNot(_.deprecated)
-      .map(resolverResolution)
-      .flatten
+      .flatMap(resolverResolution)
       .sequence
       .map(list => CompositeResolution(staticResolution :: list))
 
   private def resolverResolution(resolver: Resolver): Option[F[Resolution[F]]] =
     resolver match {
       case r: InProjectResolver => Some(F.pure(InProjectResolution[F](r.ref, repo)))
-      case r @ CrossProjectResolver(_, `List[ProjectRef]`(projects), _, _, _, _, _, _) =>
-        Some(
-          aclCache.list
-            .map(MultiProjectResolution(repo, F.pure(projects), r.resourceTypes, r.identities, projectCache, _))
-        )
+      case r: CrossProjectResolver =>
+        val refs = r.projectsBy[ProjectRef]
+        Some(aclCache.list.map(MultiProjectResolution(repo, refs, r.resourceTypes, r.identities, projectCache, _)))
       case other =>
         logger.error(s"A corrupted resolver was found in the cache '$other'")
         None

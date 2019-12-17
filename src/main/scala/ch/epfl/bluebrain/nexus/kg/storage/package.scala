@@ -8,7 +8,7 @@ import java.util.UUID
 import akka.http.scaladsl.model.Uri
 import akka.stream.scaladsl.{Sink, Source}
 import akka.util.ByteString
-import ch.epfl.bluebrain.nexus.kg.resources.ProjectRef
+import ch.epfl.bluebrain.nexus.kg.resources.ProjectIdentifier.ProjectRef
 import ch.epfl.bluebrain.nexus.kg.resources.file.File.Digest
 
 import scala.concurrent.{ExecutionContext, Future}

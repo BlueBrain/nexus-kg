@@ -146,11 +146,6 @@ object Main {
     cluster.registerOnMemberUp {
       logger.info("==== Cluster is Live ====")
 
-      if (sys.env.getOrElse("MIGRATE_V10_TO_V11", "false").toBoolean) {
-        Migrations.V1ToV11.migrate(appConfig)(as, Scheduler.global, CanBlock.permit)
-        RepairFromMessages.repair(repo)(as, Scheduler.global, CanBlock.permit)
-      }
-
       if (sys.env.getOrElse("REPAIR_FROM_MESSAGES", "false").toBoolean) {
         RepairFromMessages.repair(repo)(as, Scheduler.global, CanBlock.permit)
       }

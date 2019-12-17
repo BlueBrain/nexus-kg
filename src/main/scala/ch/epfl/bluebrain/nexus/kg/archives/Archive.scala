@@ -15,7 +15,8 @@ import ch.epfl.bluebrain.nexus.kg.config.AppConfig.ArchivesConfig
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary.{nxv, nxva}
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection._
 import ch.epfl.bluebrain.nexus.kg.resources.syntax._
-import ch.epfl.bluebrain.nexus.kg.resources.{Id, ProjectLabel, Rejection, ResId}
+import ch.epfl.bluebrain.nexus.kg.resources.{Id, Rejection, ResId}
+import ch.epfl.bluebrain.nexus.kg.resources.ProjectIdentifier.ProjectLabel
 import ch.epfl.bluebrain.nexus.kg.storage.AkkaSource
 import ch.epfl.bluebrain.nexus.rdf.Iri.Path.{Segment, Slash}
 import ch.epfl.bluebrain.nexus.rdf.Iri.{AbsoluteIri, Path}
@@ -38,7 +39,7 @@ final case class Archive(resId: ResId, created: Instant, createdBy: Identity, va
     values.toList.traverse(fetchResource(_).value).map(results => TarFlow.write(results.flatten))
 
   def toTar[F[_]: Effect](implicit fetchResource: FetchResource[F, ArchiveSource]): OptionT[F, AkkaSource] =
-    values.toList.map(fetchResource(_)).sequence.map(TarFlow.write(_))
+    values.toList.traverse(fetchResource(_)).map(TarFlow.write(_))
 }
 
 object Archive {
@@ -156,7 +157,7 @@ object Archive {
   ): EitherT[F, Rejection, Archive] = {
 
     implicit val projectResolver: ProjectResolver[F] = {
-      case Some(label: ProjectLabel) => OptionT(cache.getBy(label)).toRight[Rejection](ProjectsNotFound(Set(label)))
+      case Some(label: ProjectLabel) => OptionT(cache.get(label)).toRight[Rejection](ProjectRefNotFound(label))
       case None                      => EitherT.rightT[F, Rejection](project)
     }
 

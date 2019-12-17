@@ -6,7 +6,8 @@ import java.util.UUID
 import akka.actor.ActorSystem
 import akka.persistence.cassandra.query.scaladsl.CassandraReadJournal
 import akka.persistence.query.PersistenceQuery
-import ch.epfl.bluebrain.nexus.kg.resources.{Id, ProjectRef, Repo, ResId}
+import ch.epfl.bluebrain.nexus.kg.resources.{Id, Repo, ResId}
+import ch.epfl.bluebrain.nexus.kg.resources.ProjectIdentifier.ProjectRef
 import ch.epfl.bluebrain.nexus.rdf.Iri
 import com.typesafe.scalalogging.Logger
 import monix.eval.Task

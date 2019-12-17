@@ -4,7 +4,17 @@ import java.net.URLEncoder
 import java.util.UUID
 
 import cats.Show
-import cats.syntax.show._
+import cats.implicits._
+import ch.epfl.bluebrain.nexus.iam.client.types.Identity
+import ch.epfl.bluebrain.nexus.iam.client.types.Identity.{Anonymous, Authenticated, Group, User}
+import ch.epfl.bluebrain.nexus.kg.config.Vocabulary.nxv
+import ch.epfl.bluebrain.nexus.kg.resources.{Rejection, ResId}
+import ch.epfl.bluebrain.nexus.kg.resources.Rejection.InvalidResourceFormat
+import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
+import ch.epfl.bluebrain.nexus.rdf.Vocabulary.rdf
+import ch.epfl.bluebrain.nexus.rdf.cursor.GraphCursor
+import ch.epfl.bluebrain.nexus.rdf.instances._
+import ch.epfl.bluebrain.nexus.rdf.syntax._
 
 import scala.util.Try
 
@@ -35,16 +45,23 @@ package object kg {
   def uuid(): String =
     UUID.randomUUID().toString.toLowerCase
 
-  /**
-    * Converts a map where the values are Option into a Left(values) with the None values or a Right(map) with the Some values
-    *
-    * @param map the map
-    * @tparam A the map key type
-    * @tparam B the map value type
-    */
-  def resultOrFailures[A, B](map: Map[A, Option[B]]): Either[Set[A], Map[A, B]] = {
-    val failed = map.collect { case (v, None) => v }
-    if (failed.nonEmpty) Left(failed.toSet)
-    else Right(map.collect { case (k, Some(v)) => k -> v })
+  def identities(resId: ResId, iter: Iterable[GraphCursor]): Either[Rejection, List[Identity]] =
+    iter.toList.foldM(List.empty[Identity]) { (acc, innerCursor) =>
+      identity(resId, innerCursor).map(_ :: acc)
+    }
+
+  def identity(resId: ResId, c: GraphCursor): Either[Rejection, Identity] = {
+    lazy val anonymous =
+      c.downField(rdf.tpe).focus.as[AbsoluteIri].toOption.collectFirst { case nxv.Anonymous.value => Anonymous }
+    lazy val realm         = c.downField(nxv.realm).focus.as[String]
+    lazy val user          = (c.downField(nxv.subject).focus.as[String], realm).mapN(User.apply).toOption
+    lazy val group         = (c.downField(nxv.group).focus.as[String], realm).mapN(Group.apply).toOption
+    lazy val authenticated = realm.map(Authenticated.apply).toOption
+    (anonymous orElse user orElse group orElse authenticated).toRight(
+      InvalidResourceFormat(
+        resId.ref,
+        "The provided payload could not be mapped to a resolver because the identity format is wrong"
+      )
+    )
   }
 }

@@ -17,6 +17,7 @@ import ch.epfl.bluebrain.nexus.kg.cache.ProjectCache
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig._
 import ch.epfl.bluebrain.nexus.kg.config.Settings
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary.nxv
+import ch.epfl.bluebrain.nexus.kg.resources.ProjectIdentifier.{ProjectLabel, ProjectRef}
 import ch.epfl.bluebrain.nexus.kg.resources.Ref.Latest
 import ch.epfl.bluebrain.nexus.kg.resources.ResourceF.simpleF
 import ch.epfl.bluebrain.nexus.kg.resources._
@@ -59,7 +60,7 @@ class MultiProjectResolutionSpec
   private val (proj1Id, proj2Id, proj3Id) =
     (genUUID, genUUID, genUUID)
   private val (proj1, proj2, proj3) = (genProjectLabel, genProjectLabel, genProjectLabel)
-  private val projects              = IO.pure(List(proj1Id, proj2Id, proj3Id).map(ProjectRef(_))) // we want to ensure traversal order
+  private val projects              = List(proj1Id, proj2Id, proj3Id).map(ProjectRef(_)) // we want to ensure traversal order
   private val types                 = Set(nxv.Schema.value, nxv.Resource.value)
   private val group                 = Group("bbp-ou-neuroinformatics", "ldap2")
   private val identities            = List[Identity](group, User("dmontero", "ldap"))
