@@ -21,14 +21,15 @@ import ch.epfl.bluebrain.nexus.kg.config.AppConfig
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig._
 import ch.epfl.bluebrain.nexus.kg.indexing.View._
 import ch.epfl.bluebrain.nexus.kg.indexing._
+import ch.epfl.bluebrain.nexus.kg.resources.ProjectIdentifier.ProjectRef
 import ch.epfl.bluebrain.nexus.kg.resources.syntax._
 import ch.epfl.bluebrain.nexus.kg.resources.{Event, Resources}
-import ch.epfl.bluebrain.nexus.kg.resources.ProjectIdentifier.ProjectRef
 import ch.epfl.bluebrain.nexus.kg.routes.Clients
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import ch.epfl.bluebrain.nexus.sourcing.projections.ProgressFlow.ProgressFlowElem
-import ch.epfl.bluebrain.nexus.sourcing.projections.ProjectionProgress.{ordering, NoProgress, SingleProgress}
+import ch.epfl.bluebrain.nexus.sourcing.projections.ProjectionProgress.{NoProgress, SingleProgress}
 import ch.epfl.bluebrain.nexus.sourcing.projections._
+import ch.epfl.bluebrain.nexus.sourcing.projections.instances._
 import monix.eval.Task
 import monix.execution.CancelableFuture
 import monix.execution.Scheduler.Implicits.global

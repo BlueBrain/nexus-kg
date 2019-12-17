@@ -21,14 +21,14 @@ import ch.epfl.bluebrain.nexus.rdf.Vocabulary._
 import ch.epfl.bluebrain.nexus.rdf.encoder.NodeEncoder
 import ch.epfl.bluebrain.nexus.rdf.encoder.NodeEncoderError.IllegalConversion
 import ch.epfl.bluebrain.nexus.rdf.{Node, RootedGraph}
-import ch.epfl.bluebrain.nexus.sourcing.projections.ProjectionProgress._
+import ch.epfl.bluebrain.nexus.sourcing.projections.syntax._
 import io.circe.{Decoder, Encoder}
 import javax.crypto.SecretKey
 
 import scala.util.{Success, Try}
 
 object syntax {
-  implicit class OffsetSyntax(private val offset: Offset) extends AnyVal {
+  implicit class OffsetResourceSyntax(private val offset: Offset) extends AnyVal {
 
     def asInstant: Option[Instant] = offset match {
       case NoOffset | Sequence(_) => None

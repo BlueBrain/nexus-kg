@@ -39,6 +39,7 @@ import ch.epfl.bluebrain.nexus.kg.routes.ViewRoutes._
 import ch.epfl.bluebrain.nexus.kg.search.QueryResultEncoder._
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import ch.epfl.bluebrain.nexus.rdf.syntax._
+import ch.epfl.bluebrain.nexus.sourcing.projections.syntax._
 import io.circe.syntax._
 import io.circe.{Encoder, Json}
 import kamon.Kamon
@@ -463,10 +464,10 @@ object ViewRoutes {
       case _ => Json.obj()
     }
 
-  private[routes] implicit val encoderListResultsOffset: Encoder[ListResults[Offset]] =
+  private[routes] implicit def encoderListResultsOffset: Encoder[ListResults[Offset]] =
     qrsEncoderLowPrio[IdentifiedProgress[Offset]].mapJson(_.addContext(progressCtxUri))
 
-  private[routes] implicit val encoderListResultsStatistics: Encoder[ListResults[Statistics]] =
+  private[routes] implicit def encoderListResultsStatistics: Encoder[ListResults[Statistics]] =
     qrsEncoderLowPrio[IdentifiedProgress[Statistics]].mapJson(_.addContext(statisticsCtxUri))
 
 }

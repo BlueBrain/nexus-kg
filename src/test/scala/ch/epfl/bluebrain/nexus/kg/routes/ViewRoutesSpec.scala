@@ -36,7 +36,6 @@ import ch.epfl.bluebrain.nexus.kg.config.Vocabulary.nxv
 import ch.epfl.bluebrain.nexus.kg.indexing.View.{Filter, _}
 import ch.epfl.bluebrain.nexus.kg.indexing.{IdentifiedProgress, Statistics, View}
 import ch.epfl.bluebrain.nexus.kg.marshallers.instances._
-import ch.epfl.bluebrain.nexus.kg.resources.syntax._
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection.NotFound
 import ch.epfl.bluebrain.nexus.kg.resources.ResourceF.Value
 import ch.epfl.bluebrain.nexus.kg.resources._
@@ -46,6 +45,7 @@ import ch.epfl.bluebrain.nexus.rdf.Iri.{AbsoluteIri, Path}
 import ch.epfl.bluebrain.nexus.rdf.instances._
 import ch.epfl.bluebrain.nexus.rdf.syntax._
 import ch.epfl.bluebrain.nexus.storage.client.StorageClient
+import ch.epfl.bluebrain.nexus.sourcing.projections.syntax._
 import com.datastax.driver.core.utils.UUIDs
 import com.typesafe.config.{Config, ConfigFactory}
 import io.circe.generic.auto._
