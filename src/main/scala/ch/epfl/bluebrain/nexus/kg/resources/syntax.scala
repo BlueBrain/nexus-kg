@@ -21,26 +21,19 @@ import ch.epfl.bluebrain.nexus.rdf.Vocabulary._
 import ch.epfl.bluebrain.nexus.rdf.encoder.NodeEncoder
 import ch.epfl.bluebrain.nexus.rdf.encoder.NodeEncoderError.IllegalConversion
 import ch.epfl.bluebrain.nexus.rdf.{Node, RootedGraph}
+import ch.epfl.bluebrain.nexus.sourcing.projections.ProjectionProgress._
 import io.circe.{Decoder, Encoder}
 import javax.crypto.SecretKey
 
 import scala.util.{Success, Try}
 
 object syntax {
-  private val NUM_100NS_INTERVALS_SINCE_UUID_EPOCH = 0X01B21DD213814000L
-
   implicit class OffsetSyntax(private val offset: Offset) extends AnyVal {
 
     def asInstant: Option[Instant] = offset match {
       case NoOffset | Sequence(_) => None
       case tm: TimeBasedUUID      => Some(tm.asInstant)
     }
-  }
-
-  implicit class TimeBasedUUIDSyntax(private val timeBased: TimeBasedUUID) extends AnyVal {
-
-    def asInstant: Instant =
-      Instant.ofEpochMilli((timeBased.value.timestamp - NUM_100NS_INTERVALS_SINCE_UUID_EPOCH) / 10000)
   }
 
   implicit class ResIdSyntax(private val resId: ResId) extends AnyVal {
