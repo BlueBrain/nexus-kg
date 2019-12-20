@@ -5,7 +5,6 @@
     "View",
     "ElasticSearchView"
   ],
-  "_uuid": "{uuid}",
   "resourceSchemas": [
     "nxv:Schema",
     "nxv:Resource"

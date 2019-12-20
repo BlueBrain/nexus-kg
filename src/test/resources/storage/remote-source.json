@@ -4,7 +4,6 @@
     "RemoteDiskStorage",
     "Storage"
   ],
-  "_algorithm": "SHA-256",
   "default": false,
   "endpoint": "http://example.com/some",
   "folder": "folder",
