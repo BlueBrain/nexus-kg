@@ -130,7 +130,11 @@ class Storages[F[_]](repo: Repo[F])(
     * @return Right(source) in the F context when found and Left(NotFound) in the F context when not found
     */
   def fetchSource(id: ResId): RejOrSource[F] =
-    repo.get(id, Some(storageRef)).map(_.value).map(removeSecretsAndAlgorithm).toRight(notFound(id.ref, schema = Some(storageRef)))
+    repo
+      .get(id, Some(storageRef))
+      .map(_.value)
+      .map(removeSecretsAndAlgorithm)
+      .toRight(notFound(id.ref, schema = Some(storageRef)))
 
   /**
     * Fetches the provided revision of the storage source

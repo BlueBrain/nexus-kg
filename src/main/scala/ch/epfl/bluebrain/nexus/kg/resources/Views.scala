@@ -408,7 +408,8 @@ object Views {
         }
         withMapping deepMerge Json.obj(nxv.projections.prefix -> transformed.asJson)
       }
-      .getOrElse(withMapping).removeNestedKeys(nxv.uuid.prefix)
+      .getOrElse(withMapping)
+      .removeNestedKeys(nxv.uuid.prefix)
   }
 
   private def fromText(json: Json, fields: String*) =
