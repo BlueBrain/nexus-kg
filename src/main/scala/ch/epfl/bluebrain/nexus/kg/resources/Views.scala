@@ -161,7 +161,7 @@ class Views[F[_]](repo: Repo[F])(
     * @return Right(source) in the F context when found and Left(NotFound) in the F context when not found
     */
   def fetchSource(id: ResId): RejOrSource[F] =
-    repo.get(id, Some(viewRef)).map(_.value).map(transformFetch).toRight(notFound(id.ref, schema = Some(viewRef)))
+    repo.get(id, Some(viewRef)).map(_.value).map(transformFetchSource).toRight(notFound(id.ref, schema = Some(viewRef)))
 
   /**
     * Fetches the provided revision of the view source
@@ -174,7 +174,7 @@ class Views[F[_]](repo: Repo[F])(
     repo
       .get(id, rev, Some(viewRef))
       .map(_.value)
-      .map(transformFetch)
+      .map(transformFetchSource)
       .toRight(notFound(id.ref, rev = Some(rev), schema = Some(viewRef)))
 
   /**
@@ -188,7 +188,7 @@ class Views[F[_]](repo: Repo[F])(
     repo
       .get(id, tag, Some(viewRef))
       .map(_.value)
-      .map(transformFetch)
+      .map(transformFetchSource)
       .toRight(notFound(id.ref, tag = Some(tag), schema = Some(viewRef)))
 
   /**
@@ -409,8 +409,10 @@ object Views {
         withMapping deepMerge Json.obj(nxv.projections.prefix -> transformed.asJson)
       }
       .getOrElse(withMapping)
-      .removeNestedKeys(nxv.uuid.prefix)
   }
+
+  private def transformFetchSource(json: Json): Json =
+    transformFetch(json).removeNestedKeys(nxv.uuid.prefix)
 
   private def fromText(json: Json, fields: String*) =
     fields.foldLeft(json) { (acc, field) =>
