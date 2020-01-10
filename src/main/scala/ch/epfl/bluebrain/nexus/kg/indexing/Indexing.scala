@@ -6,13 +6,17 @@ import ch.epfl.bluebrain.nexus.admin.client.AdminClient
 import ch.epfl.bluebrain.nexus.admin.client.types._
 import ch.epfl.bluebrain.nexus.admin.client.types.events.Event._
 import ch.epfl.bluebrain.nexus.admin.client.types.events.{Event => AdminEvent}
+import ch.epfl.bluebrain.nexus.iam.client.IamClient
+import ch.epfl.bluebrain.nexus.iam.client.types.AuthToken
+import ch.epfl.bluebrain.nexus.iam.client.types.events.Event.AclEvent
 import ch.epfl.bluebrain.nexus.kg.async._
-import ch.epfl.bluebrain.nexus.kg.cache.Caches
-import ch.epfl.bluebrain.nexus.kg.cache.Caches._
+import ch.epfl.bluebrain.nexus.kg.cache.{Caches, ProjectCache}
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig._
 import ch.epfl.bluebrain.nexus.kg.resources.ProjectIdentifier.ProjectRef
+import ch.epfl.bluebrain.nexus.kg.resources.syntax._
 import ch.epfl.bluebrain.nexus.kg.resources._
+import ch.epfl.bluebrain.nexus.rdf.Iri.Path._
 import com.typesafe.scalalogging.Logger
 import monix.eval.Task
 import monix.execution.Scheduler.Implicits.global
@@ -26,48 +30,63 @@ private class Indexing(
     fileAttributesCoordinator: ProjectAttributesCoordinator[Task]
 )(
     implicit cache: Caches[Task],
+    iamClient: IamClient[Task],
     adminClient: AdminClient[Task],
     projectInitializer: ProjectInitializer[Task],
     as: ActorSystem,
     config: AppConfig
 ) {
 
-  private val logger = Logger[this.type]
+  private implicit val logger: Logger                   = Logger[this.type]
+  private implicit val projectCache: ProjectCache[Task] = cache.project
 
   def startAdminStream(): Unit = {
 
-    def handle(event: AdminEvent): Task[Unit] = {
+    def handle(event: AdminEvent): Task[Unit] =
+      Task.pure(logger.debug(s"Handling admin event: '$event'")) >>
+        (event match {
+          case OrganizationDeprecated(uuid, _, _, _) =>
+            viewCoordinator.stop(OrganizationRef(uuid))
+            fileAttributesCoordinator.stop(OrganizationRef(uuid))
 
-      logger.debug(s"Handling admin event: '$event'")
-
-      event match {
-        case OrganizationDeprecated(uuid, _, _, _) =>
-          viewCoordinator.stop(OrganizationRef(uuid))
-          fileAttributesCoordinator.stop(OrganizationRef(uuid))
-
-        case ProjectCreated(uuid, label, orgUuid, orgLabel, desc, am, base, vocab, instant, subject) =>
-          // format: off
+          case ProjectCreated(uuid, label, orgUuid, orgLabel, desc, am, base, vocab, instant, subject) =>
+            // format: off
           implicit val project: Project = Project(config.http.projectsIri + label, label, orgLabel, desc, base, vocab, am, uuid, orgUuid, 1L, deprecated = false, instant, subject.id, instant, subject.id)
           // format: on
-          projectInitializer(project, subject)
+            projectInitializer(project, subject)
 
-        case ProjectUpdated(uuid, label, desc, am, base, vocab, rev, instant, subject) =>
-          cache.project.get(ProjectRef(uuid)).flatMap {
-            case Some(project) =>
-              // format: off
+          case ProjectUpdated(uuid, label, desc, am, base, vocab, rev, instant, subject) =>
+            projectCache.get(ProjectRef(uuid)).flatMap {
+              case Some(project) =>
+                // format: off
               val newProject = Project(config.http.projectsIri + label, label, project.organizationLabel, desc, base, vocab, am, uuid, project.organizationUuid, rev, deprecated = false, instant, subject.id, instant, subject.id)
               // format: on
-              cache.project.replace(newProject).flatMap(_ => viewCoordinator.change(newProject, project))
-            case None => Task.unit
-          }
-        case ProjectDeprecated(uuid, rev, _, _) =>
-          val deprecated = cache.project.deprecate(ProjectRef(uuid), rev)
-          deprecated >> List(viewCoordinator.stop(ProjectRef(uuid)), fileAttributesCoordinator.stop(ProjectRef(uuid))).sequence >> Task.unit
+                projectCache.replace(newProject).flatMap(_ => viewCoordinator.change(newProject, project))
+              case None => Task.unit
+            }
+          case ProjectDeprecated(uuid, rev, _, _) =>
+            val deprecated = projectCache.deprecate(ProjectRef(uuid), rev)
+            deprecated >> List(viewCoordinator.stop(ProjectRef(uuid)), fileAttributesCoordinator.stop(ProjectRef(uuid))).sequence >> Task.unit
 
-        case _ => Task.unit
-      }
-    }
+          case _ => Task.unit
+        })
+
     adminClient.events(handle)(config.iam.serviceAccountToken)
+  }
+
+  def startAclsStream(): Unit = {
+    implicit val token: Option[AuthToken] = config.iam.serviceAccountToken
+
+    def handle(event: AclEvent): Task[Unit] =
+      Task.pure(logger.debug(s"Handling ACL event: '$event'")) >>
+        (for {
+          // Making a call directly to IAM instead of using the aclsCache because the up to date data might not be ready there yet
+          acls     <- iamClient.acls("*" / "*", ancestors = true, self = false)
+          projects <- acls.value.keySet.toList.traverse(_.resolveProjects).map(_.flatten.distinct)
+          _        <- projects.traverse(viewCoordinator.changeAcls(acls, _))
+        } yield ())
+
+    iamClient.aclEvents(handle)(config.iam.serviceAccountToken)
   }
 
   def startResolverStream(): Unit = {
@@ -110,6 +129,7 @@ object Indexing {
       fileAttributesCoordinator: ProjectAttributesCoordinator[Task]
   )(
       implicit cache: Caches[Task],
+      iamClient: IamClient[Task],
       adminClient: AdminClient[Task],
       projectInitializer: ProjectInitializer[Task],
       config: AppConfig,
@@ -117,6 +137,7 @@ object Indexing {
   ): Unit = {
     val indexing = new Indexing(storages, views, resolvers, viewCoordinator, fileAttributesCoordinator)
     indexing.startAdminStream()
+    indexing.startAclsStream()
     indexing.startResolverStream()
     indexing.startViewStream()
     indexing.startStorageStream()

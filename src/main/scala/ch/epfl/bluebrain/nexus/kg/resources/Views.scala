@@ -22,7 +22,6 @@ import ch.epfl.bluebrain.nexus.kg.config.Schemas._
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary._
 import ch.epfl.bluebrain.nexus.kg.indexing.View
 import ch.epfl.bluebrain.nexus.kg.indexing.View._
-import ch.epfl.bluebrain.nexus.kg.indexing.View.CompositeView.Source.CrossProjectEventStream
 import ch.epfl.bluebrain.nexus.kg.indexing.ViewEncoder._
 import ch.epfl.bluebrain.nexus.kg.resolve.Materializer
 import ch.epfl.bluebrain.nexus.kg.resources.ProjectIdentifier.ProjectRef
@@ -307,11 +306,6 @@ class Views[F[_]](repo: Repo[F])(
             eitherFoundViews.map(_ => v)
           case v => EitherT.rightT(v)
         }
-
-      case view: CompositeView =>
-        val identities = view.sourcesBy[CrossProjectEventStream].toSeq.flatMap(_.identities)
-        if (identities.foundInCaller) view.referenced[F]
-        else EitherT.leftT[F, View](InvalidIdentity())
       case view => view.referenced[F]
     }
   }

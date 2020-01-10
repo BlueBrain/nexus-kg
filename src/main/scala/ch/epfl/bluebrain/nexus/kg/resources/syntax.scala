@@ -6,15 +6,18 @@ import java.util.UUID
 
 import akka.http.scaladsl.model.{ContentType, Uri}
 import akka.persistence.query.{NoOffset, Offset, Sequence, TimeBasedUUID}
+import cats.Monad
+import cats.implicits._
 import ch.epfl.bluebrain.nexus.admin.client.types.Project
 import ch.epfl.bluebrain.nexus.commons.rdf.syntax._
 import ch.epfl.bluebrain.nexus.iam.client.types._
+import ch.epfl.bluebrain.nexus.kg.cache.ProjectCache
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig.HttpConfig
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary.nxv
 import ch.epfl.bluebrain.nexus.kg.resources.ProjectIdentifier.{ProjectLabel, ProjectRef}
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection.InvalidResourceFormat
 import ch.epfl.bluebrain.nexus.kg.storage.Crypto
-import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
+import ch.epfl.bluebrain.nexus.rdf.Iri.{AbsoluteIri, Path}
 import ch.epfl.bluebrain.nexus.rdf.Iri.Path._
 import ch.epfl.bluebrain.nexus.rdf.Node.Literal
 import ch.epfl.bluebrain.nexus.rdf.Vocabulary._
@@ -24,6 +27,7 @@ import ch.epfl.bluebrain.nexus.rdf.{Node, RootedGraph}
 import ch.epfl.bluebrain.nexus.sourcing.projections.syntax._
 import io.circe.{Decoder, Encoder}
 import javax.crypto.SecretKey
+import com.typesafe.scalalogging.Logger
 
 import scala.util.{Success, Try}
 
@@ -200,5 +204,24 @@ object syntax {
   implicit class IdentitiesSyntax(private val identities: Seq[Identity]) extends AnyVal {
     def foundInCaller(implicit caller: Caller): Boolean =
       identities.forall(caller.identities.contains)
+  }
+
+  implicit class PathProjectSyntax(private val path: Path) extends AnyVal {
+
+    /**
+      * Retrieves the available projects from the ''path''
+      */
+    def resolveProjects[F[_]](implicit projectCache: ProjectCache[F], log: Logger, F: Monad[F]): F[List[Project]] =
+      path match {
+        case `/` =>
+          projectCache.list()
+        case Segment(orgLabel, `/`) =>
+          projectCache.list(orgLabel)
+        case Segment(projectLabel, Slash(Segment(orgLabel, `/`))) =>
+          projectCache.get(ProjectLabel(orgLabel, projectLabel)).map(_.map(List(_)).getOrElse(List.empty[Project]))
+        case path =>
+          F.pure(log.warn(s"Attempting to convert path '$path' to a project failed")) >>
+            F.pure(List.empty[Project])
+      }
   }
 }

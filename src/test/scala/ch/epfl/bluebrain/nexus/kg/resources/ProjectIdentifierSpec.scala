@@ -5,17 +5,17 @@ import java.time.Instant
 import cats.{Id => CId}
 import ch.epfl.bluebrain.nexus.admin.client.types.Project
 import ch.epfl.bluebrain.nexus.commons.test.EitherValues
-import ch.epfl.bluebrain.nexus.iam.client.types.Identity.Anonymous
-import ch.epfl.bluebrain.nexus.iam.client.types.{AccessControlList, AccessControlLists, Caller, Permission}
+import ch.epfl.bluebrain.nexus.iam.client.types.Identity.{Anonymous, Group}
+import ch.epfl.bluebrain.nexus.iam.client.types.{AccessControlList, AccessControlLists, Caller, Identity, Permission}
 import ch.epfl.bluebrain.nexus.kg.TestHelper
 import ch.epfl.bluebrain.nexus.kg.cache.ProjectCache
 import ch.epfl.bluebrain.nexus.kg.resources.ProjectIdentifier.{ProjectLabel, ProjectRef}
-import ch.epfl.bluebrain.nexus.kg.resources.Rejection.{ProjectLabelNotFound, ProjectRefNotFound}
+import ch.epfl.bluebrain.nexus.kg.resources.Rejection.{InvalidIdentity, ProjectLabelNotFound, ProjectRefNotFound}
 import io.circe.Json
 import io.circe.syntax._
 import org.mockito.IdiomaticMockito
 import ch.epfl.bluebrain.nexus.kg.resources.syntax._
-import org.scalatest.Inspectors
+import org.scalatest.{Inspectors, OptionValues}
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AnyWordSpecLike
 import ch.epfl.bluebrain.nexus.kg.resources.ProjectIdentifier._
@@ -27,7 +27,8 @@ class ProjectIdentifierSpec
     with IdiomaticMockito
     with TestHelper
     with Inspectors
-    with EitherValues {
+    with EitherValues
+    with OptionValues {
 
   private implicit val projectCache: ProjectCache[CId] = mock[ProjectCache[CId]]
   private val uuid                                     = genUUID
@@ -68,10 +69,13 @@ class ProjectIdentifierSpec
       implicit val acls    = AccessControlLists(/ -> resourceAcls(AccessControlList(Anonymous -> Set(perm))))
       implicit val caller  = Caller.anonymous
       forAll(Set(ref, label)) { identifier =>
-        identifier.toRef(perm).value.rightValue shouldEqual ref
+        identifier.toRef(perm, Set[Identity](Anonymous)).value.rightValue shouldEqual ref
       }
-      label.toRef(Permission.unsafe(genString())).value.leftValue shouldEqual
+      label.toRef(Permission.unsafe(genString()), Set[Identity](Anonymous)).value.leftValue shouldEqual
         ProjectRefNotFound(label.asInstanceOf[ProjectLabel])
+
+      label.toRef(perm, Set[Identity](Group(genString(), genString()))).value.leftValue shouldEqual
+        InvalidIdentity()
     }
 
     "be converted to label" in {
@@ -95,6 +99,15 @@ class ProjectIdentifierSpec
       projectCache.get(identifier) shouldReturn None
       identifier.toRef.value.leftValue shouldEqual ProjectRefNotFound(identifier.asInstanceOf[ProjectLabel])
     }
+
+    "find from a set of projects" in {
+      val projects                           = List.fill(3)(project.copy(label = genString(), uuid = genUUID)).toSet + project
+      val identifierRef: ProjectIdentifier   = project.ref
+      val identifierLabel: ProjectIdentifier = project.projectLabel
+      identifierRef.findIn(projects).value shouldEqual project
+      identifierLabel.findIn(projects).value shouldEqual project
+    }
+
   }
 
 }

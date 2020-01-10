@@ -15,6 +15,19 @@
       "resourceTag": "one",
       "includeDeprecated": true,
       "includeMetadata": true
+    },
+    {
+      "@id": "{source2_id}",
+      "_uuid": "247d223b-1d38-4c6e-8fed-f9a8c2ccb4a6",
+      "@type": "CrossProjectEventStream",
+      "includeDeprecated": true,
+      "includeMetadata": false,
+      "project": "account1/project1",
+      "identities": [
+        {
+          "@type": "Anonymous"
+        }
+      ]
     }
   ],
   "projections": [

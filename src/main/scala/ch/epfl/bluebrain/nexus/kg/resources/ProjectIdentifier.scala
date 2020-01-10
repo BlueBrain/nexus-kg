@@ -5,10 +5,11 @@ import java.util.UUID
 import cats.data.{EitherT, OptionT}
 import cats.implicits._
 import cats.{Applicative, Show}
-import ch.epfl.bluebrain.nexus.iam.client.types.{AccessControlLists, Caller, Permission}
+import ch.epfl.bluebrain.nexus.admin.client.types.Project
+import ch.epfl.bluebrain.nexus.iam.client.types.{AccessControlLists, Caller, Identity, Permission}
 import ch.epfl.bluebrain.nexus.kg.cache.ProjectCache
 import ch.epfl.bluebrain.nexus.kg.resources.ProjectIdentifier.{ProjectLabel, ProjectRef}
-import ch.epfl.bluebrain.nexus.kg.resources.Rejection.{ProjectLabelNotFound, ProjectRefNotFound}
+import ch.epfl.bluebrain.nexus.kg.resources.Rejection.{InvalidIdentity, ProjectLabelNotFound, ProjectRefNotFound}
 import ch.epfl.bluebrain.nexus.kg.resources.syntax._
 import ch.epfl.bluebrain.nexus.rdf.encoder.NodeEncoder
 import ch.epfl.bluebrain.nexus.rdf.encoder.NodeEncoderError.IllegalConversion
@@ -38,13 +39,22 @@ sealed trait ProjectIdentifier extends Product with Serializable {
 
   /**
     * Attempts to convert the current ProjectIdentifier to a [[ProjectRef]] using the passed cache.
-    * Before the conversion is applied, the passed ''caller'' must have the passed ''perm'' inside the ''acls'' path.
+    * Before the conversion is applied, the passed ''identities'' must have the passed ''perm'' inside the ''acls'' path.
     *
     * @tparam F the effect type
     */
   def toRef[F[_]: Applicative](
-      perm: Permission
+      perm: Permission,
+      identities: Set[Identity]
   )(implicit acls: AccessControlLists, caller: Caller, cache: ProjectCache[F]): EitherT[F, Rejection, ProjectRef]
+
+  /**
+    * Finds in the passed ''projects'' set the current [[ProjectIdentifier]]
+    *
+    * @param projects a set of projects
+    * @return Some(project) if found, None otherwise
+    */
+  def findIn(projects: Set[Project]): Option[Project]
 
 }
 
@@ -65,10 +75,14 @@ object ProjectIdentifier {
       OptionT(cache.get(this)).map(_.ref).toRight(notFound)
 
     def toRef[F[_]: Applicative](
-        perm: Permission
+        perm: Permission,
+        identities: Set[Identity]
     )(implicit acls: AccessControlLists, caller: Caller, cache: ProjectCache[F]): EitherT[F, Rejection, ProjectRef] =
-      if (caller.hasPermission(acls, this, perm)) toRef
-      else EitherT.leftT(notFound)
+      if (!identities.toSeq.foundInCaller) EitherT.leftT(InvalidIdentity(): Rejection)
+      else if (!acls.exists(identities, this, perm)) EitherT.leftT(notFound)
+      else toRef
+
+    def findIn(projects: Set[Project]): Option[Project] = projects.find(_.projectLabel == this)
 
   }
 
@@ -108,9 +122,12 @@ object ProjectIdentifier {
       EitherT.rightT(this)
 
     def toRef[F[_]: Applicative](
-        perm: Permission
+        perm: Permission,
+        identities: Set[Identity]
     )(implicit acls: AccessControlLists, caller: Caller, cache: ProjectCache[F]): EitherT[F, Rejection, ProjectRef] =
       toRef
+
+    def findIn(projects: Set[Project]): Option[Project] = projects.find(_.uuid == id)
 
   }
 
