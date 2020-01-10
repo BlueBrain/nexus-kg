@@ -9,6 +9,8 @@ import akka.testkit.DefaultTimeout
 import ch.epfl.bluebrain.nexus.admin.client.types._
 import ch.epfl.bluebrain.nexus.commons.cache.OnKeyValueStoreChange
 import ch.epfl.bluebrain.nexus.commons.test.ActorSystemFixture
+import ch.epfl.bluebrain.nexus.iam.client.types.Identity.{Anonymous, User}
+import ch.epfl.bluebrain.nexus.iam.client.types.{AccessControlList, AccessControlLists}
 import ch.epfl.bluebrain.nexus.kg.TestHelper
 import ch.epfl.bluebrain.nexus.kg.archives.ArchiveCache
 import ch.epfl.bluebrain.nexus.kg.async.ProjectViewCoordinatorActor.{onViewChange, ViewCoordinator}
@@ -17,21 +19,24 @@ import ch.epfl.bluebrain.nexus.kg.config.AppConfig._
 import ch.epfl.bluebrain.nexus.kg.config.Settings
 import ch.epfl.bluebrain.nexus.kg.indexing.View
 import ch.epfl.bluebrain.nexus.kg.indexing.View.CompositeView.Projection.{ElasticSearchProjection, SparqlProjection}
-import ch.epfl.bluebrain.nexus.kg.indexing.View.CompositeView.Source.ProjectEventStream
+import ch.epfl.bluebrain.nexus.kg.indexing.View.CompositeView.Source.{CrossProjectEventStream, ProjectEventStream}
 import ch.epfl.bluebrain.nexus.kg.indexing.View._
 import ch.epfl.bluebrain.nexus.kg.resources.OrganizationRef
+import ch.epfl.bluebrain.nexus.kg.resources.ProjectIdentifier.ProjectRef
 import ch.epfl.bluebrain.nexus.kg.resources.syntax._
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
+import ch.epfl.bluebrain.nexus.rdf.Iri.Path._
 import ch.epfl.bluebrain.nexus.sourcing.projections.ProjectionProgress.OffsetProgress
 import ch.epfl.bluebrain.nexus.sourcing.projections.{ProjectionProgress, Projections, StreamSupervisor}
+import com.typesafe.scalalogging.Logger
 import io.circe.Json
 import monix.eval.Task
 import monix.execution.Scheduler.Implicits.global
 import org.mockito.{ArgumentMatchersSugar, IdiomaticMockito}
-import org.scalatest.{Inspectors, OptionValues}
 import org.scalatest.concurrent.{Eventually, ScalaFutures}
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AnyWordSpecLike
+import org.scalatest.{Inspectors, OptionValues}
 
 import scala.concurrent.duration._
 
@@ -50,9 +55,10 @@ class ProjectViewCoordinatorSpec
 
   override implicit def patienceConfig: PatienceConfig = PatienceConfig(15.second, 150.milliseconds)
 
-  private implicit val appConfig = Settings(system).appConfig
-  private val projectCache       = ProjectCache[Task]
-  private val viewCache          = ViewCache[Task]
+  private implicit val appConfig    = Settings(system).appConfig
+  private implicit val log: Logger  = Logger[this.type]
+  private implicit val projectCache = ProjectCache[Task]
+  private val viewCache             = ViewCache[Task]
 
   "A ProjectViewCoordinator" should {
     val creator = genIri
@@ -61,14 +67,17 @@ class ProjectViewCoordinatorSpec
     // format: off
     implicit val project  = Project(genIri, "some-project", "some-org", None, genIri, genIri, Map.empty, genUUID, orgUuid, 1L, deprecated = false, Instant.EPOCH, creator, Instant.EPOCH, creator)
     val project2          = Project(genIri, "some-project2", "some-org", None, genIri, genIri, Map.empty, genUUID, genUUID, 1L, deprecated = false, Instant.EPOCH, creator, Instant.EPOCH, creator)
-    val project2Updated   = project2.copy(label = genString(), rev = 2L)
+    val projectLabelUpdated = genString()
+    val project2Updated   = project2.copy(label = projectLabelUpdated, rev = 2L)
     val view              = SparqlView(Filter(), true, project.ref, genIri, genUUID, 1L, deprecated = false)
     val view2             = ElasticSearchView(Json.obj(), Filter(Set(genIri)), true, true, project.ref, genIri, genUUID, 1L, deprecated = false)
     val view2Updated      = view2.copy(filter = view2.filter.copy(resourceSchemas = Set(genIri)), rev = 2L)
     val view3             = SparqlView(Filter(), true, project2.ref, genIri, genUUID, 1L, deprecated = false)
     val projection1       = ElasticSearchProjection("query", ElasticSearchView(Json.obj(), Filter(), false, false, project.ref, genIri, genUUID, 1L, false), Json.obj())
     val projection2       = SparqlProjection("query2", SparqlView(Filter(), true, project.ref, genIri, genUUID, 1L, false))
-    val view4             = CompositeView(Set(ProjectEventStream(genIri, genUUID, Filter(), includeMetadata = false)), Set(projection1, projection2), None, project.ref, genIri, genUUID, 1L, false)
+    val localS            = ProjectEventStream(genIri, genUUID, Filter(), includeMetadata = false)
+    val crossProjectS     = CrossProjectEventStream(genIri, genUUID, Filter(), includeMetadata = false, project2.ref, List(Anonymous))
+    val view4             = CompositeView(Set(localS, crossProjectS), Set(projection1, projection2), None, project.ref, genIri, genUUID, 1L, false)
     // format: on
 
     val counterStart            = new AtomicInteger(0)
@@ -82,6 +91,7 @@ class ProjectViewCoordinatorSpec
     val coordinator3Updated  = mock[StreamSupervisor[Task, ProjectionProgress]]
     val coordinator4         = mock[StreamSupervisor[Task, ProjectionProgress]]
     implicit val projections = mock[Projections[Task, String]]
+    implicit val aclsCache   = mock[AclsCache[Task]]
 
     coordinator1.stop() shouldReturn Task.unit
     coordinator2.stop() shouldReturn Task.unit
@@ -107,6 +117,7 @@ class ProjectViewCoordinatorSpec
           else if (v == view3.copy(rev = 2L) && proj == project2Updated && restart)
             ViewCoordinator(coordinator3Updated)
           else if (v == view4 && proj == project) ViewCoordinator(coordinator4)
+          else if (v == view4.copy(sources = Set(localS)) && proj == project) ViewCoordinator(coordinator4)
           else throw new RuntimeException()
         }
 
@@ -117,7 +128,6 @@ class ProjectViewCoordinatorSpec
             prevRestart: Option[Instant]
         ): ViewCoordinator =
           if (view == view4 && proj == project) {
-            println(restartProgress)
             counterStartProjections.incrementAndGet()
             ViewCoordinator(coordinator4)
           } else throw new RuntimeException()
@@ -127,8 +137,8 @@ class ProjectViewCoordinatorSpec
           Task.unit
         }
 
-        override def onChange: OnKeyValueStoreChange[AbsoluteIri, View] =
-          onViewChange(self)
+        override def onChange(ref: ProjectRef): OnKeyValueStoreChange[AbsoluteIri, View] =
+          onViewChange(ref, self)
 
       }
     )
@@ -177,6 +187,8 @@ class ProjectViewCoordinatorSpec
       eventually(counterStart.get shouldEqual currentStart.get)
 
       currentStart.incrementAndGet()
+      aclsCache.list shouldReturn
+        Task(AccessControlLists(/ -> resourceAcls(AccessControlList(Anonymous -> Set(read)))))
       viewCache.put(view4).runToFuture.futureValue
       eventually(counterStart.get shouldEqual currentStart.get)
 
@@ -219,7 +231,7 @@ class ProjectViewCoordinatorSpec
       val progress: ProjectionProgress = OffsetProgress(Sequence(2L), 2L, 0L, 1L)
       coordinator4.state() shouldReturn Task(Some(progress))
       val result = coordinator.projectionOffset(view4.id, None, None).runToFuture.futureValue.value
-      result.iterator.size shouldEqual 2L
+      result.iterator.size shouldEqual 4L
       forAll(result.map(_.value)) { offset =>
         offset shouldEqual Sequence(2L)
       }
@@ -303,5 +315,40 @@ class ProjectViewCoordinatorSpec
       counterStartProjections.get shouldEqual currentProjStart.get
     }
 
+    "restart CompositeView on ACLs change" in {
+      val projectPath = project.organizationLabel / project.label
+      val acls = AccessControlLists(
+        projectPath -> resourceAcls(AccessControlList(Anonymous                      -> Set(read, write))),
+        /           -> resourceAcls(AccessControlList(User(genString(), genString()) -> Set(read, write)))
+      )
+
+      coordinator.changeAcls(acls, project).runToFuture.futureValue
+      eventually(coordinator4.stop() wasCalled twice)
+      currentStart.incrementAndGet()
+      eventually(counterStart.get shouldEqual currentStart.get)
+    }
+
+    "do nothing when the ACL changes do not affect the triggered project" in {
+      val projectPath = project.organizationLabel / project.label
+      val acls = AccessControlLists(
+        projectPath -> resourceAcls(AccessControlList(Anonymous                      -> Set(read, write))),
+        /           -> resourceAcls(AccessControlList(User(genString(), genString()) -> Set(read, write)))
+      )
+
+      coordinator.changeAcls(acls, project2).runToFuture.futureValue
+      coordinator4.stop() wasCalled twice
+      counterStart.get shouldEqual currentStart.get
+    }
+
+    "resolve projects from path" in {
+      val paths = List(
+        /                           -> Set(project, project2Updated),
+        / + "some-org"              -> Set(project, project2Updated),
+        "some-org" / "some-project" -> Set(project)
+      )
+      forAll(paths) {
+        case (path, projects) => path.resolveProjects.runToFuture.futureValue.toSet shouldEqual projects
+      }
+    }
   }
 }

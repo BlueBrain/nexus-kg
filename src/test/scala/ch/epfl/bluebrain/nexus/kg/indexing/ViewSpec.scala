@@ -15,12 +15,13 @@ import ch.epfl.bluebrain.nexus.commons.sparql.client.{BlazegraphClient, SparqlRe
 import ch.epfl.bluebrain.nexus.commons.test.io.IOValues
 import ch.epfl.bluebrain.nexus.commons.test.{CirceEq, Resources}
 import ch.epfl.bluebrain.nexus.iam.client.config.IamClientConfig
+import ch.epfl.bluebrain.nexus.iam.client.types.Identity.Anonymous
 import ch.epfl.bluebrain.nexus.kg.TestHelper
 import ch.epfl.bluebrain.nexus.kg.config.Contexts._
 import ch.epfl.bluebrain.nexus.kg.config.{AppConfig, Settings}
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary._
 import ch.epfl.bluebrain.nexus.kg.indexing.View.CompositeView.Projection.{ElasticSearchProjection, SparqlProjection}
-import ch.epfl.bluebrain.nexus.kg.indexing.View.CompositeView.Source.ProjectEventStream
+import ch.epfl.bluebrain.nexus.kg.indexing.View.CompositeView.Source.{CrossProjectEventStream, ProjectEventStream}
 import ch.epfl.bluebrain.nexus.kg.indexing.View.CompositeView.{Interval, Projection, Source}
 import ch.epfl.bluebrain.nexus.kg.indexing.View._
 import ch.epfl.bluebrain.nexus.kg.indexing.View.Filter
@@ -63,14 +64,16 @@ class ViewSpec
     def compositeview(
         id1: AbsoluteIri = url"http://example.com/es".value,
         id2: AbsoluteIri = url"http://example.com/sparql".value,
-        source1Id: AbsoluteIri = url"http://example.com/source1".value
+        source1Id: AbsoluteIri = url"http://example.com/source1".value,
+        source2Id: AbsoluteIri = url"http://example.com/source2".value
     ) =
       jsonContentOf(
         "/view/composite-view.json",
         Map(
           quote("{projection1_id}") -> id1.asString,
           quote("{projection2_id}") -> id2.asString,
-          quote("{source1_id}")     -> source1Id.asString
+          quote("{source1_id}")     -> source1Id.asString,
+          quote("{source2_id}")     -> source2Id.asString
         )
       ).appendContextOf(viewCtx)
 
@@ -92,14 +95,23 @@ class ViewSpec
       "@vocab" -> Json.fromString("http://example.com/vocab/")
     )
     val sourceFilter = Filter(Set(nxv.Resource, nxv.Schema), Set(tpe1, tpe2), Some("one"))
-    val source: Set[Source] = Set(
-      ProjectEventStream(
-        url"http://example.com/source1".value,
-        UUID.fromString("247d223b-1d38-4c6e-8fed-f9a8c2ccb4a3"),
-        sourceFilter,
-        includeMetadata = true
-      )
+    val localS = ProjectEventStream(
+      url"http://example.com/source1".value,
+      UUID.fromString("247d223b-1d38-4c6e-8fed-f9a8c2ccb4a3"),
+      sourceFilter,
+      includeMetadata = true
     )
+    val crossS = CrossProjectEventStream(
+      url"http://example.com/source2".value,
+      UUID.fromString("247d223b-1d38-4c6e-8fed-f9a8c2ccb4a6"),
+      Filter(),
+      includeMetadata = false,
+      ProjectLabel("account1", "project1"),
+      List(Anonymous)
+    )
+
+    val source: Set[Source] = Set(localS, crossS)
+
     val esProjection = ElasticSearchProjection(
       "CONSTRUCT {{resource_id} ?p ?o} WHERE {?s ?p ?o}",
       ElasticSearchView(
@@ -381,17 +393,18 @@ class ViewSpec
         // format: off
         val esAgg: View = AggregateElasticSearchView(views, projectRef, UUID.fromString("3aa14a1a-81e7-4147-8306-136d8270bb01"), iri, 1L, deprecated = false)
         val sparqlAgg: View = AggregateSparqlView(views, projectRef, UUID.fromString("3aa14a1a-81e7-4147-8306-136d8270bb01"), iri, 1L, deprecated = false)
-        val composite1: View = CompositeView(source, Set(esProjection), None, projectRef, iri, UUID.fromString("247d223b-1d38-4c6e-8fed-f9a8c2ccb4a1"), 1L, deprecated = false)
-        val composite2: View = CompositeView(source, Set(sparqlProjection), Some(Interval(20.minutes)), projectRef, iri, UUID.fromString("247d223b-1d38-4c6e-8fed-f9a8c2ccb4a1"), 1L, deprecated = false)
+        val composite1: View = CompositeView(Set(localS), Set(esProjection), None, projectRef, iri, UUID.fromString("247d223b-1d38-4c6e-8fed-f9a8c2ccb4a1"), 1L, deprecated = false)
+        val composite2: View = CompositeView(Set(crossS), Set(sparqlProjection), Some(Interval(20.minutes)), projectRef, iri, UUID.fromString("247d223b-1d38-4c6e-8fed-f9a8c2ccb4a1"), 1L, deprecated = false)
         val es: View = ElasticSearchView(mapping, Filter(Set(nxv.Schema, nxv.Resource), Set.empty, Some("one")), false, true, projectRef, iri, UUID.fromString("3aa14a1a-81e7-4147-8306-136d8270bb01"), 1L, false)
         val sparql: View = SparqlView(Filter(), true, projectRef, iri, UUID.fromString("247d223b-1d38-4c6e-8fed-f9a8c2ccb4a1"), 1L, false)
         // format: on
+        val replaceIdentityBase = Map(quote("{base}") -> iamClientConfig.basePublicIri.asString)
         val results =
           List(
             esAgg      -> jsonContentOf("/view/aggelasticview-meta.json"),
             sparqlAgg  -> jsonContentOf("/view/aggsparqlview-meta.json"),
             composite1 -> jsonContentOf("/view/composite-view-meta-1.json"),
-            composite2 -> jsonContentOf("/view/composite-view-meta-2.json"),
+            composite2 -> jsonContentOf("/view/composite-view-meta-2.json", replaceIdentityBase),
             es         -> jsonContentOf("/view/elasticsearchview-meta.json"),
             sparql     -> jsonContentOf("/view/sparqlview-meta.json")
           )

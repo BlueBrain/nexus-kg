@@ -7,6 +7,10 @@
     "ElasticSearch": "nxv:ElasticSearch",
     "Sparql": "nxv:Sparql",
     "Interval": "nxv:Interval",
+    "User": "nxv:User",
+    "Group": "nxv:Group",
+    "Authenticated": "nxv:Authenticated",
+    "Anonymous": "nxv:Anonymous",
     "projections": {
       "@id": "nxv:projections",
       "@container": "@set"

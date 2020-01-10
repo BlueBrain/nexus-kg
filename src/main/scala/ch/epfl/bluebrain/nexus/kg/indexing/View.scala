@@ -115,12 +115,16 @@ sealed trait View extends Product with Serializable {
   ): EitherT[F, Rejection, View] =
     this match {
       case v: AggregateView =>
-        v.value.toList.traverse { case ViewRef(project, id) => project.toRef[F](query).map(ViewRef(_, id)) }.map(v.make)
+        v.value.toList
+          .traverse {
+            case ViewRef(project, id) => project.toRef[F](query, caller.identities).map(ViewRef(_, id))
+          }
+          .map(v.make)
       case v: CompositeView =>
         val labeledSources: EitherT[F, Rejection, List[Source]] = v.sources.toList.traverse {
           case source: ProjectEventStream => EitherT.rightT(source)
           case source: CrossProjectEventStream =>
-            source.project.toRef[F](read).map(label => source.copy(project = label))
+            source.project.toRef[F](read, source.identities.toSet).map(label => source.copy(project = label))
         }
         labeledSources.map(sources => v.copy(sources = sources.toSet))
       case other => EitherT.rightT(other)

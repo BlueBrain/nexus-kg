@@ -7,15 +7,17 @@ import akka.util.Timeout
 import cats.effect.{Async, ContextShift, IO}
 import cats.implicits._
 import ch.epfl.bluebrain.nexus.admin.client.types.Project
+import ch.epfl.bluebrain.nexus.iam.client.types.{AccessControlList, AccessControlLists}
 import ch.epfl.bluebrain.nexus.kg.KgError
 import ch.epfl.bluebrain.nexus.kg.async.ProjectViewCoordinatorActor.Msg._
-import ch.epfl.bluebrain.nexus.kg.cache.{Caches, ProjectCache}
+import ch.epfl.bluebrain.nexus.kg.cache.{AclsCache, Caches, ProjectCache}
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig
-import ch.epfl.bluebrain.nexus.kg.indexing.View.IndexedView
+import ch.epfl.bluebrain.nexus.kg.indexing.View.CompositeView.Source.CrossProjectEventStream
+import ch.epfl.bluebrain.nexus.kg.indexing.View.{CompositeView, IndexedView, SingleView}
 import ch.epfl.bluebrain.nexus.kg.indexing.{IdentifiedProgress, Statistics}
+import ch.epfl.bluebrain.nexus.kg.resources.ProjectIdentifier.ProjectRef
 import ch.epfl.bluebrain.nexus.kg.resources.syntax._
 import ch.epfl.bluebrain.nexus.kg.resources.{OrganizationRef, Resources}
-import ch.epfl.bluebrain.nexus.kg.resources.ProjectIdentifier.ProjectRef
 import ch.epfl.bluebrain.nexus.kg.routes.Clients
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import ch.epfl.bluebrain.nexus.sourcing.projections.Projections
@@ -37,13 +39,15 @@ import scala.util.control.NonFatal
 @SuppressWarnings(Array("ListSize"))
 class ProjectViewCoordinator[F[_]](cache: Caches[F], ref: ActorRef)(
     implicit config: AppConfig,
+    aclsCache: AclsCache[F],
     F: Async[F],
     ec: ExecutionContext
 ) {
 
   private implicit val timeout: Timeout               = config.sourcing.askTimeout
   private implicit val contextShift: ContextShift[IO] = IO.contextShift(ec)
-  private val log                                     = Logger[this.type]
+  private implicit val log: Logger                    = Logger[this.type]
+  private implicit val projectCache: ProjectCache[F]  = cache.project
 
   private type IdStatsSet  = Set[IdentifiedProgress[Statistics]]
   private type IdOffsetSet = Set[IdentifiedProgress[Offset]]
@@ -121,8 +125,16 @@ class ProjectViewCoordinator[F[_]](cache: Caches[F], ref: ActorRef)(
     * @param project the project for which the view coordinator is triggered
     */
   def start(project: Project): F[Unit] =
-    cache.view.getBy[IndexedView](project.ref).map { views =>
-      ref ! Start(project.uuid, project, views)
+    cache.view.getBy[IndexedView](project.ref).flatMap {
+      case views if containsCrossProject(views) =>
+        aclsCache.list.flatMap(resolveProjects(_)).map(projAcls => ref ! Start(project.uuid, project, views, projAcls))
+      case views => F.pure(ref ! Start(project.uuid, project, views, Map.empty[Project, AccessControlList]))
+    }
+
+  private def containsCrossProject(views: Set[IndexedView]): Boolean =
+    views.exists {
+      case _: SingleView       => false
+      case view: CompositeView => view.sourcesBy[CrossProjectEventStream].nonEmpty
     }
 
   /**
@@ -180,6 +192,18 @@ class ProjectViewCoordinator[F[_]](cache: Caches[F], ref: ActorRef)(
       F.delay(ref ! ProjectChanges(newProject.uuid, newProject))
     else F.unit
 
+  /**
+    * Notifies the underlying coordinator actor about an ACL change on the passed ''project''
+    *
+    * @param acls    the current ACLs
+    * @param project the project affected by the ACLs change
+    */
+  def changeAcls(acls: AccessControlLists, project: Project): F[Unit] =
+    for {
+      views        <- cache.view.getBy[CompositeView](project.ref)
+      projectsAcls <- resolveProjects(acls)
+    } yield ref ! AclChanges(project.uuid, projectsAcls, views)
+
   private def parseOpt[A](msgF: F[Any])(implicit A: ClassTag[A], project: Project): F[Option[A]] =
     msgF.flatMap[Option[A]] {
       case Some(A(value)) => F.pure(Some(value))
@@ -231,12 +255,13 @@ class ProjectViewCoordinator[F[_]](cache: Caches[F], ref: ActorRef)(
 object ProjectViewCoordinator {
   def apply(resources: Resources[Task], cache: Caches[Task])(
       implicit config: AppConfig,
+      aclsCache: AclsCache[Task],
       as: ActorSystem,
       clients: Clients[Task],
-      P: Projections[Task, String],
-      projectCache: ProjectCache[Task]
+      P: Projections[Task, String]
   ): ProjectViewCoordinator[Task] = {
-    val coordinatorRef = ProjectViewCoordinatorActor.start(resources, cache.view, None, config.cluster.shards)
+    implicit val projectCache: ProjectCache[Task] = cache.project
+    val coordinatorRef                            = ProjectViewCoordinatorActor.start(resources, cache.view, None, config.cluster.shards)
     new ProjectViewCoordinator[Task](cache, coordinatorRef)
   }
 }

@@ -153,13 +153,13 @@ object Main {
       implicit val projections: Projections[Task, String] = {
         Projections[Task, String].runSyncUnsafe(10.seconds)(Scheduler.global, CanBlock.permit)
       }
-
       val projectViewCoordinator   = ProjectViewCoordinator(resources, cache)
       val projectDigestCoordinator = ProjectAttributesCoordinator(files, cache.project)
       implicit val projectInitializer =
         new ProjectInitializer[Task](storages, views, resolvers, projectViewCoordinator, projectDigestCoordinator)
 
       implicit val adminClient = clients.admin
+      implicit val iamClient   = clients.iam
       Indexing.start(storages, views, resolvers, projectViewCoordinator, projectDigestCoordinator)
 
       val routes: Route =
