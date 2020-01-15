@@ -34,7 +34,7 @@ class ProjectAttributesCoordinator[F[_]](projectCache: ProjectCache[F], ref: Act
     F: Async[F],
     ec: ExecutionContext
 ) {
-  private implicit val timeout: Timeout = config.sourcing.askTimeout
+  private implicit val timeout: Timeout = config.aggregate.askTimeout
   private val log                       = Logger[this.type]
   private implicit val contextShift     = IO.contextShift(ec)
 

@@ -7,6 +7,7 @@ import akka.cluster.sharding.ShardRegion.{ExtractEntityId, ExtractShardId}
 import akka.cluster.sharding.{ClusterSharding, ClusterShardingSettings, ShardRegion}
 import akka.pattern.pipe
 import akka.stream.scaladsl.Source
+import akka.util.Timeout
 import cats.implicits._
 import ch.epfl.bluebrain.nexus.admin.client.types.Project
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity.Subject
@@ -121,14 +122,14 @@ object ProjectAttributesCoordinatorActor {
   ): ActorRef = {
 
     val props = Props(new ProjectAttributesCoordinatorActor {
-
       override def startCoordinator(
           project: Project,
           restartOffset: Boolean
       ): StreamSupervisor[Task, ProjectionProgress] = {
 
-        implicit val indexing: IndexingConfig  = config.sparql.indexing
+        implicit val indexing: IndexingConfig  = config.storage.indexing
         implicit val policy: RetryPolicy[Task] = config.storage.fileAttrRetry.retryPolicy[Task]
+        implicit val tm: Timeout               = Timeout(config.storage.askTimeout)
         implicit val logErrors: (Either[Rejection, Resource], RetryDetails) => Task[Unit] =
           (err, d) =>
             Task.pure(log.warning("Retrying on resource creation with retry details '{}' and error: '{}'", err, d))

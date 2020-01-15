@@ -2,6 +2,7 @@ package ch.epfl.bluebrain.nexus.kg.indexing
 
 import akka.actor.{ActorRef, ActorSystem, Props}
 import akka.stream.scaladsl.Source
+import akka.util.Timeout
 import cats.effect.{Effect, Timer}
 import cats.implicits._
 import ch.epfl.bluebrain.nexus.admin.client.types.Project
@@ -51,7 +52,9 @@ object ElasticSearchIndexer {
     implicit val p: Project                    = project
     implicit val indexing: IndexingConfig      = config.elasticSearch.indexing
     implicit val metadataOpts: MetadataOptions = MetadataOptions(linksAsIri = true, expandedLinks = true)
-    val client: ElasticSearchClient[F]         = clients.elasticSearch.withRetryPolicy(config.elasticSearch.indexing.retry)
+    implicit val tm: Timeout                   = Timeout(config.elasticSearch.askTimeout)
+
+    val client: ElasticSearchClient[F] = clients.elasticSearch.withRetryPolicy(config.elasticSearch.indexing.retry)
 
     def deleteOrIndex(res: ResourceV): Option[BulkOp] =
       if (res.deprecated && !view.filter.includeDeprecated) Some(delete(res))

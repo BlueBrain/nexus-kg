@@ -16,8 +16,8 @@ import ch.epfl.bluebrain.nexus.kg.config.Vocabulary._
 import ch.epfl.bluebrain.nexus.kg.storage.Crypto
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import ch.epfl.bluebrain.nexus.rdf.syntax.node.unsafe._
-import ch.epfl.bluebrain.nexus.sourcing.akka.SourcingConfig.RetryStrategyConfig
-import ch.epfl.bluebrain.nexus.sourcing.akka._
+import ch.epfl.bluebrain.nexus.sourcing.RetryStrategyConfig
+import ch.epfl.bluebrain.nexus.sourcing.akka.aggregate.AggregateConfig
 import ch.epfl.bluebrain.nexus.sourcing.projections.IndexingConfig
 import io.circe.Json
 import javax.crypto.SecretKey
@@ -27,20 +27,21 @@ import scala.concurrent.duration.FiniteDuration
 /**
   * Application configuration
   *
-  * @param description   service description
-  * @param http          http interface configuration
-  * @param cluster       akka cluster configuration
-  * @param persistence   persistence configuration
-  * @param storage       storages configuration
-  * @param admin         admin client configuration
-  * @param iam           IAM client configuration
-  * @param sparql        Sparql endpoint configuration
-  * @param elasticSearch ElasticSearch endpoint configuration
-  * @param composite     Composite view configuration
-  * @param pagination    Pagination configuration
-  * @param keyValueStore Distributed data configuration
-  * @param sourcing      Sourcing configuration
-  * @param archives      Archive collection cache configuration
+  * @param description       service description
+  * @param http              http interface configuration
+  * @param cluster           akka cluster configuration
+  * @param persistence       persistence configuration
+  * @param storage           storages configuration
+  * @param admin             admin client configuration
+  * @param iam               IAM client configuration
+  * @param sparql            Sparql endpoint configuration
+  * @param elasticSearch     ElasticSearch endpoint configuration
+  * @param composite         Composite view configuration
+  * @param pagination        Pagination configuration
+  * @param keyValueStore     Distributed data configuration
+  * @param aggregate         Aggregate configuration
+  * @param archives          Archive collection cache configuration
+  * @param defaultAskTimeout Default ask timeout for interaction with an Actor
   */
 final case class AppConfig(
     description: Description,
@@ -55,8 +56,9 @@ final case class AppConfig(
     composite: CompositeViewConfig,
     pagination: PaginationConfig,
     keyValueStore: StoreConfig,
-    sourcing: SourcingConfig,
-    archives: ArchivesConfig
+    aggregate: AggregateConfig,
+    archives: ArchivesConfig,
+    defaultAskTimeout: FiniteDuration
 )
 
 object AppConfig {
@@ -161,6 +163,8 @@ object AppConfig {
     * @param password      the password used to encrypt credentials at rest
     * @param salt          the associated salt
     * @param fileAttrRetry the file attributes retry configuration
+    * @param indexing      the indexing process dealing with attributes computation
+    * @param askTimeout    the ask timeout to interact with the actor dealing with attributes computation
     */
   final case class StorageConfig(
       disk: DiskStorageConfig,
@@ -168,7 +172,9 @@ object AppConfig {
       amazon: S3StorageConfig,
       password: String,
       salt: String,
-      fileAttrRetry: RetryStrategyConfig
+      fileAttrRetry: RetryStrategyConfig,
+      indexing: IndexingConfig,
+      askTimeout: FiniteDuration
   ) {
     val derivedKey: SecretKey = Crypto.deriveKey(password, salt)
   }
@@ -265,6 +271,7 @@ object AppConfig {
     * @param defaultIndex the SPARQL default index
     * @param indexing     the indexing configuration
     * @param query        the query retry strategy configuration
+    * @param askTimeout   the ask timeout to interact with the index actor
     */
   final case class SparqlConfig(
       base: Uri,
@@ -273,7 +280,8 @@ object AppConfig {
       password: Option[String],
       defaultIndex: String,
       indexing: IndexingConfig,
-      query: RetryStrategyConfig
+      query: RetryStrategyConfig,
+      askTimeout: FiniteDuration
   ) {
 
     val akkaCredentials: Option[BasicHttpCredentials] =
@@ -291,13 +299,15 @@ object AppConfig {
     * @param defaultIndex the default index
     * @param indexing     the indexing configuration
     * @param query        the query retry strategy configuration
+    * @param askTimeout   the ask timeout to interact with the index actor
     */
   final case class ElasticSearchConfig(
       base: Uri,
       indexPrefix: String,
       defaultIndex: String,
       indexing: IndexingConfig,
-      query: RetryStrategyConfig
+      query: RetryStrategyConfig,
+      askTimeout: FiniteDuration
   )
 
   /**
@@ -334,7 +344,7 @@ object AppConfig {
     storageSchemaUri  -> storageSchema
   )
 
-  val orderedKeys = OrderedKeys(
+  val orderedKeys: OrderedKeys = OrderedKeys(
     List(
       "@context",
       "@id",
@@ -387,7 +397,7 @@ object AppConfig {
   implicit def toIam(implicit appConfig: AppConfig): IamConfig                       = appConfig.iam
   implicit def toIamClient(implicit appConfig: AppConfig): IamClientConfig           = appConfig.iam.iamClient
   implicit def toAdmin(implicit appConfig: AppConfig): AdminClientConfig             = appConfig.admin
-  implicit def toSourcing(implicit appConfig: AppConfig): SourcingConfig             = appConfig.sourcing
+  implicit def toAggregateConfig(implicit appConfig: AppConfig): AggregateConfig     = appConfig.aggregate
   implicit def toStore(implicit appConfig: AppConfig): StoreConfig                   = appConfig.keyValueStore
   implicit def toKVS(implicit appConfig: AppConfig): KeyValueStoreConfig             = appConfig.keyValueStore.keyValueStoreConfig
   implicit def toStorage(implicit appConfig: AppConfig): StorageConfig               = appConfig.storage

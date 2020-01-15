@@ -3,6 +3,7 @@ package ch.epfl.bluebrain.nexus.kg.indexing
 import akka.actor.{ActorRef, ActorSystem, Props}
 import akka.stream.SourceShape
 import akka.stream.scaladsl._
+import akka.util.Timeout
 import cats.effect.{Effect, Timer}
 import cats.implicits._
 import ch.epfl.bluebrain.nexus.admin.client.types.Project
@@ -112,6 +113,7 @@ object CompositeIndexer {
     implicit val ec: ExecutionContext          = as.dispatcher
     implicit val indexing: IndexingConfig      = config.sparql.indexing
     implicit val metadataOpts: MetadataOptions = MetadataOptions(linksAsIri = true, expandedLinks = true)
+    implicit val tm: Timeout                   = Timeout(config.sparql.askTimeout)
 
     def buildInsertOrDeleteQuery(res: ResourceV, view: SparqlView): SparqlWriteQuery =
       if (res.deprecated && !view.filter.includeDeprecated) view.buildDeleteQuery(res)
