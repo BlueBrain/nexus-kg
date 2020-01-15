@@ -9,6 +9,7 @@ import akka.cluster.sharding.ShardRegion.{ExtractEntityId, ExtractShardId}
 import akka.cluster.sharding.{ClusterSharding, ClusterShardingSettings, ShardRegion}
 import akka.pattern.pipe
 import akka.stream.scaladsl.Source
+import akka.util.Timeout
 import cats.implicits._
 import ch.epfl.bluebrain.nexus.admin.client.types.Project
 import ch.epfl.bluebrain.nexus.commons.cache.KeyValueStoreSubscriber.KeyValueStoreChange._
@@ -54,9 +55,9 @@ private abstract class ProjectViewCoordinatorActor(viewCache: ViewCache[Task])(
     with Stash
     with ActorLogging {
 
-  private val children = mutable.Map.empty[IndexedView, ViewCoordinator]
-
-  protected val projectsStream = mutable.Map.empty[ProjectRef, ViewCoordinator]
+  private implicit val tm: Timeout = Timeout(config.defaultAskTimeout)
+  private val children             = mutable.Map.empty[IndexedView, ViewCoordinator]
+  protected val projectsStream     = mutable.Map.empty[ProjectRef, ViewCoordinator]
 
   def receive: Receive = {
     case Start(_, project, views, projectsAcls) =>

@@ -2,6 +2,7 @@ package ch.epfl.bluebrain.nexus.kg.indexing
 
 import akka.actor.ActorSystem
 import akka.stream.scaladsl.{Flow, Source}
+import akka.util.Timeout
 import cats.effect.{Effect, Timer}
 import cats.implicits._
 import ch.epfl.bluebrain.nexus.admin.client.AdminClient
@@ -33,6 +34,7 @@ object ViewIndexer {
     implicit val authToken                = config.iam.serviceAccountToken
     implicit val indexing: IndexingConfig = config.keyValueStore.indexing
     implicit val ec: ExecutionContext     = as.dispatcher
+    implicit val tm: Timeout              = Timeout(config.keyValueStore.askTimeout)
     val name                              = "view-indexer"
 
     def toView(event: Event): F[Option[View]] =

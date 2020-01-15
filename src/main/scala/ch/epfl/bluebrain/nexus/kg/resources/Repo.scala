@@ -19,7 +19,7 @@ import ch.epfl.bluebrain.nexus.kg.resources.State.{Current, Initial}
 import ch.epfl.bluebrain.nexus.kg.resources.file.File.{Digest, FileAttributes}
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import ch.epfl.bluebrain.nexus.sourcing.Aggregate
-import ch.epfl.bluebrain.nexus.sourcing.akka.{AkkaAggregate, SourcingConfig}
+import ch.epfl.bluebrain.nexus.sourcing.akka.aggregate.{AggregateConfig, AkkaAggregate}
 import ch.epfl.bluebrain.nexus.storage.client.types.FileAttributes.{Digest => StorageDigest}
 import ch.epfl.bluebrain.nexus.storage.client.types.{FileAttributes => StorageFileAttributes}
 import io.circe.Json
@@ -448,24 +448,24 @@ object Repo {
 
   private def aggregate[F[_]: Effect: Timer](
       implicit as: ActorSystem,
-      sourcing: SourcingConfig,
+      aggCfg: AggregateConfig,
       F: Monad[F]
   ): F[Agg[F]] = {
-    implicit val retryPolicy: RetryPolicy[F] = sourcing.retry.retryPolicy[F]
+    implicit val retryPolicy: RetryPolicy[F] = aggCfg.retry.retryPolicy[F]
     AkkaAggregate.sharded[F](
       "resources",
       initial,
       next,
       (st, cmd) => F.pure(eval(st, cmd)),
-      sourcing.passivationStrategy(),
-      sourcing.akkaSourcingConfig,
-      sourcing.shards
+      aggCfg.passivationStrategy(),
+      aggCfg.akkaAggregateConfig,
+      aggCfg.shards
     )
   }
 
   final def apply[F[_]: Effect: Timer](
       implicit as: ActorSystem,
-      sourcing: SourcingConfig,
+      aggCfg: AggregateConfig,
       clock: Clock = Clock.systemUTC
   ): F[Repo[F]] =
     aggregate[F].map(agg => new Repo[F](agg, clock, resId => s"${resId.parent.id}-${resId.value.show}"))

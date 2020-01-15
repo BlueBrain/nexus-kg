@@ -44,7 +44,7 @@ class ProjectViewCoordinator[F[_]](cache: Caches[F], ref: ActorRef)(
     ec: ExecutionContext
 ) {
 
-  private implicit val timeout: Timeout               = config.sourcing.askTimeout
+  private implicit val timeout: Timeout               = config.aggregate.askTimeout
   private implicit val contextShift: ContextShift[IO] = IO.contextShift(ec)
   private implicit val log: Logger                    = Logger[this.type]
   private implicit val projectCache: ProjectCache[F]  = cache.project

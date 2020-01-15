@@ -4,12 +4,15 @@ import java.nio.file.Paths
 import java.time.{Clock, Instant, ZoneId}
 import java.util.regex.Pattern.quote
 
+import akka.actor.ActorSystem
+import akka.testkit.TestKit
 import cats.implicits._
 import ch.epfl.bluebrain.nexus.commons.test.{CirceEq, Resources}
 import ch.epfl.bluebrain.nexus.iam.client.types.{AuthToken, Permission}
 import ch.epfl.bluebrain.nexus.kg.TestHelper
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig._
 import ch.epfl.bluebrain.nexus.kg.config.Contexts._
+import ch.epfl.bluebrain.nexus.kg.config.Settings
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary._
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection.InvalidResourceFormat
 import ch.epfl.bluebrain.nexus.kg.resources.syntax._
@@ -18,7 +21,7 @@ import ch.epfl.bluebrain.nexus.kg.resources.ProjectIdentifier.ProjectRef
 import ch.epfl.bluebrain.nexus.kg.storage.Storage._
 import ch.epfl.bluebrain.nexus.kg.storage.StorageEncoder._
 import ch.epfl.bluebrain.nexus.rdf.syntax._
-import ch.epfl.bluebrain.nexus.sourcing.akka.SourcingConfig.RetryStrategyConfig
+import ch.epfl.bluebrain.nexus.sourcing.RetryStrategyConfig
 import io.circe.Json
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AnyWordSpecLike
@@ -27,7 +30,8 @@ import org.scalatest.{Inspectors, OptionValues}
 import scala.concurrent.duration._
 
 class StorageSpec
-    extends AnyWordSpecLike
+    extends TestKit(ActorSystem("StorageSpec"))
+    with AnyWordSpecLike
     with Matchers
     with OptionValues
     with Resources
@@ -39,24 +43,27 @@ class StorageSpec
   val writeDisk              = Permission.unsafe("disk/write")
   val readS3                 = Permission.unsafe("s3/read")
   val writeS3                = Permission.unsafe("s3/write")
-  private implicit val storageConfig =
-    StorageConfig(
-      DiskStorageConfig(Paths.get("/tmp/"), "SHA-256", readDisk, writeDisk, false, 1000L),
-      RemoteDiskStorageConfig(
-        "http://example.com",
-        "v1",
-        Some(AuthToken(genString())),
-        "SHA-256",
-        read,
-        write,
-        true,
-        2000L
-      ),
-      S3StorageConfig("MD5", readS3, writeS3, true, 3000L),
-      "password",
-      "salt",
-      RetryStrategyConfig("linear", 300.millis, 5.minutes, 100, 1.second)
-    )
+
+  private val appConfig = Settings(system).appConfig
+
+  private implicit val storageConfig = appConfig.storage.copy(
+    disk = DiskStorageConfig(Paths.get("/tmp/"), "SHA-256", readDisk, writeDisk, false, 1000L),
+    remoteDisk = RemoteDiskStorageConfig(
+      "http://example.com",
+      "v1",
+      Some(AuthToken(genString())),
+      "SHA-256",
+      read,
+      write,
+      true,
+      2000L
+    ),
+    amazon = S3StorageConfig("MD5", readS3, writeS3, true, 3000L),
+    password = "password",
+    salt = "salt",
+    fileAttrRetry = RetryStrategyConfig("linear", 300.millis, 5.minutes, 100, 1.second)
+  )
+
   "A Storage" when {
     val iri        = url"http://example.com/id".value
     val projectRef = ProjectRef(genUUID)

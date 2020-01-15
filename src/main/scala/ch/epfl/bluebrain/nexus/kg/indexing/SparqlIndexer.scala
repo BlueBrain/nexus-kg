@@ -2,6 +2,7 @@ package ch.epfl.bluebrain.nexus.kg.indexing
 
 import akka.actor.{ActorRef, ActorSystem, Props}
 import akka.stream.scaladsl.Source
+import akka.util.Timeout
 import cats.effect.{Effect, Timer}
 import cats.implicits._
 import ch.epfl.bluebrain.nexus.admin.client.types.Project
@@ -47,6 +48,8 @@ object SparqlIndexer {
     implicit val p: Project                    = project
     implicit val indexing: IndexingConfig      = config.sparql.indexing
     implicit val metadataOpts: MetadataOptions = MetadataOptions(linksAsIri = true, expandedLinks = true)
+    implicit val tm: Timeout                   = Timeout(config.sparql.askTimeout)
+
     val client: BlazegraphClient[F] =
       clients.sparql.copy(namespace = view.index).withRetryPolicy(config.sparql.indexing.retry)
 

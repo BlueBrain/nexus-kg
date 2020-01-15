@@ -21,7 +21,7 @@ import ch.epfl.bluebrain.nexus.commons.test.EitherValues
 import ch.epfl.bluebrain.nexus.kg.TestHelper
 import ch.epfl.bluebrain.nexus.kg.cache.StorageCache
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig._
-import ch.epfl.bluebrain.nexus.kg.config.Schemas
+import ch.epfl.bluebrain.nexus.kg.config.{Schemas, Settings}
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary.nxv
 import ch.epfl.bluebrain.nexus.kg.directives.QueryDirectives._
 import ch.epfl.bluebrain.nexus.kg.marshallers.instances._
@@ -35,7 +35,7 @@ import ch.epfl.bluebrain.nexus.kg.storage.StorageEncoder._
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import ch.epfl.bluebrain.nexus.rdf.syntax._
 import ch.epfl.bluebrain.nexus.rdf.instances._
-import ch.epfl.bluebrain.nexus.sourcing.akka.SourcingConfig.RetryStrategyConfig
+import ch.epfl.bluebrain.nexus.sourcing.RetryStrategyConfig
 import io.circe.Json
 import io.circe.generic.auto._
 import monix.eval.Task
@@ -57,22 +57,23 @@ class QueryDirectivesSpec
     with BeforeAndAfter {
 
   private implicit val storageCache: StorageCache[Task] = mock[StorageCache[Task]]
+  private val appConfig                                 = Settings(system).appConfig
 
   before {
     Mockito.reset(storageCache)
   }
 
   "A query directive" when {
+
     implicit val config = PaginationConfig(10, 50, 10000)
-    implicit val storageConfig =
-      StorageConfig(
-        DiskStorageConfig(Paths.get("/tmp/"), "SHA-256", read, write, false, 1024L),
-        RemoteDiskStorageConfig("http://example.com", "v1", None, "SHA-256", read, write, true, 1024L),
-        S3StorageConfig("MD5", read, write, true, 1024L),
-        "password",
-        "salt",
-        RetryStrategyConfig("linear", 300.millis, 5.minutes, 100, 1.second)
-      )
+    implicit val storageConfig = appConfig.storage.copy(
+      disk = DiskStorageConfig(Paths.get("/tmp/"), "SHA-256", read, write, false, 1024L),
+      remoteDisk = RemoteDiskStorageConfig("http://example.com", "v1", None, "SHA-256", read, write, true, 1024L),
+      amazon = S3StorageConfig("MD5", read, write, true, 1024L),
+      password = "password",
+      salt = "salt",
+      fileAttrRetry = RetryStrategyConfig("linear", 300.millis, 5.minutes, 100, 1.second)
+    )
 
     implicit def paginationMarshaller(
         implicit m1: ToEntityMarshaller[FromPagination],
