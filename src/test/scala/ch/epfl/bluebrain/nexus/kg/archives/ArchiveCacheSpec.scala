@@ -2,14 +2,13 @@ package ch.epfl.bluebrain.nexus.kg.archives
 
 import java.time.{Clock, Instant, ZoneId}
 
-import cats.effect.IO
+import cats.effect.{IO, Timer}
 import ch.epfl.bluebrain.nexus.admin.client.types.Project
 import ch.epfl.bluebrain.nexus.commons.test.ActorSystemFixture
 import ch.epfl.bluebrain.nexus.commons.test.io.IOOptionValues
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity.Anonymous
 import ch.epfl.bluebrain.nexus.kg.TestHelper
 import ch.epfl.bluebrain.nexus.kg.archives.Archive.{File, Resource, ResourceDescription}
-import ch.epfl.bluebrain.nexus.kg.config.AppConfig.ArchivesConfig
 import ch.epfl.bluebrain.nexus.kg.config.Settings
 import ch.epfl.bluebrain.nexus.kg.resources.Id
 import ch.epfl.bluebrain.nexus.kg.resources.syntax._
@@ -31,9 +30,10 @@ class ArchiveCacheSpec
 
   private val appConfig = Settings(system).appConfig
   private implicit val config =
-    appConfig.copy(archives = ArchivesConfig(3.second, 500.millis, 100))
+    appConfig.copy(archives = appConfig.archives.copy(cacheInvalidateAfter = 500.millis, maxResources = 100))
+  private implicit val timer: Timer[IO] = IO.timer(system.dispatcher)
 
-  private val cache: ArchiveCache[IO] = ArchiveCache[IO]()
+  private val cache: ArchiveCache[IO] = ArchiveCache[IO].unsafeToFuture().futureValue
   private implicit val clock          = Clock.fixed(Instant.EPOCH, ZoneId.systemDefault())
   private val instant                 = clock.instant()
 

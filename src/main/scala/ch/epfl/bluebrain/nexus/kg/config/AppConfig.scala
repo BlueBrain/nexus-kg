@@ -18,6 +18,7 @@ import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import ch.epfl.bluebrain.nexus.rdf.syntax.node.unsafe._
 import ch.epfl.bluebrain.nexus.sourcing.RetryStrategyConfig
 import ch.epfl.bluebrain.nexus.sourcing.akka.aggregate.AggregateConfig
+import ch.epfl.bluebrain.nexus.sourcing.akka.statemachine.StateMachineConfig
 import ch.epfl.bluebrain.nexus.sourcing.projections.IndexingConfig
 import io.circe.Json
 import javax.crypto.SecretKey
@@ -103,15 +104,11 @@ object AppConfig {
   /**
     * The archives configuration
     *
-    * @param cacheAskTimeout      the maximum time to wait for a reply from the underlying actor on the archive cache
+    * @param cache                the underlying cache configuration
     * @param cacheInvalidateAfter the time resource is kept in the archive cache before being invalidated
     * @param maxResources         the maximum number of resources that can be contain in the archive
     */
-  final case class ArchivesConfig(
-      cacheAskTimeout: FiniteDuration,
-      cacheInvalidateAfter: FiniteDuration,
-      maxResources: Int
-  )
+  final case class ArchivesConfig(cache: StateMachineConfig, cacheInvalidateAfter: FiniteDuration, maxResources: Int)
 
   /**
     * KeyValueStore configuration.

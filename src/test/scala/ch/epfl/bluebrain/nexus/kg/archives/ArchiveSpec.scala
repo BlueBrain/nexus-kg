@@ -2,6 +2,8 @@ package ch.epfl.bluebrain.nexus.kg.archives
 
 import java.time.{Clock, Instant, ZoneId}
 
+import akka.actor.ActorSystem
+import akka.testkit.TestKit
 import cats.effect.IO
 import ch.epfl.bluebrain.nexus.admin.client.types.Project
 import ch.epfl.bluebrain.nexus.commons.test.{EitherValues, Randomness}
@@ -10,8 +12,8 @@ import ch.epfl.bluebrain.nexus.iam.client.types.Identity.{Anonymous, Subject}
 import ch.epfl.bluebrain.nexus.kg.TestHelper
 import ch.epfl.bluebrain.nexus.kg.archives.Archive.{File, Resource}
 import ch.epfl.bluebrain.nexus.kg.cache.ProjectCache
-import ch.epfl.bluebrain.nexus.kg.config.AppConfig.ArchivesConfig
 import ch.epfl.bluebrain.nexus.kg.config.Contexts._
+import ch.epfl.bluebrain.nexus.kg.config.Settings
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary.nxv
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection.{InvalidResourceFormat, ProjectRefNotFound}
 import ch.epfl.bluebrain.nexus.kg.resources.syntax._
@@ -31,7 +33,8 @@ import org.scalatest.wordspec.AnyWordSpecLike
 import scala.concurrent.duration._
 
 class ArchiveSpec
-    extends AnyWordSpecLike
+    extends TestKit(ActorSystem("ArchiveSpec"))
+    with AnyWordSpecLike
     with Matchers
     with TestHelper
     with Randomness
@@ -42,7 +45,8 @@ class ArchiveSpec
     with BeforeAndAfter {
 
   private implicit val cache            = mock[ProjectCache[IO]]
-  private implicit val config           = ArchivesConfig(1.second, 1.second, 3)
+  private val appConfig                 = Settings(system).appConfig
+  private implicit val config           = appConfig.archives.copy(cacheInvalidateAfter = 1.second, maxResources = 3)
   private implicit val clock            = Clock.fixed(Instant.EPOCH, ZoneId.systemDefault())
   private implicit val subject: Subject = Anonymous
 

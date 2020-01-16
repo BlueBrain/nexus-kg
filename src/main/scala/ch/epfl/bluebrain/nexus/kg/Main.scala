@@ -18,6 +18,7 @@ import ch.epfl.bluebrain.nexus.commons.http.JsonLdCirceSupport._
 import ch.epfl.bluebrain.nexus.iam.client.IamClient
 import ch.epfl.bluebrain.nexus.kg.async.{ProjectAttributesCoordinator, ProjectViewCoordinator}
 import ch.epfl.bluebrain.nexus.kg.archives.ArchiveCache
+import ch.epfl.bluebrain.nexus.kg.async.ProjectAttributesCoordinator.SupervisorFactory
 import ch.epfl.bluebrain.nexus.kg.cache._
 import ch.epfl.bluebrain.nexus.kg.cache.Caches._
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig._
@@ -119,13 +120,14 @@ object Main {
 
     implicit val repo     = Repo[Task].runSyncUnsafe()(Scheduler.global, pm)
     implicit val indexers = clients()
+
     implicit val cache =
       Caches(
         ProjectCache[Task],
         ViewCache[Task],
         ResolverCache[Task],
         StorageCache[Task],
-        ArchiveCache[Task]()
+        ArchiveCache[Task].runSyncUnsafe()(Scheduler.global, pm)
       )
     implicit val aclCache                         = AclsCache[Task](clients.iam)
     implicit val projectResolution                = ProjectResolution.task(repo, cache.resolver, cache.project, aclCache)
@@ -147,20 +149,21 @@ object Main {
       logger.info("==== Cluster is Live ====")
 
       if (sys.env.getOrElse("REPAIR_FROM_MESSAGES", "false").toBoolean) {
-        RepairFromMessages.repair(repo)(as, Scheduler.global, CanBlock.permit)
+        RepairFromMessages.repair(repo)(as, Scheduler.global, pm)
       }
 
-      implicit val projections: Projections[Task, String] = {
-        Projections[Task, String].runSyncUnsafe(10.seconds)(Scheduler.global, CanBlock.permit)
-      }
-      val projectViewCoordinator   = ProjectViewCoordinator(resources, cache)
-      val projectDigestCoordinator = ProjectAttributesCoordinator(files, cache.project)
+      implicit val projections: Projections[Task, String] =
+        Projections[Task, String].runSyncUnsafe(10.seconds)(Scheduler.global, pm)
+      implicit val projectCache: ProjectCache[Task] = cache.project
+      val projectViewCoordinator                    = ProjectViewCoordinator(resources, cache)
+      val projectAttrCoordinator =
+        ProjectAttributesCoordinator(SupervisorFactory(files)).runSyncUnsafe(10.seconds)(Scheduler.global, pm)
       implicit val projectInitializer =
-        new ProjectInitializer[Task](storages, views, resolvers, projectViewCoordinator, projectDigestCoordinator)
+        new ProjectInitializer[Task](storages, views, resolvers, projectViewCoordinator, projectAttrCoordinator)
 
       implicit val adminClient = clients.admin
       implicit val iamClient   = clients.iam
-      Indexing.start(storages, views, resolvers, projectViewCoordinator, projectDigestCoordinator)
+      Indexing.start(storages, views, resolvers, projectViewCoordinator, projectAttrCoordinator)
 
       val routes: Route =
         Routes(resources, resolvers, views, storages, schemas, files, archives, tags, projectViewCoordinator)

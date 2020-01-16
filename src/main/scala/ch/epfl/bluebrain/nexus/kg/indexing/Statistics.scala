@@ -36,6 +36,8 @@ final case class Statistics(
 
 object Statistics {
 
+  val empty: Statistics = Statistics(0L, 0L, 0L, 0L, None, None)
+
   /**
     * Create an instance of [[Statistics]].
     *
