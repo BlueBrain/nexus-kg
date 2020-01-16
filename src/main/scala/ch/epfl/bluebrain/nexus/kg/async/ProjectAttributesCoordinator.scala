@@ -106,6 +106,7 @@ object ProjectAttributesCoordinator {
       private implicit val logErrors: (Either[Rejection, Resource], RetryDetails) => F[Unit] =
         (err, d) => F.pure(log.warn("Retrying on resource creation with retry details '{}' and error: '{}'", err, d))
 
+      @SuppressWarnings(Array("isInstanceOf"))
       def apply(project: Project): ProgressStreamSupervisor[F] = {
         val progressId = s"attributes-computation-${project.uuid}"
         val sourceF: F[Source[ProjectionProgress, _]] = projections.progress(progressId).map { initial =>
