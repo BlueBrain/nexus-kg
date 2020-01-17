@@ -121,6 +121,7 @@ object Indexing {
     * @param resolvers the resolvers operations
     * @param cache     the distributed cache
     */
+  @SuppressWarnings(Array("MaxParameters"))
   def start(
       storages: Storages[Task],
       views: Views[Task],
