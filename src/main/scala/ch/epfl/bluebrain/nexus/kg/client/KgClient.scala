@@ -60,6 +60,20 @@ class KgClient[F[_]] private[client] (
   }
 
   /**
+    * Fetch a resource from the passed ''project'' with the passed ''id'' and ''tag''.
+    *
+    * @return Some(resource) if found and None otherwise, wrapped in an effect type ''F[_]''
+    */
+  def resource(project: Project, id: AbsoluteIri, tag: String)(
+      implicit credentials: Option[AuthToken]
+  ): F[Option[ResourceV]] = {
+    val endpoint = config.resourcesIri + (project.organizationLabel / project.label / "_" / id.asString)
+    resourceClientFromRef(project.ref)(requestFrom(endpoint, Query("format" -> "expanded", "tag" -> tag)))
+      .map[Option[ResourceV]](Some(_))
+      .recoverWith { case NotFound(_) => F.pure(None) }
+  }
+
+  /**
     * Streams the events for the passed ''project''.
     *
     * @return a source of events

@@ -6,7 +6,8 @@ import akka.NotUsed
 import akka.actor.ActorSystem
 import akka.http.scaladsl.client.RequestBuilding.Get
 import akka.http.scaladsl.model.ContentTypes.`application/json`
-import akka.http.scaladsl.model.StatusCodes
+import akka.http.scaladsl.model.Uri.Query
+import akka.http.scaladsl.model.{StatusCodes, Uri}
 import akka.http.scaladsl.model.headers.Accept
 import akka.stream.scaladsl.Source
 import akka.testkit.TestKit
@@ -95,7 +96,7 @@ class KgClientSpec
     implicit val token: Option[AuthToken] = None
 
     val resourceEndpoint =
-      s"http://example.com/v1/resources/${project.organizationLabel}/${project.label}/_/$resourceId?format=expanded"
+      s"http://example.com/v1/resources/${project.organizationLabel}/${project.label}/_/$resourceId"
     val eventsEndpoint = url"http://example.com/v1/resources/${project.organizationLabel}/${project.label}/events".value
   }
 
@@ -104,16 +105,28 @@ class KgClientSpec
     "fetching a resource" should {
 
       "succeed" in new Ctx {
-        resClient(Get(resourceEndpoint).addHeader(accept)) shouldReturn IO.pure(model)
+        val query = Query("format" -> "expanded")
+        resClient(Get(Uri(resourceEndpoint).withQuery(query)).addHeader(accept)) shouldReturn IO.pure(model)
         client.resource(project, id).some shouldEqual model
       }
 
+      "succeed with tag" in new Ctx {
+        val query = Query("format" -> "expanded", "tag" -> "myTag")
+        resClient(Get(Uri(resourceEndpoint).withQuery(query)).addHeader(accept)) shouldReturn
+          IO.pure(model)
+        client.resource(project, id, "myTag").some shouldEqual model
+      }
+
       "return None" in new Ctx {
-        resClient(Get(resourceEndpoint).addHeader(accept)) shouldReturn IO.raiseError(NotFound(""))
+        val query = Query("format" -> "expanded")
+        resClient(Get(Uri(resourceEndpoint).withQuery(query)).addHeader(accept)) shouldReturn IO.raiseError(
+          NotFound("")
+        )
         client.resource(project, id).ioValue shouldEqual None
       }
 
       "propagate the underlying exception" in new Ctx {
+        val query = Query("format" -> "expanded")
         val exs: List[Exception] = List(
           IamClientError.Unauthorized(""),
           IamClientError.Forbidden(""),
@@ -121,7 +134,7 @@ class KgClientSpec
           KgClientError.UnknownError(StatusCodes.InternalServerError, "")
         )
         forAll(exs) { ex =>
-          resClient(Get(resourceEndpoint).addHeader(accept)) shouldReturn IO.raiseError(ex)
+          resClient(Get(Uri(resourceEndpoint).withQuery(query)).addHeader(accept)) shouldReturn IO.raiseError(ex)
           client.resource(project, id).failed[Exception] shouldEqual ex
         }
       }
