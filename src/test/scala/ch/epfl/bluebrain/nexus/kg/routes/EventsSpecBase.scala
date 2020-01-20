@@ -68,6 +68,7 @@ class EventsSpecBase
 
   val projectUuid = UUID.fromString("7f8039a0-3141-11e9-b210-d663bd873d93")
   val orgUuid     = UUID.fromString("17a62c6a-4dc4-4eaa-b418-42d0634695a1")
+  val fileUuid    = UUID.fromString("a733d99e-6075-45df-b6c3-52c8071df4fb")
   val schemaRef   = Latest(base + "schema")
   val types       = Set(base + "type")
 
@@ -153,7 +154,8 @@ class EventsSpecBase
       orgRef,
       DiskStorage.default(projectRef).reference,
       FileAttributes(
-        "/some/location/path",
+        fileUuid,
+        Uri("/some/location/path"),
         Uri.Path("path"),
         "attachment.json",
         `application/json`,
@@ -169,8 +171,9 @@ class EventsSpecBase
       S3StorageReference(base + "storages" + "s3", 1L),
       2L,
       FileAttributes(
+        fileUuid,
         Uri("/some/location/path"),
-        Uri.Path("path"),
+        Uri.Path("path2"),
         "attachment.json",
         `text/plain(UTF-8)`,
         47,

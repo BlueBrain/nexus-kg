@@ -5,6 +5,7 @@ import java.time.Instant
 import akka.http.scaladsl.model.Uri
 import ch.epfl.bluebrain.nexus.commons.circe.syntax._
 import ch.epfl.bluebrain.nexus.iam.client.config.IamClientConfig
+import ch.epfl.bluebrain.nexus.iam.client.types.Identity
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity.Subject
 import ch.epfl.bluebrain.nexus.kg.config.Contexts._
 import ch.epfl.bluebrain.nexus.kg.config.Schemas.fileSchemaUri
@@ -12,6 +13,7 @@ import ch.epfl.bluebrain.nexus.kg.config.Vocabulary.nxv
 import ch.epfl.bluebrain.nexus.kg.resources.ProjectIdentifier.ProjectRef
 import ch.epfl.bluebrain.nexus.kg.resources.file.File._
 import ch.epfl.bluebrain.nexus.kg.resources.syntax._
+import ch.epfl.bluebrain.nexus.rdf.Iri
 import ch.epfl.bluebrain.nexus.storage.client.types.{FileAttributes => StorageFileAttributes}
 import ch.epfl.bluebrain.nexus.storage.client.types.FileAttributes.{Digest => StorageDigest}
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
@@ -21,7 +23,9 @@ import com.github.ghik.silencer.silent
 import io.circe.generic.extras.Configuration
 import io.circe.generic.extras.semiauto._
 import io.circe.syntax._
-import io.circe.{Encoder, Json}
+import io.circe.{Decoder, Encoder, Json}
+
+import scala.util.Try
 
 /**
   * Enumeration of resource event types.
@@ -282,38 +286,79 @@ object Event {
         case "value"        => nxv.value.prefix
         case "filename"     => nxv.filename.prefix
         case "mediaType"    => nxv.mediaType.prefix
+        case "uuid"         => nxv.uuid.prefix
         case "location"     => "_location"
         case other          => other
       })
 
     private implicit val refEncoder: Encoder[Ref]          = Encoder.encodeJson.contramap(_.iri.asJson)
+    private implicit val refDecoder: Decoder[Ref]          = absoluteIriDecoder.map(Ref(_))
     private implicit val uriEncoder: Encoder[Uri]          = Encoder.encodeString.contramap(_.toString)
+    private implicit val uriDecoder: Decoder[Uri]          = Decoder.decodeString.emapTry(s => Try(Uri(s)))
     private implicit val uriPathEncoder: Encoder[Uri.Path] = Encoder.encodeString.contramap(_.toString)
+    private implicit val uriPathDecoder: Decoder[Uri.Path] = Decoder.decodeString.emapTry(s => Try(Uri.Path(s)))
 
     private implicit val storageReferenceEncoder: Encoder[StorageReference] = deriveConfiguredEncoder[StorageReference]
+    private implicit val storageReferenceDecoder: Decoder[StorageReference] = deriveConfiguredDecoder[StorageReference]
 
     private implicit val digestEncoder: Encoder[Digest] = deriveConfiguredEncoder[Digest]
+    private implicit val digestDecoder: Decoder[Digest] = deriveConfiguredDecoder[Digest]
 
     private implicit val digestStorageEncoder: Encoder[StorageDigest] = deriveConfiguredEncoder[StorageDigest]
+    private implicit val digestStorageDecoder: Decoder[StorageDigest] = deriveConfiguredDecoder[StorageDigest]
 
-    private implicit val fileAttributesEncoder: Encoder[FileAttributes] =
-      deriveConfiguredEncoder[FileAttributes]
-        .mapJsonObject(_.remove("path").remove("uuid"))
+    private implicit val fileAttributesEncoder: Encoder[FileAttributes] = deriveConfiguredEncoder[FileAttributes]
+    private implicit val fileAttributesDecoder: Decoder[FileAttributes] = deriveConfiguredDecoder[FileAttributes]
 
     private implicit val storageFileAttributesEncoder: Encoder[StorageFileAttributes] =
       deriveConfiguredEncoder[StorageFileAttributes]
+    private implicit val storageFileAttributesDecoder: Decoder[StorageFileAttributes] =
+      deriveConfiguredDecoder[StorageFileAttributes]
 
     private implicit val idEncoder: Encoder[Id[ProjectRef]] =
-      Encoder.encodeJson.contramap(_.value.asJson)
+      Encoder.encodeJson.contramap { id =>
+        Json.obj("_resourceId" -> id.value.asJson, nxv.projectUuid.prefix -> id.parent.id.toString.asJson)
+      }
+
+    private implicit val idDecoder: Decoder[Id[ProjectRef]] =
+      Decoder.forProduct2[Id[ProjectRef], AbsoluteIri, ProjectRef]("_resourceId", nxv.projectUuid.prefix) {
+        case (value, project) => Id(project, value)
+      }
 
     private implicit def subjectIdEncoder(implicit ic: IamClientConfig): Encoder[Subject] =
       Encoder.encodeJson.contramap(_.id.asJson)
 
+    private implicit def subjectIdDecoder: Decoder[Subject] = Decoder.decodeString.emap { s =>
+      Iri
+        .absolute(s)
+        .flatMap(
+          iri =>
+            Identity(iri) match {
+              case Some(subject: Subject) => Right(subject)
+              case Some(identity)         => Left(s"Identity '$identity' is not a subject")
+              case None                   => Left(s"Url '$iri' cannot be converted to a subject")
+            }
+        )
+    }
+
     implicit def eventsEventEncoder(implicit ic: IamClientConfig): Encoder[Event] = {
       val enc = deriveConfiguredEncoder[Event]
       Encoder.encodeJson.contramap[Event] { ev =>
-        enc(ev).addContext(resourceCtxUri) deepMerge Json.obj(nxv.projectUuid.prefix -> ev.id.parent.id.toString.asJson)
+        enc(ev).addContext(resourceCtxUri).removeKeys("_resourceId", nxv.projectUuid.prefix) deepMerge ev.id.asJson
       }
+    }
+
+    implicit def eventsEventDecoder(implicit ic: IamClientConfig): Decoder[Event] = {
+      val dec = deriveConfiguredDecoder[Event]
+      Decoder.instance { hc =>
+        for {
+          id <- idDecoder(hc)
+          idJson   = Json.obj("_resourceId" -> id.asJson)
+          restJson = hc.value.removeKeys("_resourceId", nxv.projectUuid.prefix)
+          event <- dec(restJson.deepMerge(idJson).hcursor)
+        } yield event
+      }
+
     }
   }
 }

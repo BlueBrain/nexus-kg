@@ -23,6 +23,7 @@ import ch.epfl.bluebrain.nexus.kg.resources.file.File.FileAttributes
 import ch.epfl.bluebrain.nexus.kg.routes.SearchParams
 import ch.epfl.bluebrain.nexus.kg.search.QueryBuilder.queryFor
 import ch.epfl.bluebrain.nexus.kg.storage.{AkkaSource, Storage}
+import ch.epfl.bluebrain.nexus.rdf.Graph
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import ch.epfl.bluebrain.nexus.rdf.encoder.NodeEncoder.EncoderResult
 import ch.epfl.bluebrain.nexus.rdf.encoder.NodeEncoderError.IllegalConversion
@@ -44,6 +45,11 @@ package object resources {
     * Resource representation with a "source", "flattened" context and "computed" graph.
     */
   type ResourceV = ResourceF[ResourceF.Value]
+
+  /**
+    * Resource representation with a "computed" graph.
+    */
+  type ResourceGraph = ResourceF[Graph]
 
   /**
     * Resource tags
