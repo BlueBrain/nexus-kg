@@ -6,7 +6,7 @@ import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.Route
 import akka.http.scaladsl.unmarshalling.FromEntityUnmarshaller
 import akka.persistence.query.{NoOffset, Offset, Sequence, TimeBasedUUID}
-import cats.data.OptionT
+import cats.data.{EitherT, OptionT}
 import cats.implicits._
 import ch.epfl.bluebrain.nexus.admin.client.types.Project
 import ch.epfl.bluebrain.nexus.commons.search.QueryResult.UnscoredQueryResult
@@ -235,8 +235,12 @@ class ViewRoutes private[routes] (
           fromPaginated.apply { implicit page =>
             extractUri { implicit uri =>
               hasPermission(read).apply {
-                val listed = viewCache.getDefaultSparql(project.ref).flatMap(views.listIncoming(id, _, page))
-                complete(listed.runWithStatus(OK))
+                val listed = for {
+                  view     <- viewCache.getDefaultSparql(project.ref).toNotFound(nxv.defaultSparqlIndex)
+                  _        <- views.fetchSource(Id(project.ref, id))
+                  incoming <- EitherT.right[Rejection](views.listIncoming(id, view, page))
+                } yield incoming
+                complete(listed.value.runWithStatus(OK))
               }
             }
           }
@@ -249,8 +253,12 @@ class ViewRoutes private[routes] (
             fromPaginated.apply { implicit page =>
               extractUri { implicit uri =>
                 hasPermission(read).apply {
-                  val listed = viewCache.getDefaultSparql(project.ref).flatMap(views.listOutgoing(id, _, page, links))
-                  complete(listed.runWithStatus(OK))
+                  val listed = for {
+                    view     <- viewCache.getDefaultSparql(project.ref).toNotFound(nxv.defaultSparqlIndex)
+                    _        <- views.fetchSource(Id(project.ref, id))
+                    outgoing <- EitherT.right[Rejection](views.listOutgoing(id, view, page, links))
+                  } yield outgoing
+                  complete(listed.value.runWithStatus(OK))
                 }
               }
             }

@@ -336,7 +336,7 @@ class ResourcesSpec
         client.queryRaw(query, any[Throwable => Boolean]) shouldReturn IO(
           SparqlResults(Head(List.empty), Bindings(List(binding1, binding2, binding3)))
         )
-        val results = resources.listIncoming(resId.value, Some(view), FromPagination(1, 10)).ioValue
+        val results = resources.listIncoming(resId.value, view, FromPagination(1, 10)).ioValue
         results.total shouldEqual 10
         results.results.toSet shouldEqual expected
       }
@@ -358,7 +358,7 @@ class ResourcesSpec
           SparqlResults(Head(List.empty), Bindings(List(binding1, binding2, binding3)))
         )
         val results =
-          resources.listOutgoing(resId.value, Some(view), FromPagination(1, 10), includeExternalLinks = true).ioValue
+          resources.listOutgoing(resId.value, view, FromPagination(1, 10), includeExternalLinks = true).ioValue
         results.total shouldEqual 10
         results.results.toSet shouldEqual expected
       }

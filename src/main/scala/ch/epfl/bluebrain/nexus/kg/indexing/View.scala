@@ -620,11 +620,12 @@ object View {
       * @param pagination the pagination for the query
       * @tparam F the effect type
       */
-    def incoming[F[_]: Functor](
+    def incoming[F[_]](
         id: AbsoluteIri,
         pagination: FromPagination
     )(
         implicit client: BlazegraphClient[F],
+        F: Functor[F],
         config: AppConfig
     ): F[LinkResults] =
       client.copy(namespace = index).queryRaw(replace(incomingQuery, id, pagination)).map(toSparqlLinks)
@@ -637,8 +638,9 @@ object View {
       * @param includeExternalLinks flag to decide whether or not to include external links (not Nexus managed) in the query result
       * @tparam F the effect type
       */
-    def outgoing[F[_]: Functor](id: AbsoluteIri, pagination: FromPagination, includeExternalLinks: Boolean)(
+    def outgoing[F[_]](id: AbsoluteIri, pagination: FromPagination, includeExternalLinks: Boolean)(
         implicit client: BlazegraphClient[F],
+        F: Functor[F],
         config: AppConfig
     ): F[LinkResults] =
       if (includeExternalLinks)

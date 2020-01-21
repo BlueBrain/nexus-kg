@@ -3,12 +3,14 @@ package ch.epfl.bluebrain.nexus.kg.routes
 import akka.http.scaladsl.model.StatusCodes.{Created, OK}
 import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.Route
+import cats.data.EitherT
 import ch.epfl.bluebrain.nexus.admin.client.types.Project
 import ch.epfl.bluebrain.nexus.iam.client.types._
 import ch.epfl.bluebrain.nexus.kg.KgError.InvalidOutputFormat
 import ch.epfl.bluebrain.nexus.kg.cache._
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig
 import ch.epfl.bluebrain.nexus.kg.config.Schemas._
+import ch.epfl.bluebrain.nexus.kg.config.Vocabulary.nxv
 import ch.epfl.bluebrain.nexus.kg.directives.AuthDirectives._
 import ch.epfl.bluebrain.nexus.kg.directives.PathDirectives._
 import ch.epfl.bluebrain.nexus.kg.directives.ProjectDirectives._
@@ -155,8 +157,12 @@ class SchemaRoutes private[routes] (schemas: Schemas[Task], tags: Tags[Task])(
           fromPaginated.apply { implicit page =>
             extractUri { implicit uri =>
               hasPermission(read).apply {
-                val listed = viewCache.getDefaultSparql(project.ref).flatMap(schemas.listIncoming(id, _, page))
-                complete(listed.runWithStatus(OK))
+                val listed = for {
+                  view     <- viewCache.getDefaultSparql(project.ref).toNotFound(nxv.defaultSparqlIndex)
+                  _        <- schemas.fetchSource(Id(project.ref, id))
+                  incoming <- EitherT.right[Rejection](schemas.listIncoming(id, view, page))
+                } yield incoming
+                complete(listed.value.runWithStatus(OK))
               }
             }
           }
@@ -169,8 +175,12 @@ class SchemaRoutes private[routes] (schemas: Schemas[Task], tags: Tags[Task])(
             fromPaginated.apply { implicit page =>
               extractUri { implicit uri =>
                 hasPermission(read).apply {
-                  val listed = viewCache.getDefaultSparql(project.ref).flatMap(schemas.listOutgoing(id, _, page, links))
-                  complete(listed.runWithStatus(OK))
+                  val listed = for {
+                    view     <- viewCache.getDefaultSparql(project.ref).toNotFound(nxv.defaultSparqlIndex)
+                    _        <- schemas.fetchSource(Id(project.ref, id))
+                    outgoing <- EitherT.right[Rejection](schemas.listOutgoing(id, view, page, links))
+                  } yield outgoing
+                  complete(listed.value.runWithStatus(OK))
                 }
               }
             }

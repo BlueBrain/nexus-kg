@@ -374,7 +374,8 @@ class ResourceRoutesSpec
 
     "incoming links of a resource" in new Context {
       viewCache.getDefaultSparql(projectRef) shouldReturn Task(Some(defaultSparqlView))
-      resources.listIncoming(id.value, Some(defaultSparqlView), FromPagination(1, 10)) shouldReturn Task(links)
+      resources.fetchSource(id, unconstrainedRef) shouldReturn EitherT.right(Task(Json.obj()))
+      resources.listIncoming(id.value, defaultSparqlView, FromPagination(1, 10)) shouldReturn Task(links)
       Get(s"/v1/resources/$organization/$project/resource/$urlEncodedId/incoming?from=1&size=10") ~> addCredentials(
         oauthToken
       ) ~> routes ~> check {
@@ -387,7 +388,8 @@ class ResourceRoutesSpec
 
     "outgoing links of a resource (including external links)" in new Context {
       viewCache.getDefaultSparql(projectRef) shouldReturn Task(Some(defaultSparqlView))
-      resources.listOutgoing(id.value, Some(defaultSparqlView), FromPagination(5, 10), includeExternalLinks = true) shouldReturn
+      resources.fetchSource(id, unconstrainedRef) shouldReturn EitherT.right(Task(Json.obj()))
+      resources.listOutgoing(id.value, defaultSparqlView, FromPagination(5, 10), includeExternalLinks = true) shouldReturn
         Task(links)
       Get(
         s"/v1/resources/$organization/$project/resource/$urlEncodedId/outgoing?from=5&size=10&includeExternalLinks=true"
@@ -401,7 +403,8 @@ class ResourceRoutesSpec
 
     "outgoing links of a resource (excluding external links)" in new Context {
       viewCache.getDefaultSparql(projectRef) shouldReturn Task(Some(defaultSparqlView))
-      resources.listOutgoing(id.value, Some(defaultSparqlView), FromPagination(1, 10), includeExternalLinks = false) shouldReturn
+      resources.fetchSource(id, unconstrainedRef) shouldReturn EitherT.right(Task(Json.obj()))
+      resources.listOutgoing(id.value, defaultSparqlView, FromPagination(1, 10), includeExternalLinks = false) shouldReturn
         Task(links)
       Get(
         s"/v1/resources/$organization/$project/resource/$urlEncodedId/outgoing?from=1&size=10&includeExternalLinks=false"
