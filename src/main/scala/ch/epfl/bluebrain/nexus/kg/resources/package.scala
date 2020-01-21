@@ -7,16 +7,15 @@ import ch.epfl.bluebrain.nexus.admin.client.types.Project
 import ch.epfl.bluebrain.nexus.commons.es.client.ElasticSearchClient
 import ch.epfl.bluebrain.nexus.commons.http.HttpClient
 import ch.epfl.bluebrain.nexus.commons.search.QueryResults.UnscoredQueryResults
-import ch.epfl.bluebrain.nexus.commons.search.{FromPagination, Pagination, QueryResults}
+import ch.epfl.bluebrain.nexus.commons.search.{Pagination, QueryResults}
 import ch.epfl.bluebrain.nexus.commons.shacl.ValidationReport
-import ch.epfl.bluebrain.nexus.commons.sparql.client.BlazegraphClient
 import ch.epfl.bluebrain.nexus.iam.client.types.Caller
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity.Subject
 import ch.epfl.bluebrain.nexus.kg.KgError.InternalError
 import ch.epfl.bluebrain.nexus.kg.archives.Archive
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig
 import ch.epfl.bluebrain.nexus.kg.indexing.SparqlLink
-import ch.epfl.bluebrain.nexus.kg.indexing.View.{ElasticSearchView, SparqlView}
+import ch.epfl.bluebrain.nexus.kg.indexing.View.ElasticSearchView
 import ch.epfl.bluebrain.nexus.kg.resources.ProjectIdentifier.ProjectRef
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection.InvalidResource
 import ch.epfl.bluebrain.nexus.kg.resources.file.File.FileAttributes
@@ -24,7 +23,6 @@ import ch.epfl.bluebrain.nexus.kg.routes.SearchParams
 import ch.epfl.bluebrain.nexus.kg.search.QueryBuilder.queryFor
 import ch.epfl.bluebrain.nexus.kg.storage.{AkkaSource, Storage}
 import ch.epfl.bluebrain.nexus.rdf.Graph
-import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import ch.epfl.bluebrain.nexus.rdf.encoder.NodeEncoder.EncoderResult
 import ch.epfl.bluebrain.nexus.rdf.encoder.NodeEncoderError.IllegalConversion
 import io.circe.Json
@@ -136,24 +134,6 @@ package object resources {
     view
       .map(v => elasticSearch.search[Json](queryFor(params), Set(v.index))(pagination, sort = params.sort))
       .getOrElse(F.pure[JsonResults](UnscoredQueryResults(0L, List.empty)))
-
-  private[resources] def incoming[F[_]](
-      id: AbsoluteIri,
-      view: Option[SparqlView],
-      pagination: FromPagination
-  )(implicit F: Effect[F], config: AppConfig, client: BlazegraphClient[F]): F[LinkResults] =
-    view.map(_.incoming(id, pagination)).getOrElse(F.pure[LinkResults](UnscoredQueryResults(0L, List.empty)))
-
-  private[resources] def outgoing[F[_]](
-      id: AbsoluteIri,
-      view: Option[SparqlView],
-      pagination: FromPagination,
-      includeExternalLinks: Boolean
-  )(implicit F: Effect[F], config: AppConfig, client: BlazegraphClient[F]): F[LinkResults] = {
-    view
-      .map(_.outgoing(id, pagination, includeExternalLinks))
-      .getOrElse(F.pure[LinkResults](UnscoredQueryResults(0L, List.empty)))
-  }
 
   def nonEmpty(s: String): EncoderResult[String] =
     if (s.trim.isEmpty) Left(IllegalConversion("")) else Right(s)

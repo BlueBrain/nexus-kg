@@ -272,31 +272,31 @@ class Files[F[_]](repo: Repo[F])(implicit storageCache: StorageCache[F], config:
     * Lists incoming resources for the provided file ''id''
     *
     * @param id         the resource id for which to retrieve the incoming links
-    * @param view       optionally available default sparql view
+    * @param view       the default sparql view
     * @param pagination pagination options
     * @return search results in the F context
     */
-  def listIncoming(id: AbsoluteIri, view: Option[SparqlView], pagination: FromPagination)(
+  def listIncoming(id: AbsoluteIri, view: SparqlView, pagination: FromPagination)(
       implicit sparql: BlazegraphClient[F]
   ): F[LinkResults] =
-    incoming(id, view, pagination)
+    view.incoming(id, pagination)
 
   /**
     * Lists outgoing resources for the provided file ''id''
     *
     * @param id                   the resource id for which to retrieve the outgoing links
-    * @param view                 optionally available default sparql view
+    * @param view                 the sparql view
     * @param pagination           pagination options
     * @param includeExternalLinks flag to decide whether or not to include external links (not Nexus managed) in the query result
     * @return search results in the F context
     */
   def listOutgoing(
       id: AbsoluteIri,
-      view: Option[SparqlView],
+      view: SparqlView,
       pagination: FromPagination,
       includeExternalLinks: Boolean
   )(implicit sparql: BlazegraphClient[F]): F[LinkResults] =
-    outgoing(id, view, pagination, includeExternalLinks)
+    view.outgoing(id, pagination, includeExternalLinks)
 
 }
 

@@ -6,12 +6,14 @@ import akka.http.scaladsl.model.headers.{Accept, RawHeader}
 import akka.http.scaladsl.model.HttpEntity
 import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.Route
+import cats.data.EitherT
 import ch.epfl.bluebrain.nexus.admin.client.types.Project
 import ch.epfl.bluebrain.nexus.iam.client.types._
 import ch.epfl.bluebrain.nexus.kg.KgError.{InvalidOutputFormat, UnacceptedResponseContentType}
 import ch.epfl.bluebrain.nexus.kg.cache._
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig
 import ch.epfl.bluebrain.nexus.kg.config.Schemas._
+import ch.epfl.bluebrain.nexus.kg.config.Vocabulary.nxv
 import ch.epfl.bluebrain.nexus.kg.directives.AuthDirectives._
 import ch.epfl.bluebrain.nexus.kg.directives.PathDirectives._
 import ch.epfl.bluebrain.nexus.kg.directives.ProjectDirectives._
@@ -189,29 +191,41 @@ class FileRoutes private[routes] (files: Files[Task], resources: Resources[Task]
       },
       // Incoming links
       (get & pathPrefix("incoming") & pathEndOrSingleSlash) {
-        fromPaginated.apply { implicit page =>
-          extractUri { implicit uri =>
-            operationName(s"/${config.http.prefix}/files/{org}/{project}/{id}/incoming") {
-              hasPermission(read).apply {
-                val listed = viewCache.getDefaultSparql(project.ref).flatMap(files.listIncoming(id, _, page))
-                complete(listed.runWithStatus(OK))
-              }
+        fromPaginated.apply {
+          implicit page =>
+            extractUri {
+              implicit uri =>
+                operationName(s"/${config.http.prefix}/files/{org}/{project}/{id}/incoming") {
+                  hasPermission(read).apply {
+                    val listed = for {
+                      view     <- viewCache.getDefaultSparql(project.ref).toNotFound(nxv.defaultSparqlIndex)
+                      _        <- resources.fetchSource(Id(project.ref, id), fileRef)
+                      incoming <- EitherT.right[Rejection](files.listIncoming(id, view, page))
+                    } yield incoming
+                    complete(listed.value.runWithStatus(OK))
+                  }
+                }
             }
-          }
         }
       },
       // Outgoing links
       (get & pathPrefix("outgoing") & parameter("includeExternalLinks".as[Boolean] ? true) & pathEndOrSingleSlash) {
         links =>
-          fromPaginated.apply { implicit page =>
-            extractUri { implicit uri =>
-              operationName(s"/${config.http.prefix}/files/{org}/{project}/{id}/outgoing") {
-                hasPermission(read).apply {
-                  val listed = viewCache.getDefaultSparql(project.ref).flatMap(files.listOutgoing(id, _, page, links))
-                  complete(listed.runWithStatus(OK))
-                }
+          fromPaginated.apply {
+            implicit page =>
+              extractUri {
+                implicit uri =>
+                  operationName(s"/${config.http.prefix}/files/{org}/{project}/{id}/outgoing") {
+                    hasPermission(read).apply {
+                      val listed = for {
+                        view     <- viewCache.getDefaultSparql(project.ref).toNotFound(nxv.defaultSparqlIndex)
+                        _        <- resources.fetchSource(Id(project.ref, id), fileRef)
+                        outgoing <- EitherT.right[Rejection](files.listOutgoing(id, view, page, links))
+                      } yield outgoing
+                      complete(listed.value.runWithStatus(OK))
+                    }
+                  }
               }
-            }
           }
       },
       new TagRoutes("files", tags, fileRef, write).routes(id)

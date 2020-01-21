@@ -3,12 +3,15 @@ package ch.epfl.bluebrain.nexus.kg
 import akka.http.scaladsl.model.StatusCode
 import akka.http.scaladsl.server.Directives.complete
 import akka.http.scaladsl.server.{MalformedQueryParamRejection, Route}
-import cats.data.EitherT
+import cats.Functor
+import cats.data.{EitherT, OptionT}
 import cats.instances.future._
 import ch.epfl.bluebrain.nexus.iam.client.types._
 import ch.epfl.bluebrain.nexus.kg.marshallers.instances._
-import ch.epfl.bluebrain.nexus.kg.resources.{Rejection, ResourceV}
+import ch.epfl.bluebrain.nexus.kg.resources.Rejection.NotFound.notFound
+import ch.epfl.bluebrain.nexus.kg.resources.{Ref, Rejection, ResourceV}
 import ch.epfl.bluebrain.nexus.kg.routes.OutputFormat.{DOT, Triples}
+import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import ch.epfl.bluebrain.nexus.rdf.syntax._
 import ch.epfl.bluebrain.nexus.rdf.{Dot, NTriples}
 import monix.execution.Scheduler.Implicits.global
@@ -42,4 +45,8 @@ package object routes {
   private[routes] val schemaError =
     MalformedQueryParamRejection("schema", "The provided schema does not match the schema on the Uri")
 
+  private[routes] implicit class FOptionSyntax[F[_], A](private val fOpt: F[Option[A]]) extends AnyVal {
+    def toNotFound(id: AbsoluteIri)(implicit F: Functor[F]): EitherT[F, Rejection, A] =
+      OptionT(fOpt).toRight(notFound(Ref(id)))
+  }
 }

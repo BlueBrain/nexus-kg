@@ -236,29 +236,29 @@ class Views[F[_]](repo: Repo[F])(
     * Lists incoming resources for the provided ''id''
     *
     * @param id         the resource id for which to retrieve the incoming links
-    * @param view       optionally available default sparql view
+    * @param view       the default sparql view
     * @param pagination pagination options
     * @return search results in the F context
     */
-  def listIncoming(id: AbsoluteIri, view: Option[SparqlView], pagination: FromPagination): F[LinkResults] =
-    incoming(id, view, pagination)
+  def listIncoming(id: AbsoluteIri, view: SparqlView, pagination: FromPagination): F[LinkResults] =
+    view.incoming(id, pagination)
 
   /**
     * Lists outgoing resources for the provided ''id''
     *
     * @param id                   the resource id for which to retrieve the outgoing links
-    * @param view                 optionally available default sparql view
+    * @param view                 the sparql view
     * @param pagination           pagination options
     * @param includeExternalLinks flag to decide whether or not to include external links (not Nexus managed) in the query result
     * @return search results in the F context
     */
   def listOutgoing(
       id: AbsoluteIri,
-      view: Option[SparqlView],
+      view: SparqlView,
       pagination: FromPagination,
       includeExternalLinks: Boolean
   ): F[LinkResults] =
-    outgoing(id, view, pagination, includeExternalLinks)
+    view.outgoing(id, pagination, includeExternalLinks)
 
   private def fetch(resource: Resource)(implicit project: Project): RejOrResourceV[F] =
     materializer.withMeta(resource).flatMap(outputResource)
