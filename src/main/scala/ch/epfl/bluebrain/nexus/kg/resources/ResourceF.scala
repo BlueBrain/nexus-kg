@@ -14,6 +14,8 @@ import ch.epfl.bluebrain.nexus.kg.resources.ProjectIdentifier.ProjectRef
 import ch.epfl.bluebrain.nexus.kg.resources.StorageReference._
 import ch.epfl.bluebrain.nexus.kg.resources.file.File.FileAttributes
 import ch.epfl.bluebrain.nexus.kg.resources.syntax._
+import ch.epfl.bluebrain.nexus.rdf.instances._
+import ch.epfl.bluebrain.nexus.rdf.syntax._
 import ch.epfl.bluebrain.nexus.rdf.Graph._
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import ch.epfl.bluebrain.nexus.rdf.Iri.Path._
@@ -22,8 +24,8 @@ import ch.epfl.bluebrain.nexus.rdf.Vocabulary._
 import ch.epfl.bluebrain.nexus.rdf.encoder.{GraphEncoder, RootNode}
 import ch.epfl.bluebrain.nexus.rdf.instances._
 import ch.epfl.bluebrain.nexus.rdf.syntax._
-import ch.epfl.bluebrain.nexus.rdf.{Node, RootedGraph}
-import io.circe.Json
+import ch.epfl.bluebrain.nexus.rdf.{Iri, Node, RootedGraph}
+import io.circe.{Decoder, DecodingFailure, Json}
 
 /**
   * A resource representation.
@@ -140,6 +142,33 @@ final case class ResourceF[A](
 }
 
 object ResourceF {
+
+  private implicit val identityDecoderByAbolsuteIri: Decoder[Identity] =
+    Decoder.decodeString.emap {
+      Iri.absolute(_).flatMap(iri => Identity(iri).toRight(s"'$iri' could not be transformed into an Identity"))
+    }
+
+  def resourceVGraphDecoder(projectRef: ProjectRef): Decoder[ResourceV] = resourceGraphDecoder(projectRef).map {
+    case ResourceF(id, rev, types, deprecated, tags, file, created, updated, cBy, uBy, schema, graph) =>
+      // format: off
+      ResourceF(id, rev, types, deprecated, tags, file, created, updated, cBy, uBy, schema, Value(Json.obj(), Json.obj(), RootedGraph(id.value, graph)))
+    // format: on
+  }
+
+  def resourceGraphDecoder(projectRef: ProjectRef): Decoder[ResourceGraph] = Decoder.instance { hc =>
+    for {
+      id         <- hc.get[AbsoluteIri]("@id").map(id => Id(projectRef, id))
+      rev        <- hc.get[Long](nxv.rev.value.asString)
+      types      <- hc.get[Set[AbsoluteIri]]("@type")
+      deprecated <- hc.get[Boolean](nxv.deprecated.value.asString)
+      created    <- hc.get[Instant](nxv.createdAt.value.asString)
+      updated    <- hc.get[Instant](nxv.updatedAt.value.asString)
+      cBy        <- hc.get[Identity](nxv.createdBy.value.asString)
+      uBy        <- hc.get[Identity](nxv.updatedBy.value.asString)
+      schema     <- hc.downField(nxv.constrainedBy.value.asString).get[AbsoluteIri]("@id").map(Ref(_))
+      graph      <- hc.value.asGraph(id.value).left.map(er => DecodingFailure(er.message, hc.history))
+    } yield ResourceF(id, rev, types, deprecated, Map(), None, created, updated, cBy, uBy, schema, graph)
+  }
 
   val metaPredicates: Set[PrefixMapping] = Set[PrefixMapping](
     nxv.rev,

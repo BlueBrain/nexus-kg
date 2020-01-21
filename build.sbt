@@ -26,6 +26,7 @@ scalafmt: {
 
 // Dependency versions
 val adminVersion                = "1.2.1+7-b3673a7f"
+val apacheCommonsVersion        = "3.9"
 val commonsVersion              = "0.21.0"
 val rdfVersion                  = "0.5.2"
 val storageVersion              = "1.2.3+1-b23eca19"
@@ -46,9 +47,9 @@ val pureconfigVersion           = "0.12.2"
 val shapelessVersion            = "2.3.3"
 val scalaLoggingVersion         = "3.9.2"
 val scalaTestVersion            = "3.1.0"
-val kryoVersion                 = "1.1.0"
 val s3mockVersion               = "0.3.0-RC1"
-val apacheCommonsVersion        = "3.9"
+val splitBrainLithiumVersion    = "0.10.0"
+val kryoVersion                 = "1.1.0"
 
 // Dependencies modules
 lazy val adminClient          = "ch.epfl.bluebrain.nexus"            %% "admin-client"               % adminVersion
@@ -84,8 +85,9 @@ lazy val pureconfig           = "com.github.pureconfig"              %% "purecon
 lazy val scalaLogging         = "com.typesafe.scala-logging"         %% "scala-logging"              % scalaLoggingVersion
 lazy val scalaTest            = "org.scalatest"                      %% "scalatest"                  % scalaTestVersion
 lazy val shapeless            = "com.chuusai"                        %% "shapeless"                  % shapelessVersion
-lazy val kryo                 = "io.altoo"                           %% "akka-kryo-serialization"    % kryoVersion
 lazy val s3mock               = "ch.epfl.bluebrain.nexus.io.findify" %% "s3mock"                     % s3mockVersion
+lazy val splitBrainLithium    = "com.swissborg"                      %% "lithium"                    % splitBrainLithiumVersion
+lazy val kryo                 = "io.altoo"                           %% "akka-kryo-serialization"    % kryoVersion
 
 lazy val kg = project
   .in(file("."))
@@ -96,6 +98,7 @@ lazy val kg = project
     moduleName           := "kg",
     cleanFiles           ++= (baseDirectory.value * "ddata*").get,
     Docker / packageName := "nexus-kg",
+    resolvers            += "swissborg" at "https://dl.bintray.com/swissborg/maven",
     libraryDependencies ++= Seq(
       adminClient,
       akkaDistributedData,
@@ -120,6 +123,7 @@ lazy val kg = project
       scalaLogging,
       sourcingProjections,
       sparqlClient,
+      splitBrainLithium,
       storageClient,
       akkaHttpTestKit      % Test,
       akkaHttpXml          % Test,
