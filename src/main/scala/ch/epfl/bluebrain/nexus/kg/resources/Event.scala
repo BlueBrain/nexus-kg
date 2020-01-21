@@ -288,6 +288,7 @@ object Event {
         case "mediaType"    => nxv.mediaType.prefix
         case "uuid"         => nxv.uuid.prefix
         case "location"     => "_location"
+        case "path"         => "_path"
         case other          => other
       })
 

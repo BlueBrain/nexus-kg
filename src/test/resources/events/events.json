@@ -69,8 +69,8 @@
       "_filename": "attachment.json",
       "_location": "/some/location/path",
       "_mediaType": "application/json",
-      "_uuid": "a733d99e-6075-45df-b6c3-52c8071df4fb",
-      "path": "path"
+      "_path": "path",
+      "_uuid": "a733d99e-6075-45df-b6c3-52c8071df4fb"
     },
     "_storage": {
       "@type":"DiskStorageReference",
@@ -95,8 +95,8 @@
       "_filename": "attachment.json",
       "_location": "/some/location/path",
       "_mediaType": "text/plain; charset=UTF-8",
-      "_uuid": "a733d99e-6075-45df-b6c3-52c8071df4fb",
-      "path": "path2"
+      "_path": "path2",
+      "_uuid": "a733d99e-6075-45df-b6c3-52c8071df4fb"
     },
     "_storage": {
       "@type":"S3StorageReference",
