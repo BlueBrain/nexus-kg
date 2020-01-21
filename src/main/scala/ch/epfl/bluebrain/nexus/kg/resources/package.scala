@@ -1,11 +1,13 @@
 package ch.epfl.bluebrain.nexus.kg
 
+import akka.http.scaladsl.model.StatusCodes.BadRequest
 import cats.data.EitherT
 import cats.effect.Effect
-import cats.syntax.all._
+import cats.implicits._
 import ch.epfl.bluebrain.nexus.admin.client.types.Project
 import ch.epfl.bluebrain.nexus.commons.es.client.ElasticSearchClient
-import ch.epfl.bluebrain.nexus.commons.http.HttpClient
+import ch.epfl.bluebrain.nexus.commons.es.client.ElasticSearchFailure.ElasticSearchClientError
+import ch.epfl.bluebrain.nexus.commons.http.{HttpClient, UnexpectedUnsuccessfulHttpResponse}
 import ch.epfl.bluebrain.nexus.commons.search.QueryResults.UnscoredQueryResults
 import ch.epfl.bluebrain.nexus.commons.search.{Pagination, QueryResults}
 import ch.epfl.bluebrain.nexus.commons.shacl.ValidationReport
@@ -121,6 +123,8 @@ package object resources {
 
   implicit def toSubject(implicit caller: Caller): Subject = caller.subject
 
+  private val sortErr = ".*No mapping found for \\[\\w*\\] in order to sort.*"
+
   private[resources] def listResources[F[_]](
       view: Option[ElasticSearchView],
       params: SearchParams,
@@ -132,7 +136,14 @@ package object resources {
       elasticSearch: ElasticSearchClient[F]
   ): F[JsonResults] =
     view
-      .map(v => elasticSearch.search[Json](queryFor(params), Set(v.index))(pagination, sort = params.sort))
+      .map { v =>
+        elasticSearch.search[Json](queryFor(params), Set(v.index))(pagination, sort = params.sort).recoverWith {
+          case UnexpectedUnsuccessfulHttpResponse(resp, body) if resp.status == BadRequest && body.matches(sortErr) =>
+            F.raiseError(ElasticSearchClientError(BadRequest, body))
+          case other =>
+            F.raiseError(other)
+        }
+      }
       .getOrElse(F.pure[JsonResults](UnscoredQueryResults(0L, List.empty)))
 
   def nonEmpty(s: String): EncoderResult[String] =
@@ -141,16 +152,16 @@ package object resources {
   def nonEmpty(s: Option[String]): EncoderResult[Option[String]] =
     if (s.exists(_.trim.isEmpty)) Left(IllegalConversion("")) else Right(s)
 
-  private[resources] def toEitherT[F[_]: Effect](
+  private[resources] def toEitherT[F[_]](
       schema: Ref,
       report: Either[String, ValidationReport]
-  ): EitherT[F, Rejection, Unit] =
+  )(implicit F: Effect[F]): EitherT[F, Rejection, Unit] =
     report match {
       case Right(r) if r.isValid() => EitherT.rightT(())
       case Right(r)                => EitherT.leftT(InvalidResource(schema, r))
       case Left(err) =>
         val msg = s"Unexpected error while attempting to validate schema '${schema.iri.asString}'' with error '$err'"
-        EitherT((InternalError(msg): KgError).raiseError)
+        EitherT(F.raiseError(InternalError(msg): KgError))
     }
 
 }
