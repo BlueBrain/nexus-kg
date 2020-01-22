@@ -1,7 +1,7 @@
 {
   "query": {
     "bool": {
-      "filter": [
+      "must": [
         {
           "match": {
             "_all_fields": "some text"

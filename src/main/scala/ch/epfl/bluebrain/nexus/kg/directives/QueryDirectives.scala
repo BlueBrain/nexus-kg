@@ -177,10 +177,15 @@ object QueryDirectives {
       parameter("type".as[VocabAbsoluteIri].*) &
       parameter("sort".as[Sort].*) &
       parameter("id".as[AbsoluteIri].?) &
-      parameter("q".as[String].?)).tmap {
+      parameter("q".as[String].?)).tflatMap {
+      case (_, _, _, _, _, _, sort, _, q) if q.nonEmpty && sort.nonEmpty =>
+        reject(MalformedQueryParamRejection("sort", "Should be omitted when 'q' parameter is present"))
+
       case (deprecated, rev, schema, createdBy, updatedBy, tpe, sort, id, q) =>
         val qCleaned = q.filter(_.trim.nonEmpty).map(_.toLowerCase())
-        val sortList = if (sort.isEmpty) defaultSort else SortList(sort.toList.reverse)
-        SearchParams(deprecated, rev, schema, createdBy, updatedBy, tpe.map(_.value).toList, sortList, id, qCleaned)
+        val sortList = if (sort.isEmpty && q.isEmpty) defaultSort else SortList(sort.toList.reverse)
+        provide(
+          SearchParams(deprecated, rev, schema, createdBy, updatedBy, tpe.map(_.value).toList, sortList, id, qCleaned)
+        )
     }
 }
