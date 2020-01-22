@@ -21,6 +21,7 @@ import ch.epfl.bluebrain.nexus.commons.test.EitherValues
 import ch.epfl.bluebrain.nexus.kg.TestHelper
 import ch.epfl.bluebrain.nexus.kg.cache.StorageCache
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig._
+import ch.epfl.bluebrain.nexus.kg.config.Contexts.errorCtxUri
 import ch.epfl.bluebrain.nexus.kg.config.{Schemas, Settings}
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary.nxv
 import ch.epfl.bluebrain.nexus.kg.directives.QueryDirectives._
@@ -246,6 +247,21 @@ class QueryDirectivesSpec
 
     "dealing with search parameters" should {
 
+      "reject when sort and q are simultaneously present" in {
+        implicit val project = genProject()
+        Get("/some?q=something&sort=@id") ~> routeSearchParams ~> check {
+          responseAs[Json] shouldEqual
+            Json
+              .obj(
+                "@type" -> Json.fromString("MalformedQueryParam"),
+                "reason" -> Json.fromString(
+                  "The query parameter 'sort' was malformed: 'Should be omitted when 'q' parameter is present'."
+                )
+              )
+              .addContext(errorCtxUri)
+        }
+      }
+
       "return a SearchParams" in {
         implicit val project    = genProject()
         val schema: AbsoluteIri = Schemas.resolverSchemaUri
@@ -259,7 +275,6 @@ class QueryDirectivesSpec
             createdBy = Some(nxv.withSuffix("user").value),
             updatedBy = Some(project.base + "batman"),
             types = List(project.vocab + "A", project.vocab + "B"),
-            sort = SortList(List(Sort(nxv.createdAt.prefix), Sort("@id"))),
             q = Some("some text")
           )
           val expected2 = expected.copy(types = List(project.vocab + "B", project.vocab + "A"))

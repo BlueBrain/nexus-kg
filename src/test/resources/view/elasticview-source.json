@@ -73,6 +73,7 @@
       },
       "_original_source": {
         "type": "text",
+        "analyzer": "nexus",
         "copy_to": "_all_fields"
       },
       "_bytes": {
@@ -118,7 +119,8 @@
         }
       },
       "_all_fields": {
-        "type": "text"
+        "type": "text",
+        "analyzer": "nexus"
       }
     },
     "dynamic": false

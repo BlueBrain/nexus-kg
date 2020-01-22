@@ -489,7 +489,8 @@ object View {
       deprecated: Boolean
   ) extends SingleView {
 
-    val ctx: Json = jsonContentOf("/elasticsearch/default-context.json")
+    private[indexing] val ctx: Json = jsonContentOf("/elasticsearch/default-context.json")
+    private val settings: Json      = jsonContentOf("/elasticsearch/settings.json")
 
     def index(implicit config: AppConfig): String = s"${config.elasticSearch.indexPrefix}_$name"
 
@@ -497,7 +498,7 @@ object View {
 
     def createIndex[F[_]](implicit F: Effect[F], config: AppConfig, clients: Clients[F]): F[Unit] =
       clients.elasticSearch
-        .createIndex(index)
+        .createIndex(index, settings)
         .flatMap(_ => clients.elasticSearch.updateMapping(index, mapping))
         .flatMap {
           case true  => F.unit
