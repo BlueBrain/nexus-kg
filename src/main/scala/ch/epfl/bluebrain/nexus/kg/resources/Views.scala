@@ -111,7 +111,7 @@ class Views[F[_]](repo: Repo[F])(
       types      = typedGraph.rootTypes.map(_.value)
       _       <- validateShacl(typedGraph)
       view    <- viewValidation(id, typedGraph, 1L, types)
-      json    <- jsonForRepo(view)
+      json    <- jsonForRepo(view.encrypt)
       updated <- repo.update(id, viewRef, rev, types, json)
       _       <- EitherT.right(viewCache.put(view))
     } yield updated
@@ -138,7 +138,7 @@ class Views[F[_]](repo: Repo[F])(
       resource  <- repo.get(id, rev, Some(viewRef)).toRight(notFound(id.ref, rev = Some(rev), schema = Some(viewRef)))
       resourceV <- materializer.withMeta(resource)
       view      <- EitherT.fromEither[F](View(resourceV))
-    } yield view
+    } yield view.decrypt
 
   /**
     * Fetches the latest revision of a view.
@@ -151,7 +151,7 @@ class Views[F[_]](repo: Repo[F])(
       resource  <- repo.get(id, Some(viewRef)).toRight(notFound(id.ref, schema = Some(viewRef)))
       resourceV <- materializer.withMeta(resource)
       view      <- EitherT.fromEither[F](View(resourceV))
-    } yield view
+    } yield view.decrypt
 
   /**
     * Fetches the latest revision of the view source
@@ -261,7 +261,13 @@ class Views[F[_]](repo: Repo[F])(
     view.outgoing(id, pagination, includeExternalLinks)
 
   private def fetch(resource: Resource)(implicit project: Project): RejOrResourceV[F] =
-    materializer.withMeta(resource).flatMap(outputResource)
+    materializer
+      .withMeta(resource)
+      .map { resourceV =>
+        val graph = resourceV.value.graph
+        resourceV.map(_.copy(graph = RootedGraph(graph.rootNode, graph.remove(p = nxv.token))))
+      }
+      .flatMap(outputResource)
 
   private def create(
       id: ResId,
@@ -273,7 +279,7 @@ class Views[F[_]](repo: Repo[F])(
     for {
       _       <- validateShacl(typedGraph)
       view    <- viewValidation(id, typedGraph, 1L, types)
-      json    <- jsonForRepo(view)
+      json    <- jsonForRepo(view.encrypt)
       created <- repo.create(id, OrganizationRef(project.organizationUuid), viewRef, types, json)
       _       <- EitherT.right(viewCache.put(view))
     } yield created
@@ -406,7 +412,7 @@ object Views {
   }
 
   private def transformFetchSource(json: Json): Json =
-    transformFetch(json).removeNestedKeys(nxv.uuid.prefix)
+    transformFetch(json).removeNestedKeys(nxv.uuid.prefix, nxv.token.prefix)
 
   private def fromText(json: Json, fields: String*) =
     fields.foldLeft(json) { (acc, field) =>

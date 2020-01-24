@@ -349,7 +349,7 @@ object Event {
       }
     }
 
-    implicit def eventsEventDecoder(implicit ic: IamClientConfig): Decoder[Event] = {
+    implicit val eventsEventDecoder: Decoder[Event] = {
       val dec = deriveConfiguredDecoder[Event]
       Decoder.instance { hc =>
         for {

@@ -6,7 +6,7 @@ import ch.epfl.bluebrain.nexus.iam.client.config.IamClientConfig
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity.{Authenticated, Group, User}
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary._
-import ch.epfl.bluebrain.nexus.kg.indexing.View.CompositeView.Source.{CrossProjectEventStream, ProjectEventStream}
+import ch.epfl.bluebrain.nexus.kg.indexing.View.CompositeView.Source._
 import ch.epfl.bluebrain.nexus.kg.indexing.View.CompositeView.{Projection, Source}
 import ch.epfl.bluebrain.nexus.kg.indexing.View._
 import ch.epfl.bluebrain.nexus.rdf.Graph.Triple
@@ -59,6 +59,12 @@ object ViewEncoder {
           case CrossProjectEventStream(id, _, _, _, projectIdentifier, identities) =>
             acc ++ sourceCommon ++ identitiesTriples(id, identities) + ((id, rdf.tpe, nxv.CrossProjectEventStream)) +
               ((id, nxv.project, projectIdentifier.show))
+          case RemoteProjectEventStream(id, _, _, _, projectLabel, endpoint, tokenOpt) =>
+            acc ++ sourceCommon ++ Set[Triple](
+              (id, rdf.tpe, nxv.RemoteProjectEventStream),
+              (id, nxv.project, projectLabel.show),
+              (id, nxv.endpoint, endpoint)
+            ) ++ tokenOpt.map(token => (id, nxv.token, token.value): Triple)
         }
       }
       val rebuildTriples = rebuildStrategy

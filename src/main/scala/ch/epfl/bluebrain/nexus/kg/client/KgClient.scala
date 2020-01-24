@@ -8,6 +8,7 @@ import akka.http.scaladsl.model.Uri.Query
 import akka.http.scaladsl.model.headers.{Accept, OAuth2BearerToken}
 import akka.http.scaladsl.model.{HttpEntity, HttpMessage, HttpRequest, StatusCodes}
 import akka.http.scaladsl.unmarshalling.FromEntityUnmarshaller
+import akka.persistence.query.{EventEnvelope, Offset, Sequence, TimeBasedUUID}
 import akka.stream.scaladsl.Source
 import cats.effect.{ContextShift, Effect, IO, LiftIO}
 import cats.implicits._
@@ -17,9 +18,7 @@ import ch.epfl.bluebrain.nexus.commons.http.HttpClient.UntypedHttpClient
 import ch.epfl.bluebrain.nexus.commons.http.JsonLdCirceSupport._
 import ch.epfl.bluebrain.nexus.commons.http.RdfMediaTypes.`application/ld+json`
 import ch.epfl.bluebrain.nexus.commons.rdf.syntax._
-import ch.epfl.bluebrain.nexus.iam.client.EventSource
 import ch.epfl.bluebrain.nexus.iam.client.IamClientError.{Forbidden, Unauthorized}
-import ch.epfl.bluebrain.nexus.iam.client.config.IamClientConfig
 import ch.epfl.bluebrain.nexus.iam.client.types.AuthToken
 import ch.epfl.bluebrain.nexus.kg.client.KgClientError._
 import ch.epfl.bluebrain.nexus.kg.resources.Event.JsonLd._
@@ -76,12 +75,21 @@ class KgClient[F[_]] private[client] (
   /**
     * Streams the events for the passed ''project''.
     *
-    * @return a source of events
+    * @return a source of [[EventEnvelope]]
     */
-  def events(project: ProjectLabel, offset: Option[String] = None)(
+  def events(project: ProjectLabel, offset: Offset)(
       implicit credentials: Option[AuthToken]
-  ): Source[Event, NotUsed] =
-    source(config.resourcesIri + (project.organization / project.value / "events"), offset)
+  ): Source[EventEnvelope, NotUsed] =
+    source(config.resourcesIri + (project.organization / project.value / "events"), toString(offset)).map {
+      case (off, event) => EventEnvelope(off, event.id.value.asString, event.rev, event)
+    }
+
+  private def toString(offset: Offset): Option[String] =
+    offset match {
+      case Sequence(value)      => Some(value.toString)
+      case TimeBasedUUID(value) => Some(value.toString)
+      case _                    => None
+    }
 
   private def requestFrom(iri: AbsoluteIri, query: Query)(implicit credentials: Option[AuthToken]) = {
     val request = Get(iri.toAkkaUri.withQuery(query)).addHeader(accept)
@@ -161,14 +169,14 @@ object KgClient {
     */
   def apply[F[_]: Effect](
       cfg: KgClientConfig
-  )(implicit iamClientConfig: IamClientConfig, as: ActorSystem): KgClient[F] = {
+  )(implicit as: ActorSystem): KgClient[F] = {
     implicit val ec: ExecutionContext      = as.dispatcher
     implicit val ucl: UntypedHttpClient[F] = HttpClient.untyped[F]
     val rc: ProjectRef => HttpClient[F, ResourceV] = (ref: ProjectRef) => {
       implicit val resourceVDecoder: Decoder[ResourceV] = ResourceF.resourceVGraphDecoder(ref)
       httpClient[F, ResourceV]
     }
-    val sse: EventSource[Event] = EventSource[Event](iamClientConfig)
+    val sse: EventSource[Event] = EventSource[Event](cfg)
     new KgClient(cfg, sse, rc)
   }
 }

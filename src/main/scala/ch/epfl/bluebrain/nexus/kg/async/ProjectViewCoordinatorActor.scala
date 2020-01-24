@@ -19,17 +19,19 @@ import ch.epfl.bluebrain.nexus.iam.client.types.AccessControlList
 import ch.epfl.bluebrain.nexus.kg.async.ProjectViewCoordinatorActor.Msg._
 import ch.epfl.bluebrain.nexus.kg.async.ProjectViewCoordinatorActor._
 import ch.epfl.bluebrain.nexus.kg.cache.{AclsCache, ProjectCache, ViewCache}
+import ch.epfl.bluebrain.nexus.kg.client.{KgClient, KgClientConfig}
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig._
-import ch.epfl.bluebrain.nexus.kg.indexing.View.CompositeView.Source.CrossProjectEventStream
+import ch.epfl.bluebrain.nexus.kg.indexing.View.CompositeView.Source.{CrossProjectEventStream, RemoteProjectEventStream}
+import ch.epfl.bluebrain.nexus.kg.indexing.View.CompositeView.{Source => CompositeSource}
 import ch.epfl.bluebrain.nexus.kg.indexing.View._
 import ch.epfl.bluebrain.nexus.kg.indexing._
 import ch.epfl.bluebrain.nexus.kg.resources.ProjectIdentifier.ProjectRef
 import ch.epfl.bluebrain.nexus.kg.resources.syntax._
-import ch.epfl.bluebrain.nexus.kg.resources.{Event, Resources}
+import ch.epfl.bluebrain.nexus.kg.resources.{Event, ProjectIdentifier, Resources}
 import ch.epfl.bluebrain.nexus.kg.routes.Clients
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
-import ch.epfl.bluebrain.nexus.sourcing.projections.ProgressFlow.ProgressFlowElem
+import ch.epfl.bluebrain.nexus.sourcing.projections.ProgressFlow.{PairMsg, ProgressFlowElem}
 import ch.epfl.bluebrain.nexus.sourcing.projections.ProjectionProgress.{NoProgress, SingleProgress}
 import ch.epfl.bluebrain.nexus.sourcing.projections._
 import ch.epfl.bluebrain.nexus.sourcing.projections.instances._
@@ -57,7 +59,7 @@ private abstract class ProjectViewCoordinatorActor(viewCache: ViewCache[Task])(
 
   private implicit val tm: Timeout = Timeout(config.defaultAskTimeout)
   private val children             = mutable.Map.empty[IndexedView, ViewCoordinator]
-  protected val projectsStream     = mutable.Map.empty[ProjectRef, ViewCoordinator]
+  protected val projectsStream     = mutable.Map.empty[ProjectIdentifier, ViewCoordinator]
 
   def receive: Receive = {
     case Start(_, project, views, projectsAcls) =>
@@ -71,7 +73,7 @@ private abstract class ProjectViewCoordinatorActor(viewCache: ViewCache[Task])(
         case (acc, v: SingleView) => acc + v
       }
       children ++= accessibleViews.map(view => view -> startCoordinator(view, project, restart = false))
-      startProjectStream(project.ref)
+      startProjectStreamFromDB(project.ref)
       unstashAll()
     case other =>
       log.debug("Received non Start message '{}', stashing until the actor is initialized", other)
@@ -133,23 +135,48 @@ private abstract class ProjectViewCoordinatorActor(viewCache: ViewCache[Task])(
       if (readPerms) inaccessible else inaccessible + current
     }
 
-  private def startProjectStream(projectRef: ProjectRef): Unit = {
-
-    implicit val indexing: IndexingConfig = config.elasticSearch.indexing
-    val name: String                      = s"project-event-count-${UUID.randomUUID()}-${projectRef.id}"
-
-    val sourceF: Task[Source[ProjectionProgress, _]] = projections.progress(name).map { initial =>
-      val flow = ProgressFlowElem[Task, Any]
-        .collectCast[Event]
-        .groupedWithin(indexing.batch, indexing.batchTimeout)
-        .distinct()
-        .mergeEmit()
-        .toProgress(initial)
-      cassandraSource(s"project=${projectRef.id}", name, initial.minProgress.offset).via(flow)
+  private def startProjectStreamFromDB(projectRef: ProjectRef): Unit = {
+    val progressId = projectStreamId()
+    val sourceF: Task[Source[ProjectionProgress, _]] = projections.progress(progressId).map { initial =>
+      val source = cassandraSource(s"project=${projectRef.id}", progressId, initial.minProgress.offset)
+      source.via(projectStreamFlow(initial))
     }
-    val coordinator = ViewCoordinator(StreamSupervisor.start(sourceF, name, context.actorOf))
+    val coordinator = ViewCoordinator(StreamSupervisor.start(sourceF, progressId, context.actorOf))
     projectsStream += projectRef -> coordinator
   }
+
+  private def startProjectStreamSource(source: CompositeSource)(current: ProjectRef): Unit =
+    source match {
+      case CrossProjectEventStream(_, _, _, _, ref: ProjectRef, _) => startProjectStreamFromDB(ref)
+      case s: RemoteProjectEventStream                             => startProjectStreamFromSSE(s)
+      case _                                                       => startProjectStreamFromDB(current)
+    }
+
+  private def startProjectStreamFromSSE(remoteSource: RemoteProjectEventStream): Unit = {
+    val progressId = projectStreamId()
+    val clientCfg  = KgClientConfig(remoteSource.endpoint, config.http.prefix)
+    val client     = KgClient[Task](clientCfg)
+    val sourceF: Task[Source[ProjectionProgress, _]] = projections.progress(progressId).map { initial =>
+      val source = client
+        .events(remoteSource.project, initial.minProgress.offset)(remoteSource.token)
+        .map[PairMsg[Any]](e => Right(Message(e, progressId)))
+      source.via(projectStreamFlow(initial))
+    }
+    val coordinator = ViewCoordinator(StreamSupervisor.start(sourceF, progressId, context.actorOf))
+    projectsStream += remoteSource.project -> coordinator
+  }
+
+  private def projectStreamFlow(initial: ProjectionProgress) = {
+    implicit val indexing: IndexingConfig = config.elasticSearch.indexing
+    ProgressFlowElem[Task, Any]
+      .collectCast[Event]
+      .groupedWithin(indexing.batch, indexing.batchTimeout)
+      .distinct()
+      .mergeEmit()
+      .toProgress(initial)
+  }
+
+  private def projectStreamId(): String = s"project-event-count-${UUID.randomUUID()}"
 
   /**
     * Triggered in order to build an indexer actor for a provided view
@@ -223,7 +250,7 @@ private abstract class ProjectViewCoordinatorActor(viewCache: ViewCache[Task])(
       logStart(view, s"restart: '$restart'")
       children += view -> startCoordinator(view, project, restart, prevRestart)
       view match {
-        case v: CompositeView => v.projectsSource.foreach(startProjectStream)
+        case v: CompositeView => v.sources.foreach(startProjectStreamSource(_)(view.ref))
         case _                => ()
       }
     }
