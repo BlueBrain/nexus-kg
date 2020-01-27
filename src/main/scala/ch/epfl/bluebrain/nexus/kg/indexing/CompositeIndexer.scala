@@ -1,17 +1,23 @@
 package ch.epfl.bluebrain.nexus.kg.indexing
 
+import akka.NotUsed
 import akka.actor.{ActorRef, ActorSystem, Props}
+import akka.persistence.query.{EventEnvelope, Offset}
 import akka.stream.SourceShape
 import akka.stream.scaladsl._
 import akka.util.Timeout
 import cats.effect.{Effect, Timer}
 import cats.implicits._
+import ch.epfl.bluebrain.nexus.admin.client.AdminClient
+import ch.epfl.bluebrain.nexus.admin.client.config.AdminClientConfig
 import ch.epfl.bluebrain.nexus.admin.client.types.Project
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlWriteQuery
 import ch.epfl.bluebrain.nexus.kg.cache.ProjectCache
+import ch.epfl.bluebrain.nexus.kg.client.{KgClient, KgClientConfig}
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig._
-import ch.epfl.bluebrain.nexus.kg.indexing.View.{CompositeView, SparqlView}
+import ch.epfl.bluebrain.nexus.kg.indexing.View.CompositeView.Source.RemoteProjectEventStream
+import ch.epfl.bluebrain.nexus.kg.indexing.View.{CompositeView, Filter, SparqlView}
 import ch.epfl.bluebrain.nexus.kg.indexing.View.CompositeView.{Source => CompositeSource}
 import ch.epfl.bluebrain.nexus.kg.resources._
 import ch.epfl.bluebrain.nexus.kg.routes.Clients
@@ -119,6 +125,28 @@ object CompositeIndexer {
       if (res.deprecated && !view.filter.includeDeprecated) view.buildDeleteQuery(res)
       else view.buildInsertQuery(res)
 
+    def fetchRemoteProject(source: RemoteProjectEventStream): F[Option[Project]] = {
+      val clientCfg = AdminClientConfig(source.endpoint, source.endpoint, config.http.prefix)
+      AdminClient(clientCfg).fetchProject(source.project.organization, source.project.value)(source.token)
+    }
+
+    def fetchRemoteResource(
+        event: Event
+    )(source: RemoteProjectEventStream, filter: Filter)(implicit project: Project): F[Option[ResourceV]] = {
+      val clientCfg = KgClientConfig(source.endpoint, config.http.prefix)
+      val client    = KgClient(clientCfg)
+      filter.resourceTag.filter(_.trim.nonEmpty) match {
+        case Some(tag) => client.resource(project, event.id.value, tag)(source.token)
+        case _         => client.resource(project, event.id.value)(source.token)
+      }
+    }
+
+    def fetchRemoteEvents(source: RemoteProjectEventStream, offset: Offset): Source[EventEnvelope, NotUsed] = {
+      val clientCfg = KgClientConfig(source.endpoint, config.http.prefix)
+      val client    = KgClient(clientCfg)
+      client.events(source.project, offset)(source.token)
+    }
+
     def sourceGraph(source: CompositeSource, initial: ProjectionProgress)(
         implicit proj: Project
     ): Source[PairMsg[Unit], _] = {
@@ -131,12 +159,20 @@ object CompositeIndexer {
         val sparqlClientQuery = sparqlClient.withRetryPolicy(config.sparql.query)
         val sourceMinProgress = initial.minProgressFilter(pId => pId == sourceProgressId || pId.startsWith(source.id.asString)).offset
 
-        val streamSource: Source[PairMsg[Any], _] = cassandraSource(s"project=${proj.uuid}", sourceProgressId, sourceMinProgress)
+        val streamSource: Source[PairMsg[Any], _] = source match {
+          case s: RemoteProjectEventStream => fetchRemoteEvents(s, sourceMinProgress).map[PairMsg[Any]](e => Right(Message(e, sourceProgressId)))
+          case _ => cassandraSource(s"project=${proj.uuid}", sourceProgressId, sourceMinProgress)
+        }
         val mainFlow = ProgressFlowElem[F, Any]
           .collectCast[Event]
           .groupedWithin(indexing.batch, indexing.batchTimeout)
           .distinct()
-          .mapAsync(sourceView.toResource(resources, _))
+          .mapAsync { event =>
+            source match {
+              case s: RemoteProjectEventStream  => fetchRemoteResource(event)(s, sourceView.filter)
+              case _                            => sourceView.toResource(resources, event)
+            }
+          }
           .collectSome[ResourceV]
           .collect {
             case res if sourceView.allowedSchemas(res) && sourceView.allowedTypes(res) => res -> buildInsertOrDeleteQuery(res, sourceView)
@@ -182,8 +218,9 @@ object CompositeIndexer {
 
     val sourceResolvedProjectsF = (init >> initialProgressF).flatMap { initial =>
       val sourcesF: F[List[Option[(CompositeSource, Project)]]] = view.sources.toList.traverse {
-        case s: CompositeSource.ProjectEventStream      => F.pure(Some(s                           -> project))
-        case s: CompositeSource.CrossProjectEventStream => projectCache.get(s.project).map(_.map(s -> _))
+        case s: CompositeSource.ProjectEventStream       => F.pure(Some(s                           -> project))
+        case s: CompositeSource.CrossProjectEventStream  => projectCache.get(s.project).map(_.map(s -> _))
+        case s: CompositeSource.RemoteProjectEventStream => fetchRemoteProject(s).map(_.map(s       -> _))
       }
       sourcesF.map(list => (initial, list.collect { case Some((source, project)) => source -> project }))
     }

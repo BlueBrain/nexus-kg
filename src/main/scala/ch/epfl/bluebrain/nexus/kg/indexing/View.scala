@@ -17,15 +17,15 @@ import ch.epfl.bluebrain.nexus.commons.test.Resources._
 import ch.epfl.bluebrain.nexus.iam.client.types._
 import ch.epfl.bluebrain.nexus.kg.cache.{ProjectCache, ViewCache}
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig
-import ch.epfl.bluebrain.nexus.kg.config.AppConfig.CompositeViewConfig
+import ch.epfl.bluebrain.nexus.kg.config.AppConfig._
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary.nxv
 import ch.epfl.bluebrain.nexus.kg.indexing.SparqlLink.{SparqlExternalLink, SparqlResourceLink}
 import ch.epfl.bluebrain.nexus.kg.indexing.View.{query, read, AggregateView, CompositeView, ViewRef}
 import ch.epfl.bluebrain.nexus.kg.indexing.View.CompositeView.Projection._
-import ch.epfl.bluebrain.nexus.kg.indexing.View.CompositeView.Source.{CrossProjectEventStream, ProjectEventStream}
+import ch.epfl.bluebrain.nexus.kg.indexing.View.CompositeView.Source._
 import ch.epfl.bluebrain.nexus.kg.indexing.View.CompositeView.{Interval, Projection, Source}
 import ch.epfl.bluebrain.nexus.kg.indexing.View.SparqlView._
-import ch.epfl.bluebrain.nexus.kg.resources.ProjectIdentifier.ProjectRef
+import ch.epfl.bluebrain.nexus.kg.resources.ProjectIdentifier.{ProjectLabel, ProjectRef}
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection._
 import ch.epfl.bluebrain.nexus.kg.resources.ResourceF.metaKeys
 import ch.epfl.bluebrain.nexus.kg.resources._
@@ -55,7 +55,7 @@ import scala.util.{Failure, Success, Try}
 /**
   * Enumeration of view types.
   */
-sealed trait View extends Product with Serializable {
+sealed trait View extends Product with Serializable { self =>
 
   /**
     * @return a reference to the project that the view belongs to
@@ -97,8 +97,8 @@ sealed trait View extends Product with Serializable {
         v.value.toList.traverse { case ViewRef(project, id) => project.toLabel[F].map(ViewRef(_, id)) }.map(v.make)
       case v: CompositeView =>
         val labeledSources: EitherT[F, Rejection, List[Source]] = v.sources.toList.traverse {
-          case source: ProjectEventStream      => EitherT.rightT(source)
           case source: CrossProjectEventStream => source.project.toLabel[F].map(label => source.copy(project = label))
+          case source                          => EitherT.rightT(source)
         }
         labeledSources.map(sources => v.copy(sources = sources.toSet))
       case other => EitherT.rightT(other)
@@ -122,12 +122,38 @@ sealed trait View extends Product with Serializable {
           .map(v.make)
       case v: CompositeView =>
         val labeledSources: EitherT[F, Rejection, List[Source]] = v.sources.toList.traverse {
-          case source: ProjectEventStream => EitherT.rightT(source)
           case source: CrossProjectEventStream =>
             source.project.toRef[F](read, source.identities.toSet).map(label => source.copy(project = label))
+          case source => EitherT.rightT(source)
         }
         labeledSources.map(sources => v.copy(sources = sources.toSet))
       case other => EitherT.rightT(other)
+    }
+
+  /**
+    * @return a new view with the same values as the current but encrypting the sensitive information
+    */
+  def encrypt(implicit config: CompositeViewConfig): View =
+    self match {
+      case view: CompositeView =>
+        view.copy(sources = view.sources.iterator.map {
+          case s: RemoteProjectEventStream => s.copy(token = s.token.map(t => t.copy(t.value.encrypt)))
+          case other                       => other
+        }.toSet)
+      case rest => rest
+    }
+
+  /**
+    * @return a new view with the same values as the current but decrypting the sensitive information
+    */
+  def decrypt(implicit config: CompositeViewConfig): View =
+    self match {
+      case view: CompositeView =>
+        view.copy(sources = view.sources.iterator.map {
+          case s: RemoteProjectEventStream => s.copy(token = s.token.map(t => t.copy(t.value.decrypt)))
+          case other                       => other
+        }.toSet)
+      case rest => rest
     }
 }
 
@@ -292,10 +318,10 @@ object View {
     def filter(c: GraphCursor): Either[Rejection, Filter] =
       // format: off
       for {
-        schemas <- c.downField(nxv.resourceSchemas).values.asListOf[AbsoluteIri].withDefault(List.empty).map(_.toSet).onError(res.id.ref, nxv.resourceSchemas.prefix)
-        types <- c.downField(nxv.resourceTypes).values.asListOf[AbsoluteIri].withDefault(List.empty).map(_.toSet).onError(res.id.ref, nxv.resourceTypes.prefix)
-        tag <- c.downField(nxv.resourceTag).focus.asOption[String].flatMap(nonEmpty).onError(res.id.ref, nxv.resourceTag.prefix)
-        includeDep <- c.downField(nxv.includeDeprecated).focus.as[Boolean].withDefault(true).onError(res.id.ref, nxv.includeDeprecated.prefix)
+        schemas     <- c.downField(nxv.resourceSchemas).values.asListOf[AbsoluteIri].withDefault(List.empty).map(_.toSet).onError(res.id.ref, nxv.resourceSchemas.prefix)
+        types       <- c.downField(nxv.resourceTypes).values.asListOf[AbsoluteIri].withDefault(List.empty).map(_.toSet).onError(res.id.ref, nxv.resourceTypes.prefix)
+        tag         <- c.downField(nxv.resourceTag).focus.asOption[String].flatMap(nonEmpty).onError(res.id.ref, nxv.resourceTag.prefix)
+        includeDep  <- c.downField(nxv.includeDeprecated).focus.as[Boolean].withDefault(true).onError(res.id.ref, nxv.includeDeprecated.prefix)
       } yield Filter(schemas, types, tag, includeDep)
     // format: on
 
@@ -396,6 +422,21 @@ object View {
         } yield CrossProjectEventStream(id, uuid, filter, includeMeta, projectIdentifier, ids)
       // format: on
 
+      // format: off
+      def remoteProjectSource(c: GraphCursor): Either[Rejection, Source] =
+        for {
+          id            <- c.focus.as[AbsoluteIri].onError(res.id.ref, "@id")
+          filter        <- filter(c)
+          uuid          <- c.downField(nxv.uuid).focus.as[UUID].onError(id.ref, nxv.uuid.prefix)
+          includeMeta   <- c.downField(nxv.includeMetadata).focus.as[Boolean].withDefault(false).onError(id.ref, nxv.includeMetadata.prefix)
+          // TODO: There should be some validation against the admin endpoint that this project actually exists.
+          // This will also validate that the token is correct and has the right permissions
+          projectLabel  <- c.downField(nxv.project).focus.as[ProjectLabel].onError(id.ref, "project")
+          endpoint      <- c.downField(nxv.endpoint).focus.as[AbsoluteIri].onError(id.ref, nxv.endpoint.prefix)
+          token         <- c.downField(nxv.token).focus.asOption[String].onError(id.ref, nxv.token.prefix)
+        } yield RemoteProjectEventStream(id, uuid, filter, includeMeta, projectLabel, endpoint, token.map(AuthToken.apply))
+      // format: on
+
       def sources(iter: Iterable[GraphCursor]): Either[Rejection, Set[Source]] =
         if (iter.size > config.maxSources)
           Left(InvalidResourceFormat(res.id.ref, s"The number of sources cannot exceed ${config.maxSources}"))
@@ -403,8 +444,9 @@ object View {
           iter.toList
             .foldM(List.empty[Source]) { (acc, innerCursor) =>
               innerCursor.downField(rdf.tpe).focus.as[AbsoluteIri].onError(res.id.ref, "@type").flatMap {
-                case tpe if tpe == nxv.ProjectEventStream.value      => currentProjectSource(innerCursor).map(_ :: acc)
-                case tpe if tpe == nxv.CrossProjectEventStream.value => crossProjectSource(innerCursor).map(_ :: acc)
+                case tpe if tpe == nxv.ProjectEventStream.value       => currentProjectSource(innerCursor).map(_ :: acc)
+                case tpe if tpe == nxv.CrossProjectEventStream.value  => crossProjectSource(innerCursor).map(_ :: acc)
+                case tpe if tpe == nxv.RemoteProjectEventStream.value => remoteProjectSource(innerCursor).map(_ :: acc)
                 case tpe =>
                   val err = s"sources @type with value '$tpe' is not supported."
                   Left(InvalidResourceFormat(res.id.ref, err): Rejection)
@@ -759,16 +801,19 @@ object View {
     def source(sourceId: AbsoluteIri): Option[Source] =
       sources.find(_.id == sourceId)
 
-    def projectSource(sourceId: AbsoluteIri): Option[ProjectRef] =
+    def projectSource(sourceId: AbsoluteIri): Option[ProjectIdentifier] =
       source(sourceId).map {
-        case CrossProjectEventStream(_, _, _, _, pRef: ProjectRef, _) => pRef
-        case _                                                        => ref
+        case CrossProjectEventStream(_, _, _, _, projIdentifier, _) => projIdentifier
+        case RemoteProjectEventStream(_, _, _, _, pLabel, _, _)     => pLabel
+        case _                                                      => ref
       }
 
-    def projectsSource: Set[ProjectRef] =
-      sourcesBy[CrossProjectEventStream].collect {
-        case CrossProjectEventStream(_, _, _, _, pRef: ProjectRef, _) => pRef
-      } + ref
+    def projectsSource: Set[ProjectIdentifier] =
+      sources.foldLeft(Set.empty[ProjectIdentifier]) {
+        case (acc, s: CrossProjectEventStream)  => acc + s.project
+        case (acc, s: RemoteProjectEventStream) => acc + s.project
+        case (acc, _)                           => acc
+      }
 
     def nextRestart(previous: Option[Instant]): Option[Instant] =
       (previous, rebuildStrategy).mapN { case (p, Interval(v)) => p.plusMillis(v.toMillis) }
@@ -787,6 +832,7 @@ object View {
     object Source {
       final case class ProjectEventStream(id: AbsoluteIri, uuid: UUID, filter: Filter, includeMetadata: Boolean)
           extends Source
+
       final case class CrossProjectEventStream(
           id: AbsoluteIri,
           uuid: UUID,
@@ -794,6 +840,16 @@ object View {
           includeMetadata: Boolean,
           project: ProjectIdentifier,
           identities: List[Identity]
+      ) extends Source
+
+      final case class RemoteProjectEventStream(
+          id: AbsoluteIri,
+          uuid: UUID,
+          filter: Filter,
+          includeMetadata: Boolean,
+          project: ProjectLabel,
+          endpoint: AbsoluteIri,
+          token: Option[AuthToken]
       ) extends Source
     }
 

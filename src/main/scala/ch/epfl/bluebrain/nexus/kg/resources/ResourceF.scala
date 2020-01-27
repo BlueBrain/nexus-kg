@@ -14,8 +14,6 @@ import ch.epfl.bluebrain.nexus.kg.resources.ProjectIdentifier.ProjectRef
 import ch.epfl.bluebrain.nexus.kg.resources.StorageReference._
 import ch.epfl.bluebrain.nexus.kg.resources.file.File.FileAttributes
 import ch.epfl.bluebrain.nexus.kg.resources.syntax._
-import ch.epfl.bluebrain.nexus.rdf.instances._
-import ch.epfl.bluebrain.nexus.rdf.syntax._
 import ch.epfl.bluebrain.nexus.rdf.Graph._
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import ch.epfl.bluebrain.nexus.rdf.Iri.Path._
@@ -155,20 +153,23 @@ object ResourceF {
     // format: on
   }
 
-  def resourceGraphDecoder(projectRef: ProjectRef): Decoder[ResourceGraph] = Decoder.instance { hc =>
-    for {
-      id         <- hc.get[AbsoluteIri]("@id").map(id => Id(projectRef, id))
-      rev        <- hc.get[Long](nxv.rev.value.asString)
-      types      <- hc.get[Set[AbsoluteIri]]("@type")
-      deprecated <- hc.get[Boolean](nxv.deprecated.value.asString)
-      created    <- hc.get[Instant](nxv.createdAt.value.asString)
-      updated    <- hc.get[Instant](nxv.updatedAt.value.asString)
-      cBy        <- hc.get[Identity](nxv.createdBy.value.asString)
-      uBy        <- hc.get[Identity](nxv.updatedBy.value.asString)
-      schema     <- hc.downField(nxv.constrainedBy.value.asString).get[AbsoluteIri]("@id").map(Ref(_))
-      graph      <- hc.value.asGraph(id.value).left.map(er => DecodingFailure(er.message, hc.history))
-    } yield ResourceF(id, rev, types, deprecated, Map(), None, created, updated, cBy, uBy, schema, graph)
-  }
+  def resourceGraphDecoder(projectRef: ProjectRef): Decoder[ResourceGraph] =
+    // format: off
+    Decoder.instance { hc =>
+      for {
+        id         <- hc.get[AbsoluteIri]("@id").map(id => Id(projectRef, id))
+        types      <- hc.get[Option[Set[AbsoluteIri]]]("@type") orElse hc.get[Option[AbsoluteIri]]("@type").map(_.map(Set(_)))
+        rev        <- hc.get[Long](nxv.rev.value.asString)
+        deprecated <- hc.get[Boolean](nxv.deprecated.value.asString)
+        created    <- hc.get[Instant](nxv.createdAt.value.asString)
+        updated    <- hc.get[Instant](nxv.updatedAt.value.asString)
+        cBy        <- hc.get[Identity](nxv.createdBy.value.asString)
+        uBy        <- hc.get[Identity](nxv.updatedBy.value.asString)
+        schema     <- hc.downField(nxv.constrainedBy.value.asString).get[AbsoluteIri]("@id").map(Ref(_))
+        graph      <- hc.value.asGraph(id.value).left.map(er => DecodingFailure(er.message, hc.history))
+      } yield ResourceF(id, rev, types.getOrElse(Set.empty[AbsoluteIri]), deprecated, Map.empty, None, created, updated, cBy, uBy, schema, graph)
+    }
+  // format: on
 
   val metaPredicates: Set[PrefixMapping] = Set[PrefixMapping](
     nxv.rev,

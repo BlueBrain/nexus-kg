@@ -64,6 +64,9 @@
             },
             {
               "node": "this:CrossProjectEventStreamShape"
+            },
+            {
+              "node": "this:RemoteProjectEventStreamShape"
             }
           ]
         },
@@ -133,13 +136,13 @@
         {
           "path": "nxv:includeMetadata",
           "name": "Include metadata",
-          "description": "flag to include or exclude metadata on the indexed Document",
+          "description": "flag to include or exclude metadata",
           "datatype": "xsd:boolean"
         },
         {
           "path": "nxv:includeDeprecated",
           "name": "Include deprecated",
-          "description": "flag to include or exclude deprecated resources on the indexed Document",
+          "description": "flag to include or exclude deprecated resources",
           "datatype": "xsd:boolean"
         }
       ]
@@ -187,13 +190,13 @@
         {
           "path": "nxv:includeMetadata",
           "name": "Include metadata",
-          "description": "flag to include or exclude metadata on the indexed Document",
+          "description": "flag to include or exclude metadata",
           "datatype": "xsd:boolean"
         },
         {
           "path": "nxv:includeDeprecated",
           "name": "Include deprecated",
-          "description": "flag to include or exclude deprecated resources on the indexed Document",
+          "description": "flag to include or exclude deprecated resources",
           "datatype": "xsd:boolean"
         },
         {
@@ -231,6 +234,84 @@
               "node": "this:AnonymousIdentityShape"
             }
           ]
+        }
+      ]
+    },
+    {
+      "@id": "this:RemoteProjectEventStreamShape",
+      "nodeKind": "sh:BlankNodeOrIRI",
+      "sh:closed": true,
+      "property": [
+        {
+          "path": "rdf:type",
+          "name": "RDF type RemoteProjectEventStream",
+          "description": "The RemoteProjectEventStream source RDF type.",
+          "nodeKind": "sh:IRI",
+          "sh:hasValue": {
+            "@id": "nxv:RemoteProjectEventStream"
+          }
+        },
+        {
+          "path": "nxv:uuid",
+          "name": "UUID",
+          "description": "The underlying uuid generated for this source.",
+          "datatype": "xsd:string",
+          "pattern": "^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89aAbB][a-f0-9]{3}-[a-f0-9]{12}$",
+          "minCount": 1
+        },
+        {
+          "path": "nxv:resourceTypes",
+          "name": "Resource types",
+          "description": "The set of types absolute iris used in the view.",
+          "nodeKind": "sh:IRI"
+        },
+        {
+          "path": "nxv:resourceSchemas",
+          "name": "Resource schemas",
+          "description": "The set of schemas absolute iris used in the view.",
+          "nodeKind": "sh:IRI"
+        },
+        {
+          "path": "nxv:resourceTag",
+          "name": "Resource tag",
+          "description": "The tag for which indexing will be triggered",
+          "datatype": "xsd:string"
+        },
+        {
+          "path": "nxv:includeMetadata",
+          "name": "Include metadata",
+          "description": "flag to include or exclude metadata",
+          "datatype": "xsd:boolean"
+        },
+        {
+          "path": "nxv:includeDeprecated",
+          "name": "Include deprecated",
+          "description": "flag to include or exclude deprecated resources",
+          "datatype": "xsd:boolean"
+        },
+        {
+          "path": "nxv:project",
+          "name": "project label",
+          "description": "The project label.",
+          "datatype": "xsd:string",
+          "minCount": 1,
+          "maxCount": 1
+        },
+        {
+          "path": "nxv:endpoint",
+          "name": "endpoint",
+          "description": "The remote nexus endpoint.",
+          "nodeKind": "sh:IRI",
+          "minCount": 1,
+          "maxCount": 1
+        },
+        {
+          "path": "nxv:token",
+          "name": "token",
+          "description": "The remote nexus endpoint token.",
+          "datatype": "xsd:string",
+          "minCount": 0,
+          "maxCount": 1
         }
       ]
     },
@@ -302,13 +383,13 @@
         {
           "path": "nxv:includeMetadata",
           "name": "Include metadata",
-          "description": "flag to include or exclude metadata on the indexed Document",
+          "description": "flag to include or exclude metadata",
           "datatype": "xsd:boolean"
         },
         {
           "path": "nxv:includeDeprecated",
           "name": "Include deprecated",
-          "description": "flag to include or exclude deprecated resources on the indexed Document",
+          "description": "flag to include or exclude deprecated resources",
           "datatype": "xsd:boolean"
         },
         {
@@ -371,13 +452,13 @@
         {
           "path": "nxv:includeMetadata",
           "name": "Include metadata",
-          "description": "flag to include or exclude metadata on the indexed Document",
+          "description": "flag to include or exclude metadata",
           "datatype": "xsd:boolean"
         },
         {
           "path": "nxv:includeDeprecated",
           "name": "Include deprecated",
-          "description": "flag to include or exclude deprecated resources on the indexed Document",
+          "description": "flag to include or exclude deprecated resources",
           "datatype": "xsd:boolean"
         },
         {
@@ -453,13 +534,13 @@
         {
           "path": "nxv:includeMetadata",
           "name": "Include metadata",
-          "description": "flag to include or exclude metadata on the indexed Document",
+          "description": "flag to include or exclude metadata",
           "datatype": "xsd:boolean"
         },
         {
           "path": "nxv:includeDeprecated",
           "name": "Include deprecated",
-          "description": "flag to include or exclude deprecated resources on the indexed Document",
+          "description": "flag to include or exclude deprecated resources",
           "datatype": "xsd:boolean"
         },
         {

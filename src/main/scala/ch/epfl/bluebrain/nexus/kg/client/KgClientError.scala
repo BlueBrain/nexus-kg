@@ -15,7 +15,7 @@ object KgClientError {
 
   final case class UnmarshallingError[A](reason: String)(implicit A: ClassTag[A])
       extends KgClientError(
-        s"Unable to parse or decode the response from Admin to a '${A.runtimeClass.getSimpleName}}' due to '$reason'."
+        s"Unable to parse or decode the response from Kg to a '${A.runtimeClass.getSimpleName}' due to '$reason'."
       )
 
   final case class NotFound(entityAsString: String) extends KgClientError("The resource does not exist")

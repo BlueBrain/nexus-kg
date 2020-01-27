@@ -313,8 +313,18 @@ object AppConfig {
     * @param maxSources         the maximum number of sources allowed
     * @param maxProjections     the maximum number of projections allowed
     * @param minIntervalRebuild the minimum allowed value for interval rebuild
+    * @param password           the password used to encrypt token
+    * @param salt               the associated salt
     */
-  final case class CompositeViewConfig(maxSources: Int, maxProjections: Int, minIntervalRebuild: FiniteDuration)
+  final case class CompositeViewConfig(
+      maxSources: Int,
+      maxProjections: Int,
+      minIntervalRebuild: FiniteDuration,
+      password: String,
+      salt: String
+  ) {
+    val derivedKey: SecretKey = Crypto.deriveKey(password, salt)
+  }
 
   /**
     * Pagination configuration
@@ -386,19 +396,21 @@ object AppConfig {
     )
   )
 
-  implicit def toSparql(implicit appConfig: AppConfig): SparqlConfig                 = appConfig.sparql
-  implicit def toElasticSearch(implicit appConfig: AppConfig): ElasticSearchConfig   = appConfig.elasticSearch
-  implicit def toPersistence(implicit appConfig: AppConfig): PersistenceConfig       = appConfig.persistence
-  implicit def toPagination(implicit appConfig: AppConfig): PaginationConfig         = appConfig.pagination
-  implicit def toHttp(implicit appConfig: AppConfig): HttpConfig                     = appConfig.http
-  implicit def toIam(implicit appConfig: AppConfig): IamConfig                       = appConfig.iam
-  implicit def toIamClient(implicit appConfig: AppConfig): IamClientConfig           = appConfig.iam.iamClient
-  implicit def toAdmin(implicit appConfig: AppConfig): AdminClientConfig             = appConfig.admin
-  implicit def toAggregateConfig(implicit appConfig: AppConfig): AggregateConfig     = appConfig.aggregate
-  implicit def toStore(implicit appConfig: AppConfig): StoreConfig                   = appConfig.keyValueStore
-  implicit def toKVS(implicit appConfig: AppConfig): KeyValueStoreConfig             = appConfig.keyValueStore.keyValueStoreConfig
-  implicit def toStorage(implicit appConfig: AppConfig): StorageConfig               = appConfig.storage
-  implicit def toSecretKey(implicit storageConfig: StorageConfig): SecretKey         = storageConfig.derivedKey
+  implicit def toSparql(implicit appConfig: AppConfig): SparqlConfig                = appConfig.sparql
+  implicit def toElasticSearch(implicit appConfig: AppConfig): ElasticSearchConfig  = appConfig.elasticSearch
+  implicit def toPersistence(implicit appConfig: AppConfig): PersistenceConfig      = appConfig.persistence
+  implicit def toPagination(implicit appConfig: AppConfig): PaginationConfig        = appConfig.pagination
+  implicit def toHttp(implicit appConfig: AppConfig): HttpConfig                    = appConfig.http
+  implicit def toIam(implicit appConfig: AppConfig): IamConfig                      = appConfig.iam
+  implicit def toIamClient(implicit appConfig: AppConfig): IamClientConfig          = appConfig.iam.iamClient
+  implicit def toAdmin(implicit appConfig: AppConfig): AdminClientConfig            = appConfig.admin
+  implicit def toAggregateConfig(implicit appConfig: AppConfig): AggregateConfig    = appConfig.aggregate
+  implicit def toStore(implicit appConfig: AppConfig): StoreConfig                  = appConfig.keyValueStore
+  implicit def toKVS(implicit appConfig: AppConfig): KeyValueStoreConfig            = appConfig.keyValueStore.keyValueStoreConfig
+  implicit def toStorage(implicit appConfig: AppConfig): StorageConfig              = appConfig.storage
+  implicit def toSecretKeyStorage(implicit storageConfig: StorageConfig): SecretKey = storageConfig.derivedKey
+  implicit def toSecretKeyComposite(implicit compositeConfig: CompositeViewConfig): SecretKey =
+    compositeConfig.derivedKey
   implicit def toCompositeConfig(implicit appConfig: AppConfig): CompositeViewConfig = appConfig.composite
   implicit def toArchivesConfig(implicit appConfig: AppConfig): ArchivesConfig =
     appConfig.archives

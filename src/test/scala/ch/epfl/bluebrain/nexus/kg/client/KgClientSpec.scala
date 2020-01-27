@@ -9,6 +9,7 @@ import akka.http.scaladsl.model.ContentTypes.`application/json`
 import akka.http.scaladsl.model.Uri.Query
 import akka.http.scaladsl.model.{StatusCodes, Uri}
 import akka.http.scaladsl.model.headers.Accept
+import akka.persistence.query.{EventEnvelope, NoOffset, Offset, Sequence}
 import akka.stream.scaladsl.Source
 import akka.testkit.TestKit
 import cats.effect.IO
@@ -17,10 +18,9 @@ import ch.epfl.bluebrain.nexus.commons.http.HttpClient
 import ch.epfl.bluebrain.nexus.commons.http.RdfMediaTypes.`application/ld+json`
 import ch.epfl.bluebrain.nexus.commons.test.Resources
 import ch.epfl.bluebrain.nexus.commons.test.io.IOOptionValues
-import ch.epfl.bluebrain.nexus.iam.client.config.IamClientConfig
 import ch.epfl.bluebrain.nexus.iam.client.types.AuthToken
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity.User
-import ch.epfl.bluebrain.nexus.iam.client.{EventSource, IamClientError}
+import ch.epfl.bluebrain.nexus.iam.client.IamClientError
 import ch.epfl.bluebrain.nexus.kg.client.KgClientError.NotFound
 import ch.epfl.bluebrain.nexus.kg.config.Schemas
 import ch.epfl.bluebrain.nexus.kg.resources.Event.JsonLd._
@@ -55,9 +55,6 @@ class KgClientSpec
 
   private val config =
     KgClientConfig(url"http://example.com/".value, "v1")
-
-  private implicit val iamClientConfig: IamClientConfig =
-    IamClientConfig(url"https://nexus.example.com".value, url"https://nexus.example.com".value, "v1")
 
   private val resClient: HttpClient[IO, ResourceV] = mock[HttpClient[IO, ResourceV]]
   private val accept                               = Accept(`application/json`.mediaType, `application/ld+json`)
@@ -141,13 +138,25 @@ class KgClientSpec
     }
 
     "fetching the event stream" should {
-      def aggregate(source: Source[Event, NotUsed]): Vector[Event] =
-        source.runFold(Vector.empty[Event])(_ :+ _).futureValue
+      val events =
+        jsonContentOf("/events/events.json").as[List[Event]].rightValue.map(Sequence(genInt().toLong) -> _)
 
-      val eventsSource = Source(jsonContentOf("/events/events.json").as[List[Event]].rightValue)
+      def aggregateResult(source: Source[EventEnvelope, NotUsed]): Vector[EventEnvelope] =
+        source.runFold(Vector.empty[EventEnvelope])(_ :+ _).futureValue
+
+      def aggregateExpected(source: Source[(Offset, Event), NotUsed]): Vector[EventEnvelope] =
+        source
+          .runFold(Vector.empty[EventEnvelope]) {
+            case (acc, (off, ev)) => acc :+ EventEnvelope(off, ev.id.value.asString, ev.rev, ev)
+          }
+          .futureValue
+
+      val eventsSource: Source[(Offset, Event), NotUsed] = Source(events)
+
       "succeed" in new Ctx {
         source(eventsEndpoint, None) shouldReturn eventsSource
-        aggregate(client.events(project.projectLabel, None)) shouldEqual aggregate(eventsSource)
+        aggregateResult(client.events(project.projectLabel, NoOffset)) shouldEqual
+          aggregateExpected(eventsSource)
       }
     }
   }

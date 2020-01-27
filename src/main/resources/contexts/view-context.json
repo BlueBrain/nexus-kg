@@ -19,12 +19,18 @@
       "@id": "nxv:sources",
       "@container": "@set"
     },
+    "endpoint": {
+      "@id": "nxv:endpoint",
+      "@type": "@id"
+    },
+    "token": "nxv:token",
     "rebuildStrategy": "nxv:rebuildStrategy",
     "value": "nxv:value",
     "context": "nxv:context",
     "query": "nxv:query",
     "ProjectEventStream": "nxv:ProjectEventStream",
     "CrossProjectEventStream": "nxv:CrossProjectEventStream",
+    "RemoteProjectEventStream": "nxv:RemoteProjectEventStream",
     "CompositeView": "nxv:CompositeView",
     "AggregateElasticSearchView": "nxv:AggregateElasticSearchView",
     "AggregateSparqlView": "nxv:AggregateSparqlView",
