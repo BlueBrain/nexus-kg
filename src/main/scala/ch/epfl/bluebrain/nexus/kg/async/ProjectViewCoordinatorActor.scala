@@ -176,7 +176,7 @@ private abstract class ProjectViewCoordinatorActor(viewCache: ViewCache[Task])(
       .toProgress(initial)
   }
 
-  private def projectStreamId(): String = s"project-event-count-${UUID.randomUUID()}"
+  private def projectStreamId(): String = s"project-event-${UUID.randomUUID()}"
 
   /**
     * Triggered in order to build an indexer actor for a provided view
