@@ -1,5 +1,7 @@
 package ch.epfl.bluebrain.nexus.kg.routes
 
+import java.net.URLEncoder
+import java.nio.charset.StandardCharsets
 import java.time.{Clock, Instant, ZoneId}
 import java.util.regex.Pattern.quote
 
@@ -478,15 +480,18 @@ class ViewRoutesSpec
       sparql.queryRaw(query, any[Throwable => Boolean]) shouldReturn
         Task.pure(result.as[SparqlResults].rightValue)
 
-      val httpEntity = HttpEntity(RdfMediaTypes.`application/sparql-query`, query)
+      val httpEntity   = HttpEntity(RdfMediaTypes.`application/sparql-query`, query)
+      val encodedQuery = URLEncoder.encode(query, StandardCharsets.UTF_8)
 
-      val endpoints = List(
-        s"/v1/views/$organization/$project/$viewId/projections/graph/sparql",
-        s"/v1/resources/$organization/$project/view/$viewId/projections/graph/sparql"
+      val requests = List(
+        Post(s"/v1/views/$organization/$project/$viewId/projections/graph/sparql", httpEntity),
+        Post(s"/v1/resources/$organization/$project/view/$viewId/projections/graph/sparql", httpEntity),
+        Get(s"/v1/views/$organization/$project/$viewId/projections/graph/sparql?query=$encodedQuery"),
+        Get(s"/v1/resources/$organization/$project/view/$viewId/projections/graph/sparql?query=$encodedQuery")
       )
 
-      forAll(endpoints) { endpoint =>
-        Post(endpoint, httpEntity) ~> addCredentials(oauthToken) ~> routes ~> check {
+      forAll(requests) { request =>
+        request ~> addCredentials(oauthToken) ~> routes ~> check {
           status shouldEqual StatusCodes.OK
           responseAs[Json] shouldEqual result
         }
@@ -620,14 +625,18 @@ class ViewRoutesSpec
       sparql.queryRaw(query, any[Throwable => Boolean]) shouldReturn
         Task.pure(result.as[SparqlResults].rightValue)
 
-      val httpEntity = HttpEntity(RdfMediaTypes.`application/sparql-query`, query)
+      val httpEntity   = HttpEntity(RdfMediaTypes.`application/sparql-query`, query)
+      val encodedQuery = URLEncoder.encode(query, StandardCharsets.UTF_8)
 
-      val endpoints = List(
-        s"/v1/views/$organization/$project/graph/sparql",
-        s"/v1/resources/$organization/$project/view/graph/sparql"
+      val requests = List(
+        Post(s"/v1/views/$organization/$project/graph/sparql", httpEntity),
+        Post(s"/v1/resources/$organization/$project/view/graph/sparql", httpEntity),
+        Get(s"/v1/views/$organization/$project/graph/sparql?query=$encodedQuery"),
+        Get(s"/v1/resources/$organization/$project/view/graph/sparql?query=$encodedQuery")
       )
-      forAll(endpoints) { endpoint =>
-        Post(endpoint, httpEntity) ~> addCredentials(oauthToken) ~> routes ~> check {
+
+      forAll(requests) { request =>
+        request ~> addCredentials(oauthToken) ~> routes ~> check {
           status shouldEqual StatusCodes.OK
           responseAs[Json] shouldEqual result
         }
@@ -645,13 +654,17 @@ class ViewRoutesSpec
       sparql.queryRaw(query, any[Throwable => Boolean]) shouldReturn
         Task.raiseError(SparqlClientError(StatusCodes.BadRequest, "some error"))
 
-      val httpEntity = HttpEntity(RdfMediaTypes.`application/sparql-query`, query)
-      val endpoints = List(
-        s"/v1/views/$organization/$project/graph/sparql",
-        s"/v1/resources/$organization/$project/view/graph/sparql"
+      val httpEntity   = HttpEntity(RdfMediaTypes.`application/sparql-query`, query)
+      val encodedQuery = URLEncoder.encode(query, StandardCharsets.UTF_8)
+
+      val requests = List(
+        Post(s"/v1/views/$organization/$project/graph/sparql", httpEntity),
+        Post(s"/v1/resources/$organization/$project/view/graph/sparql", httpEntity),
+        Get(s"/v1/views/$organization/$project/graph/sparql?query=$encodedQuery"),
+        Get(s"/v1/resources/$organization/$project/view/graph/sparql?query=$encodedQuery")
       )
-      forAll(endpoints) { endpoint =>
-        Post(endpoint, httpEntity) ~> addCredentials(oauthToken) ~> routes ~> check {
+      forAll(requests) { request =>
+        request ~> addCredentials(oauthToken) ~> routes ~> check {
           status shouldEqual StatusCodes.BadRequest
           responseAs[String] shouldEqual "some error"
         }
@@ -686,14 +699,19 @@ class ViewRoutesSpec
       sparql2.queryRaw(query, any[Throwable => Boolean]) shouldReturn
         Task.pure(response2.as[SparqlResults].rightValue)
 
-      val httpEntity = HttpEntity(RdfMediaTypes.`application/sparql-query`, query)
-      val expected   = jsonContentOf("/search/sparql-query-result-combined.json")
-      val endpoints = List(
-        s"/v1/views/$organization/$project/nxv:aggSparql/sparql",
-        s"/v1/resources/$organization/$project/view/nxv:aggSparql/sparql"
+      val httpEntity   = HttpEntity(RdfMediaTypes.`application/sparql-query`, query)
+      val encodedQuery = URLEncoder.encode(query, StandardCharsets.UTF_8)
+
+      val requests = List(
+        Post(s"/v1/views/$organization/$project/nxv:aggSparql/sparql", httpEntity),
+        Post(s"/v1/resources/$organization/$project/view/nxv:aggSparql/sparql", httpEntity),
+        Get(s"/v1/views/$organization/$project/nxv:aggSparql/sparql?query=$encodedQuery"),
+        Get(s"/v1/resources/$organization/$project/view/nxv:aggSparql/sparql?query=$encodedQuery")
       )
-      forAll(endpoints) { endpoint =>
-        Post(endpoint, httpEntity) ~> addCredentials(oauthToken) ~> routes ~> check {
+
+      val expected = jsonContentOf("/search/sparql-query-result-combined.json")
+      forAll(requests) { request =>
+        request ~> addCredentials(oauthToken) ~> routes ~> check {
           status shouldEqual StatusCodes.OK
           eventually {
             responseAs[Json] should equalIgnoreArrayOrder(expected)
