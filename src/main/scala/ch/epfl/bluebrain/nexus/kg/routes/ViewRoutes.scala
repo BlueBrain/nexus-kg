@@ -154,16 +154,11 @@ class ViewRoutes private[routes] (
         }
       },
       // Queries a view on the Sparql endpoint
-      (post & pathPrefix("sparql") & pathEndOrSingleSlash) {
-        operationName(s"/${config.http.prefix}/views/{org}/{project}/{id}/sparql") {
-          hasPermission(query).apply {
-            entity(as[String]) { query =>
-              val result = viewCache.getBy[View](project.ref, id).flatMap(runSearch(id, query))
-              complete(result.runWithStatus(StatusCodes.OK))
-            }
-          }
-        }
-      },
+      sparqlRoutes(
+        s"/${config.http.prefix}/views/{org}/{project}/{id}/sparql",
+        id,
+        viewCache.getBy[View](project.ref, id)
+      ),
       // Create or update a view (depending on rev query parameter)
       (put & pathEndOrSingleSlash) {
         operationName(s"/${config.http.prefix}/views/{org}/{project}/{id}") {
@@ -294,16 +289,11 @@ class ViewRoutes private[routes] (
         }
       },
       // Queries the Sparql endpoint of every projection on an aggregated search
-      (post & pathPrefix("sparql") & pathEndOrSingleSlash) {
-        operationName(s"/${config.http.prefix}/views/{org}/{project}/{id}/projections/_/sparql") {
-          hasPermission(query).apply {
-            entity(as[String]) { query =>
-              val result = viewCache.getBy[CompositeView](project.ref, id).flatMap(runProjectionsSearch(id, query))
-              complete(result.runWithStatus(StatusCodes.OK))
-            }
-          }
-        }
-      },
+      sparqlRoutes(
+        s"/${config.http.prefix}/views/{org}/{project}/{id}/projections/_/sparql",
+        id,
+        viewCache.getBy[CompositeView](project.ref, id)
+      ),
       // Retrieves statistics from all projections
       (get & pathPrefix("statistics") & sourceId & pathEndOrSingleSlash) { sIdOpt =>
         operationName(s"/${config.http.prefix}/views/{org}/{project}/{id}/projections/_/statistics") {
@@ -349,16 +339,11 @@ class ViewRoutes private[routes] (
         }
       },
       // Queries a projection view on the Sparql endpoint
-      (post & pathPrefix("sparql") & pathEndOrSingleSlash) {
-        operationName(s"/${config.http.prefix}/views/{org}/{project}/{id}/projections/{projectionId}/sparql") {
-          hasPermission(query).apply {
-            entity(as[String]) { query =>
-              val result = viewCache.getProjectionBy[View](project.ref, id, projectionId).flatMap(runSearch(id, query))
-              complete(result.runWithStatus(StatusCodes.OK))
-            }
-          }
-        }
-      },
+      sparqlRoutes(
+        s"/${config.http.prefix}/views/{org}/{project}/{id}/projections/{projectionId}/sparql",
+        id,
+        viewCache.getProjectionBy[View](project.ref, id, projectionId)
+      ),
       // Retrieves statistics for a projection
       (get & pathPrefix("statistics") & sourceId & pathEndOrSingleSlash) { sIdOpt =>
         operationName(s"/${config.http.prefix}/views/{org}/{project}/{id}/projections/{projectionId}/statistics") {
@@ -397,6 +382,26 @@ class ViewRoutes private[routes] (
   ): ListResults[Offset] =
     UnscoredQueryResults(1L, List(UnscoredQueryResult(IdentifiedProgress(sourceId, projectionId, NoOffset))))
 
+  private def sparqlRoutes(operation: String, id: AbsoluteIri, view: => Task[Option[View]]): Route =
+    (pathPrefix("sparql") & pathEndOrSingleSlash) {
+      hasPermission(query).apply {
+        concat(
+          post {
+            operationName(s"$operation/post") {
+              entity(as[String]) { query =>
+                complete(view.flatMap(runSearch(id, query)).runWithStatus(StatusCodes.OK))
+              }
+            }
+          },
+          (get & parameter("query")) { q =>
+            operationName(s"$operation/get") {
+              complete(view.flatMap(runSearch(id, q)).runWithStatus(StatusCodes.OK))
+            }
+          }
+        )
+      }
+    }
+
   private def sparqlQuery(view: SparqlView, query: String): Task[SparqlResults] =
     clients.sparql.copy(namespace = view.index).queryRaw(query)
 
@@ -407,19 +412,11 @@ class ViewRoutes private[routes] (
         Task.gatherUnordered(views.map(sparqlQuery(_, query)))
       }
       resultListF.map(list => Right(list.foldLeft(SparqlResults.empty)(_ ++ _)))
-    case _ => Task.pure(Left(NotFound(id.ref)))
-  }
-
-  private def runProjectionsSearch(
-      id: AbsoluteIri,
-      query: String
-  ): Option[CompositeView] => Task[Either[Rejection, SparqlResults]] = {
-    case Some(view) =>
-      val projectionViews = view.projectionsBy[SparqlProjection].map(_.view)
+    case Some(comp: CompositeView) =>
+      val projectionViews = comp.projectionsBy[SparqlProjection].map(_.view)
       val resultListF     = Task.gatherUnordered(projectionViews.map(sparqlQuery(_, query)))
       resultListF.map(list => Right(list.foldLeft(SparqlResults.empty)(_ ++ _)))
-    case _ =>
-      Task.pure(Left(NotFound(id.ref)))
+    case _ => Task.pure(Left(NotFound(id.ref)))
   }
 
   private def runProjectionsSearch(
