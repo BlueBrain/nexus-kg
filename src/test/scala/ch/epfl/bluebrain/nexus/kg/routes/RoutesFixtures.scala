@@ -19,9 +19,7 @@ import ch.epfl.bluebrain.nexus.kg.resources.{Id, OrganizationRef, Ref}
 import ch.epfl.bluebrain.nexus.kg.resources.ProjectIdentifier.{ProjectLabel, ProjectRef}
 import ch.epfl.bluebrain.nexus.kg.{urlEncode, TestHelper}
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
-import ch.epfl.bluebrain.nexus.rdf.Vocabulary._
-import ch.epfl.bluebrain.nexus.rdf.instances._
-import ch.epfl.bluebrain.nexus.rdf.syntax._
+import ch.epfl.bluebrain.nexus.rdf.implicits._
 import io.circe.Json
 import io.circe.syntax._
 
@@ -65,7 +63,7 @@ trait RoutesFixtures extends TestHelper with Resources {
   val organizationRef     = OrganizationRef(organizationMeta.uuid)
   val genUuid             = genUUID
   val projectRef          = ProjectRef(genUUID)
-  val id                  = Id(projectRef, nxv.withSuffix(genUuid.toString))
+  val id                  = Id(projectRef, nxv.withSuffix(genUuid.toString).value)
   val urlEncodedId        = urlEncode(id.value)
   val urlEncodedIdNoColon = urlEncode(id.value).replace("%3A", ":")
   val label               = ProjectLabel(organization, project)

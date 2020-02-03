@@ -11,7 +11,7 @@ import ch.epfl.bluebrain.nexus.iam.client.types.Identity
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity.{Anonymous, User}
 import ch.epfl.bluebrain.nexus.kg.TestHelper
 import ch.epfl.bluebrain.nexus.kg.config.Schemas._
-import ch.epfl.bluebrain.nexus.kg.config.Vocabulary._
+import ch.epfl.bluebrain.nexus.kg.config.Vocabulary.nxv
 import ch.epfl.bluebrain.nexus.kg.config.{AppConfig, Settings}
 import ch.epfl.bluebrain.nexus.kg.resources.ProjectIdentifier.ProjectRef
 import ch.epfl.bluebrain.nexus.kg.resources.syntax._
@@ -19,8 +19,7 @@ import ch.epfl.bluebrain.nexus.rdf.Graph.Triple
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import ch.epfl.bluebrain.nexus.rdf.Node.{IriNode, Literal}
 import ch.epfl.bluebrain.nexus.rdf.Vocabulary._
-import ch.epfl.bluebrain.nexus.rdf.syntax._
-import ch.epfl.bluebrain.nexus.rdf.instances._
+import ch.epfl.bluebrain.nexus.rdf.implicits._
 import ch.epfl.bluebrain.nexus.rdf.{Iri, Node}
 import io.circe.Json
 import org.scalatest.matchers.should.Matchers
@@ -35,7 +34,7 @@ class ResourceFSpec
     with TestHelper {
 
   private implicit def toNode(instant: Instant): Node =
-    Literal(instant.atOffset(ZoneOffset.UTC).format(DateTimeFormatter.ISO_INSTANT), xsd.dateTime.value)
+    Literal(instant.atOffset(ZoneOffset.UTC).format(DateTimeFormatter.ISO_INSTANT), xsd.dateTime)
   private implicit val appConfig: AppConfig = Settings(system).appConfig
 
   "A ResourceF" should {
@@ -110,7 +109,7 @@ class ResourceFSpec
     }
 
     "remove the metadata from a resource" in {
-      val jsonMeta = json deepMerge Json.obj("@id" -> Json.fromString(id.value.asString)) deepMerge Json.obj(
+      val jsonMeta = json deepMerge Json.obj("@id" -> Json.fromString(id.asString)) deepMerge Json.obj(
         nxv.rev.value.asString -> Json.fromLong(10L)
       )
       simpleV(resId, jsonMeta, 2L, schema = schema, types = Set(nxv.Schema)).value.graph.removeMetadata.triples shouldEqual Set

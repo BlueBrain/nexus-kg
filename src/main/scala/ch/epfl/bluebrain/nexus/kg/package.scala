@@ -8,13 +8,12 @@ import cats.implicits._
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity.{Anonymous, Authenticated, Group, User}
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary.nxv
-import ch.epfl.bluebrain.nexus.kg.resources.{Rejection, ResId}
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection.InvalidResourceFormat
+import ch.epfl.bluebrain.nexus.kg.resources.{Rejection, ResId}
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
+import ch.epfl.bluebrain.nexus.rdf.Node.BNode
 import ch.epfl.bluebrain.nexus.rdf.Vocabulary.rdf
-import ch.epfl.bluebrain.nexus.rdf.cursor.GraphCursor
-import ch.epfl.bluebrain.nexus.rdf.instances._
-import ch.epfl.bluebrain.nexus.rdf.syntax._
+import ch.epfl.bluebrain.nexus.rdf.{Cursor, DecodingError, Graph, GraphDecoder, GraphEncoder}
 
 import scala.util.Try
 
@@ -45,23 +44,67 @@ package object kg {
   def uuid(): String =
     UUID.randomUUID().toString.toLowerCase
 
-  def identities(resId: ResId, iter: Iterable[GraphCursor]): Either[Rejection, List[Identity]] =
-    iter.toList.foldM(List.empty[Identity]) { (acc, innerCursor) =>
-      identity(resId, innerCursor).map(_ :: acc)
+  def identities(resId: ResId, cursors: Set[Cursor]): Either[Rejection, Set[Identity]] = {
+    import alleycats.std.set._
+    cursors.foldM(Set.empty[Identity]) { (acc, cursor) =>
+      identity(resId, cursor).map(i => acc + i)
     }
+  }
 
-  def identity(resId: ResId, c: GraphCursor): Either[Rejection, Identity] = {
-    lazy val anonymous =
-      c.downField(rdf.tpe).focus.as[AbsoluteIri].toOption.collectFirst { case nxv.Anonymous.value => Anonymous }
-    lazy val realm         = c.downField(nxv.realm).focus.as[String]
-    lazy val user          = (c.downField(nxv.subject).focus.as[String], realm).mapN(User.apply).toOption
-    lazy val group         = (c.downField(nxv.group).focus.as[String], realm).mapN(Group.apply).toOption
-    lazy val authenticated = realm.map(Authenticated.apply).toOption
-    (anonymous orElse user orElse group orElse authenticated).toRight(
+  def anonDecoder: GraphDecoder[Anonymous] = GraphDecoder.instance { c =>
+    val tpe = c.down(rdf.tpe)
+    tpe.as[AbsoluteIri].flatMap {
+      case nxv.Anonymous.value => Right(Anonymous)
+      case other =>
+        val msg = s"Type does not match expected '${nxv.Anonymous.value.asUri}', but '${other.asUri}'"
+        Left(DecodingError(msg, tpe.history))
+    }
+  }
+
+  def userDecoder: GraphDecoder[User] = GraphDecoder.instance { c =>
+    (c.down(nxv.subject.value).as[String], c.down(nxv.realm.value).as[String]).mapN(User.apply)
+  }
+
+  def groupDecoder: GraphDecoder[Group] = GraphDecoder.instance { c =>
+    (c.down(nxv.group.value).as[String], c.down(nxv.realm.value).as[String]).mapN(Group.apply)
+  }
+
+  def authenticatedDecoder: GraphDecoder[Authenticated] = GraphDecoder.instance { c =>
+    c.down(nxv.realm).as[String].map(realm => Authenticated(realm))
+  }
+
+  implicit final def identityDecoder: GraphDecoder[Identity] =
+    anonDecoder.asInstanceOf[GraphDecoder[Identity]] or
+      userDecoder.asInstanceOf[GraphDecoder[Identity]] or
+      groupDecoder.asInstanceOf[GraphDecoder[Identity]] or
+      authenticatedDecoder.asInstanceOf[GraphDecoder[Identity]]
+
+  def identity(resId: ResId, c: Cursor): Either[Rejection, Identity] = {
+    identityDecoder(c).leftMap { _ =>
       InvalidResourceFormat(
         resId.ref,
         "The provided payload could not be mapped to a resolver because the identity format is wrong"
       )
-    )
+    }
+  }
+
+  implicit final val identityEncoder: GraphEncoder[Identity] = GraphEncoder.instance {
+    case Anonymous =>
+      Graph(BNode())
+        .append(rdf.tpe, nxv.Anonymous)
+    case User(subject, realm) =>
+      Graph(BNode())
+        .append(rdf.tpe, nxv.User)
+        .append(nxv.subject, subject)
+        .append(nxv.realm, realm)
+    case Group(group, realm) =>
+      Graph(BNode())
+        .append(rdf.tpe, nxv.Group)
+        .append(nxv.group, group)
+        .append(nxv.realm, realm)
+    case Authenticated(realm) =>
+      Graph(BNode())
+        .append(rdf.tpe, nxv.Authenticated)
+        .append(nxv.realm, realm)
   }
 }

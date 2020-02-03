@@ -11,8 +11,7 @@ import ch.epfl.bluebrain.nexus.kg.config.Contexts
 import ch.epfl.bluebrain.nexus.kg.config.Schemas._
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary.nxv
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
-import ch.epfl.bluebrain.nexus.rdf.Vocabulary._
-import ch.epfl.bluebrain.nexus.rdf.syntax.node.unsafe._
+import ch.epfl.bluebrain.nexus.rdf.implicits._
 import org.scalatest.Inspectors
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AnyWordSpecLike
@@ -29,7 +28,7 @@ class AccessIdSpec extends AnyWordSpecLike with Matchers with Inspectors with Te
       "elasticsearch" -> nxv.defaultElasticSearchIndex,
       "sparql"        -> nxv.defaultSparqlIndex
     )
-    val mappings = Map("test-schema" -> url"http://schemas.nexus.example.com/test/v0.1.0/".value) ++ defaultPrefixMapping
+    val mappings = Map("test-schema" -> url"http://schemas.nexus.example.com/test/v0.1.0/") ++ defaultPrefixMapping
     val uuid     = UUID.fromString("20fdc0fc-841a-11e8-adc0-fa7ae01bbebc")
     implicit val project = Project(
       genIri,
@@ -52,42 +51,42 @@ class AccessIdSpec extends AnyWordSpecLike with Matchers with Inspectors with Te
     "generate short access id" in {
       val list = List(
         (
-          url"http://example.com/a".value,
+          url"http://example.com/a",
           shaclSchemaUri,
           s"http://resources.nexus.com/v1/schemas/bbp/core/${urlEncode("http://example.com/a")}"
         ),
         (
-          url"http://unused.com/".value,
+          url"http://unused.com/",
           unconstrainedSchemaUri,
           s"http://resources.nexus.com/v1/resources/bbp/core/_/${urlEncode("http://unused.com/")}"
         ),
         (
-          url"http://example.com/a".value,
+          url"http://example.com/a",
           fileSchemaUri,
           s"http://resources.nexus.com/v1/files/bbp/core/${urlEncode("http://example.com/a")}"
         ),
         (
-          url"http://example.com/a".value,
+          url"http://example.com/a",
           storageSchemaUri,
           s"http://resources.nexus.com/v1/storages/bbp/core/${urlEncode("http://example.com/a")}"
         ),
         (
-          url"http://schemas.nexus.example.com/test/v0.1.0/a".value,
+          url"http://schemas.nexus.example.com/test/v0.1.0/a",
           unconstrainedSchemaUri,
           s"http://resources.nexus.com/v1/resources/bbp/core/_/test-schema:a"
         ),
         (
-          url"${base.asString}b".value,
-          url"http://example.com/a".value,
+          url"${base.asString}b",
+          url"http://example.com/a",
           s"http://resources.nexus.com/v1/resources/bbp/core/${urlEncode("http://example.com/a")}/nxs:b"
         ),
         (
-          url"https://bluebrain.github.io/nexus/schemas/some/other".value,
-          url"http://example.com/a".value,
+          url"https://bluebrain.github.io/nexus/schemas/some/other",
+          url"http://example.com/a",
           s"http://resources.nexus.com/v1/resources/bbp/core/${urlEncode("http://example.com/a")}/nxs:some%2Fother"
         ),
         (
-          url"http://unused.com/something/uuid".value,
+          url"http://unused.com/something/uuid",
           unconstrainedSchemaUri,
           s"http://resources.nexus.com/v1/resources/bbp/core/_/${urlEncode("something/uuid")}"
         )
@@ -101,37 +100,37 @@ class AccessIdSpec extends AnyWordSpecLike with Matchers with Inspectors with Te
     "generate long access id" in {
       val list = List(
         (
-          url"http://example.com/a".value,
+          url"http://example.com/a",
           shaclSchemaUri,
           s"http://resources.nexus.com/v1/schemas/bbp/core/${urlEncode("http://example.com/a")}"
         ),
         (
-          url"http://example.com/a".value,
+          url"http://example.com/a",
           fileSchemaUri,
           s"http://resources.nexus.com/v1/files/bbp/core/${urlEncode("http://example.com/a")}"
         ),
         (
-          url"http://example.com/a".value,
+          url"http://example.com/a",
           storageSchemaUri,
           s"http://resources.nexus.com/v1/storages/bbp/core/${urlEncode("http://example.com/a")}"
         ),
         (
-          url"http://schemas.nexus.example.com/test/v0.1.0/a".value,
+          url"http://schemas.nexus.example.com/test/v0.1.0/a",
           unconstrainedSchemaUri,
           s"http://resources.nexus.com/v1/resources/bbp/core/_/${urlEncode("http://schemas.nexus.example.com/test/v0.1.0/a")}"
         ),
         (
-          url"${base.asString}b".value,
-          url"http://example.com/a".value,
+          url"${base.asString}b",
+          url"http://example.com/a",
           s"http://resources.nexus.com/v1/resources/bbp/core/${urlEncode("http://example.com/a")}/${urlEncode(s"${base.asString}b")}"
         ),
         (
-          url"https://bluebrain.github.io/nexus/schemas/some/other".value,
-          url"http://example.com/a".value,
+          url"https://bluebrain.github.io/nexus/schemas/some/other",
+          url"http://example.com/a",
           s"http://resources.nexus.com/v1/resources/bbp/core/${urlEncode("http://example.com/a")}/${urlEncode("https://bluebrain.github.io/nexus/schemas/some/other")}"
         ),
         (
-          url"http://unused.com/something/uuid".value,
+          url"http://unused.com/something/uuid",
           unconstrainedSchemaUri,
           s"http://resources.nexus.com/v1/resources/bbp/core/_/${urlEncode("http://unused.com/something/uuid")}"
         )

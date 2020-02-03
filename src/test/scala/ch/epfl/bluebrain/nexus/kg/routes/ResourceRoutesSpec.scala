@@ -35,8 +35,7 @@ import ch.epfl.bluebrain.nexus.kg.resources.ResourceF.Value
 import ch.epfl.bluebrain.nexus.kg.resources._
 import ch.epfl.bluebrain.nexus.rdf.Iri.Path
 import ch.epfl.bluebrain.nexus.rdf.Iri.Path._
-import ch.epfl.bluebrain.nexus.rdf.instances._
-import ch.epfl.bluebrain.nexus.rdf.syntax._
+import ch.epfl.bluebrain.nexus.rdf.implicits._
 import ch.epfl.bluebrain.nexus.storage.client.StorageClient
 import com.typesafe.config.{Config, ConfigFactory}
 import io.circe.Json
@@ -143,7 +142,7 @@ class ResourceRoutesSpec
       ResourceF.simpleF(id, jsonWithCtx, created = user, updated = user, schema = unconstrainedRef)
 
     // format: off
-    val resourceValue = Value(jsonWithCtx, defaultCtxValue, jsonWithCtx.deepMerge(Json.obj("@id" -> Json.fromString(id.value.asString))).asGraph(id.value).rightValue)
+    val resourceValue = Value(jsonWithCtx, defaultCtxValue, jsonWithCtx.deepMerge(Json.obj("@id" -> Json.fromString(id.value.asString))).toGraph(id.value).rightValue)
     // format: on
     val resourceV =
       ResourceF.simpleV(id, resourceValue, created = user, updated = user, schema = unconstrainedRef)
@@ -232,7 +231,7 @@ class ResourceRoutesSpec
       resources.fetch(id, unconstrainedRef) shouldReturn EitherT.rightT[Task, Rejection](resourceV)
       val expected =
         resourceValue.graph
-          .as[Json](Json.obj("@context" -> defaultCtxValue).appendContextOf(resourceCtx))
+          .toJson(Json.obj("@context" -> defaultCtxValue).appendContextOf(resourceCtx))
           .rightValue
           .removeNestedKeys("@context")
 
@@ -270,7 +269,7 @@ class ResourceRoutesSpec
       resources.fetch(id, 1L, unconstrainedRef) shouldReturn EitherT.rightT[Task, Rejection](resourceV)
       val expected =
         resourceValue.graph
-          .as[Json](Json.obj("@context" -> defaultCtxValue).appendContextOf(resourceCtx))
+          .toJson(Json.obj("@context" -> defaultCtxValue).appendContextOf(resourceCtx))
           .rightValue
           .removeNestedKeys("@context")
 
@@ -308,7 +307,7 @@ class ResourceRoutesSpec
       resources.fetch(id, "some", unconstrainedRef) shouldReturn EitherT.rightT[Task, Rejection](resourceV)
       val expected =
         resourceValue.graph
-          .as[Json](Json.obj("@context" -> defaultCtxValue).appendContextOf(resourceCtx))
+          .toJson(Json.obj("@context" -> defaultCtxValue).appendContextOf(resourceCtx))
           .rightValue
           .removeNestedKeys("@context")
 

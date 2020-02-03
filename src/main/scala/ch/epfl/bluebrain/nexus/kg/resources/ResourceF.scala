@@ -2,7 +2,6 @@ package ch.epfl.bluebrain.nexus.kg.resources
 
 import java.time.{Clock, Instant}
 
-import cats.{Id => CId}
 import ch.epfl.bluebrain.nexus.admin.client.types.Project
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity.Anonymous
@@ -19,10 +18,8 @@ import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import ch.epfl.bluebrain.nexus.rdf.Iri.Path._
 import ch.epfl.bluebrain.nexus.rdf.Node.IriNode
 import ch.epfl.bluebrain.nexus.rdf.Vocabulary._
-import ch.epfl.bluebrain.nexus.rdf.encoder.{GraphEncoder, RootNode}
-import ch.epfl.bluebrain.nexus.rdf.instances._
-import ch.epfl.bluebrain.nexus.rdf.syntax._
-import ch.epfl.bluebrain.nexus.rdf.{Iri, Node, RootedGraph}
+import ch.epfl.bluebrain.nexus.rdf.implicits._
+import ch.epfl.bluebrain.nexus.rdf.{Graph, Iri, Node}
 import io.circe.{Decoder, DecodingFailure, Json}
 
 /**
@@ -149,7 +146,7 @@ object ResourceF {
   def resourceVGraphDecoder(projectRef: ProjectRef): Decoder[ResourceV] = resourceGraphDecoder(projectRef).map {
     case ResourceF(id, rev, types, deprecated, tags, file, created, updated, cBy, uBy, schema, graph) =>
       // format: off
-      ResourceF(id, rev, types, deprecated, tags, file, created, updated, cBy, uBy, schema, Value(Json.obj(), Json.obj(), RootedGraph(id.value, graph)))
+      ResourceF(id, rev, types, deprecated, tags, file, created, updated, cBy, uBy, schema, Value(Json.obj(), Json.obj(), graph))
     // format: on
   }
 
@@ -166,7 +163,7 @@ object ResourceF {
         cBy        <- hc.get[Identity](nxv.createdBy.value.asString)
         uBy        <- hc.get[Identity](nxv.updatedBy.value.asString)
         schema     <- hc.downField(nxv.constrainedBy.value.asString).get[AbsoluteIri]("@id").map(Ref(_))
-        graph      <- hc.value.asGraph(id.value).left.map(er => DecodingFailure(er.message, hc.history))
+        graph      <- hc.value.toGraph(id.value).left.map(er => DecodingFailure(er, hc.history))
       } yield ResourceF(id, rev, types.getOrElse(Set.empty[AbsoluteIri]), deprecated, Map.empty, None, created, updated, cBy, uBy, schema, graph)
     }
   // format: on
@@ -195,10 +192,12 @@ object ResourceF {
   /**
     * Removes the metadata triples from the rooted graph
     *
-    * @return a new [[RootedGraph]] without the metadata triples
+    * @return a new [[Graph]] without the metadata triples
     */
-  def removeMetadata(rootedGraph: RootedGraph): RootedGraph =
-    RootedGraph(rootedGraph.rootNode, rootedGraph.remove(rootedGraph.rootNode, metaIris.contains))
+  def removeMetadata(graph: Graph): Graph =
+    graph.filter {
+      case (_, p, _) => !metaIris.contains(p)
+    }
 
   /**
     * A default resource value type.
@@ -207,15 +206,7 @@ object ResourceF {
     * @param ctx    an expanded (flattened) context value
     * @param graph  a graph representation of a resource
     */
-  final case class Value(source: Json, ctx: Json, graph: RootedGraph) {
-
-    def map[A: RootNode](value: A, f: Json => Json)(implicit enc: GraphEncoder[CId, A]): Option[Value] = {
-      val rootedGraph = value.asGraph
-      val graphNoMeta = rootedGraph.removeMetadata
-      val maybeJson   = graphNoMeta.as[Json](Json.obj("@context" -> ctx))
-      maybeJson.toOption.map(json => copy(source = f(json), graph = graphNoMeta))
-    }
-  }
+  final case class Value(source: Json, ctx: Json, graph: Graph)
 
   /**
     * Construct a [[ResourceF]] with default parameters

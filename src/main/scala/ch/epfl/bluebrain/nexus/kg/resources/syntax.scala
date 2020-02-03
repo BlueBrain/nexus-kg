@@ -2,14 +2,12 @@ package ch.epfl.bluebrain.nexus.kg.resources
 
 import java.time.format.DateTimeFormatter
 import java.time.{Instant, ZoneOffset}
-import java.util.UUID
 
 import akka.http.scaladsl.model.{ContentType, Uri}
 import akka.persistence.query.{NoOffset, Offset, Sequence, TimeBasedUUID}
 import cats.Monad
 import cats.implicits._
 import ch.epfl.bluebrain.nexus.admin.client.types.Project
-import ch.epfl.bluebrain.nexus.commons.rdf.syntax._
 import ch.epfl.bluebrain.nexus.iam.client.types._
 import ch.epfl.bluebrain.nexus.kg.cache.ProjectCache
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig.HttpConfig
@@ -17,19 +15,19 @@ import ch.epfl.bluebrain.nexus.kg.config.Vocabulary.nxv
 import ch.epfl.bluebrain.nexus.kg.resources.ProjectIdentifier.{ProjectLabel, ProjectRef}
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection.InvalidResourceFormat
 import ch.epfl.bluebrain.nexus.kg.storage.Crypto
-import ch.epfl.bluebrain.nexus.rdf.Iri.{AbsoluteIri, Path}
+import ch.epfl.bluebrain.nexus.rdf.CursorOp.{Down, Up}
 import ch.epfl.bluebrain.nexus.rdf.Iri.Path._
-import ch.epfl.bluebrain.nexus.rdf.Node.Literal
+import ch.epfl.bluebrain.nexus.rdf.Iri.{AbsoluteIri, Path}
+import ch.epfl.bluebrain.nexus.rdf.Node.{IriNode, Literal}
 import ch.epfl.bluebrain.nexus.rdf.Vocabulary._
-import ch.epfl.bluebrain.nexus.rdf.encoder.NodeEncoder
-import ch.epfl.bluebrain.nexus.rdf.encoder.NodeEncoderError.IllegalConversion
-import ch.epfl.bluebrain.nexus.rdf.{Node, RootedGraph}
+import ch.epfl.bluebrain.nexus.rdf.implicits._
+import ch.epfl.bluebrain.nexus.rdf._
 import ch.epfl.bluebrain.nexus.sourcing.projections.syntax._
+import com.typesafe.scalalogging.Logger
 import io.circe.{Decoder, Encoder}
 import javax.crypto.SecretKey
-import com.typesafe.scalalogging.Logger
 
-import scala.util.{Success, Try}
+import scala.reflect.ClassTag
 
 object syntax {
   implicit class OffsetResourceSyntax(private val offset: Offset) extends AnyVal {
@@ -41,29 +39,54 @@ object syntax {
   }
 
   implicit class ResIdSyntax(private val resId: ResId) extends AnyVal {
-    def toGraphUri: Uri = (resId.value + "graph").toAkkaUri
+    def toGraphUri: Uri = (resId.value + "graph").asAkka
   }
 
-  implicit class EncoderResultSyntax[A](private val result: NodeEncoder.EncoderResult[A]) extends AnyVal {
+  implicit class GraphDecoderSyntax[A](private val result: GraphDecoder.Result[A])(implicit A: ClassTag[A]) {
     def onError(ref: Ref, field: String): Either[Rejection, A] =
-      result.left.map(_ => InvalidResourceFormat(ref, s"'$field' field does not have the right format."): Rejection)
+      result.leftMap(_ => InvalidResourceFormat(ref, s"'$field' field does not have the right format."))
+    def leftRejectionFor(ref: Ref): Either[Rejection, A] =
+      result.leftMap {
+        case DecodingError(_, history) =>
+          val fieldOpt = history.headOption.flatMap {
+            case Down(IriNode(value)) => value.asUrl.flatMap(_.fragment).map(_.value) orElse value.path.lastSegment
+            case _                    => None
+          }
+          val msg = fieldOpt match {
+            case Some(value) => s"'$value' field does not have the right format."
+            case None =>
+              val path = history
+                .map {
+                  case CursorOp.Top                     => "Top"
+                  case CursorOp.Parent                  => "Parent"
+                  case CursorOp.Narrow                  => "Narrow"
+                  case Up(IriNode(value))               => s"Up(${value.asUri})"
+                  case CursorOp.UpSet(IriNode(value))   => s"Up(${value.asUri})"
+                  case CursorOp.DownSet(IriNode(value)) => s"Down(${value.asUri})"
+                  case Down(IriNode(value))             => s"Down(${value.asUri})"
+                }
+                .mkString(" -> ")
+              s"Unable to decode type '${A.runtimeClass.getSimpleName}', traversal history: '$path'"
+          }
+          InvalidResourceFormat(ref, msg)
+      }
   }
 
-  implicit val projectLabelEncoder: NodeEncoder[ProjectLabel] = node =>
-    NodeEncoder.stringEncoder(node).flatMap { value =>
-      value.trim.split("/") match {
-        case Array(organization, project) => Right(ProjectLabel(organization, project))
-        case _                            => Left(IllegalConversion("Expected a ProjectLabel, but found otherwise"))
+  implicit class CursorSyntax(private val c: Cursor) extends AnyVal {
+    def option[A: GraphDecoder]: GraphDecoder.Result[Option[A]] =
+      c.as[Option[A]]
+    def withDefault[A: GraphDecoder](fallback: => A): GraphDecoder.Result[A] =
+      option[A].map(_.getOrElse(fallback))
+    def expectType(iri: AbsoluteIri): GraphDecoder.Result[Unit] =
+      c.downSet(rdf.tpe).as[Set[AbsoluteIri]].flatMap { types =>
+        if (types.contains(iri)) Right(())
+        else Left(DecodingError(s"Selected node did not contain expected type '${iri.asUri}'", c.history))
       }
-    }
+  }
 
-  implicit val projectUuidEncoder: NodeEncoder[ProjectRef] = node =>
-    NodeEncoder.stringEncoder(node).flatMap { value =>
-      Try(UUID.fromString(value)) match {
-        case Success(uuid) => Right(ProjectRef(uuid))
-        case _             => Left(IllegalConversion("Expected a ProjectRef, but found otherwise"))
-      }
-    }
+  implicit class GraphEncoderSyntax[A](a: A)(implicit A: GraphEncoder[A]) {
+    def asGraph: Graph = A(a)
+  }
 
   implicit val encMediaType: Encoder[ContentType] =
     Encoder.encodeString.contramap(_.value)
@@ -76,7 +99,7 @@ object syntax {
   }
 
   final implicit def toNode(instant: Instant): Node =
-    Literal(instant.atOffset(ZoneOffset.UTC).format(DateTimeFormatter.ISO_INSTANT), xsd.dateTime.value)
+    Literal(instant.atOffset(ZoneOffset.UTC).format(DateTimeFormatter.ISO_INSTANT), xsd.dateTime)
 
   final implicit class ResourceUriSyntax(private val res: Resource)(implicit project: Project, http: HttpConfig) {
     def accessId: AbsoluteIri = AccessId(res.id.value, res.schema.iri)
@@ -86,14 +109,17 @@ object syntax {
     def accessId: AbsoluteIri = AccessId(res.id.value, res.schema.iri)
   }
 
-  final implicit class RootedGraphSyntaxMeta(private val graph: RootedGraph) extends AnyVal {
+  final implicit class RootedGraphSyntaxMeta(private val graph: Graph) extends AnyVal {
 
     /**
       * Removes the metadata triples from the rooted graph.
       *
-      * @return a new [[RootedGraph]] without the metadata triples
+      * @return a new [[Graph]] without the metadata triples
       */
-    def removeMetadata: RootedGraph = ResourceF.removeMetadata(graph)
+    def removeMetadata: Graph = ResourceF.removeMetadata(graph)
+
+    def rootTypes: Set[AbsoluteIri] =
+      graph.cursor.downSet(rdf.tpe).as[Set[Node]].map(_.collect { case IriNode(v) => v }).getOrElse(Set.empty)
   }
 
   final implicit class AclsSyntax(private val acls: AccessControlLists) extends AnyVal {

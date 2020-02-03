@@ -29,8 +29,7 @@ import ch.epfl.bluebrain.nexus.kg.{urlEncode, TestHelper}
 import ch.epfl.bluebrain.nexus.rdf.Iri
 import ch.epfl.bluebrain.nexus.rdf.Iri.Path
 import ch.epfl.bluebrain.nexus.rdf.Iri.Path./
-import ch.epfl.bluebrain.nexus.rdf.Node.IriNode
-import ch.epfl.bluebrain.nexus.rdf.syntax._
+import ch.epfl.bluebrain.nexus.rdf.implicits._
 import io.circe.{Json, Printer}
 import monix.eval.Task
 import monix.execution.Scheduler.Implicits.global
@@ -122,7 +121,7 @@ class FetchResourceSpec
       val jsonWithCtx = json deepMerge ctx
       val finalJson   = jsonWithCtx deepMerge Json.obj("@id" -> Json.fromString(id.asString))
       // format: off
-      val resourceValue = Value(jsonWithCtx, ctx.contextValue, jsonWithCtx.deepMerge(finalJson).asGraph(IriNode(id)).rightValue)
+      val resourceValue = Value(jsonWithCtx, ctx.contextValue, jsonWithCtx.deepMerge(finalJson).toGraph(id).rightValue)
       // format: on
       val resourceV = ResourceF.simpleV(idRes, resourceValue)
 

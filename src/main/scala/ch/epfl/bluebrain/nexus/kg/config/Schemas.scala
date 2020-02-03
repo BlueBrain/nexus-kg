@@ -1,19 +1,17 @@
 package ch.epfl.bluebrain.nexus.kg.config
 
-import cats.Id
 import ch.epfl.bluebrain.nexus.commons.test.Resources._
 import ch.epfl.bluebrain.nexus.kg.config.Contexts._
 import ch.epfl.bluebrain.nexus.kg.resources.syntax._
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
-import ch.epfl.bluebrain.nexus.rdf.instances._
-import ch.epfl.bluebrain.nexus.rdf.syntax._
+import ch.epfl.bluebrain.nexus.rdf.implicits._
 import io.circe.Json
 import org.apache.jena.rdf.model.Model
 
 @SuppressWarnings(Array("OptionGet"))
 object Schemas {
 
-  val base = url"https://bluebrain.github.io/nexus/schemas/".value
+  val base = url"https://bluebrain.github.io/nexus/schemas/"
 
   //Schema URIs
   val shaclSchemaUri: AbsoluteIri         = base + "shacl-20170720.ttl"
@@ -32,14 +30,14 @@ object Schemas {
   val archiveSchema: Json  = jsonContentOf("/schemas/archive.json")
 
   //Schema models
-  val resolverSchemaModel: Id[Model] =
-    resolveSchema(resolverSchema).asGraph(resolverSchemaUri).toOption.get.as[Model]()
-  val viewSchemaModel: Id[Model] =
-    resolveSchema(viewSchema).asGraph(viewSchemaUri).toOption.get.as[Model]()
-  val storageSchemaModel: Id[Model] =
-    resolveSchema(storageSchema).asGraph(storageSchemaUri).toOption.get.as[Model]()
-  val archiveSchemaModel: Id[Model] =
-    resolveSchema(archiveSchema).asGraph(archiveSchemaUri).toOption.get.as[Model]()
+  val resolverSchemaModel: Model =
+    resolveSchema(resolverSchema).toGraph(resolverSchemaUri).toOption.get.asJena
+  val viewSchemaModel: Model =
+    resolveSchema(viewSchema).toGraph(viewSchemaUri).toOption.get.asJena
+  val storageSchemaModel: Model =
+    resolveSchema(storageSchema).toGraph(storageSchemaUri).toOption.get.asJena
+  val archiveSchemaModel: Model =
+    resolveSchema(archiveSchema).toGraph(archiveSchemaUri).toOption.get.asJena
 
   // Schema references
   val viewRef          = viewSchemaUri.ref
@@ -50,7 +48,17 @@ object Schemas {
   val shaclRef         = shaclSchemaUri.ref
   val fileRef          = fileSchemaUri.ref
 
-  private def resolveSchema(schema: Json): Json =
-    schema.replaceContext(schema.removeContextIris.appendContextOf(shaclCtx))
+  private def resolveSchema(schema: Json): Json = {
+    val ctx = schema.hcursor.downField("@context").as[Json].getOrElse(Json.obj())
+    schema.replaceContext(Json.obj("@context" -> removeContextIris(ctx))).appendContextOf(shaclCtx)
+  }
+
+  private def removeContextIris(ctx: Json): Json =
+    (ctx.asString, ctx.asObject, ctx.asArray) match {
+      case (Some(_), _, _)   => Json.obj()
+      case (_, Some(_), _)   => ctx
+      case (_, _, Some(arr)) => Json.arr(arr.filter(!_.isString): _*)
+      case _                 => ctx
+    }
 
 }

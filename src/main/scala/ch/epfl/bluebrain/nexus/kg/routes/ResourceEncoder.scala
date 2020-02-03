@@ -1,7 +1,5 @@
 package ch.epfl.bluebrain.nexus.kg.routes
 
-import cats.Id
-import cats.implicits._
 import ch.epfl.bluebrain.nexus.admin.client.types.Project
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig
 import ch.epfl.bluebrain.nexus.kg.config.Contexts.{resourceCtx, resourceCtxUri}
@@ -9,33 +7,16 @@ import ch.epfl.bluebrain.nexus.kg.config.Vocabulary._
 import ch.epfl.bluebrain.nexus.kg.resources.{Resource, ResourceV}
 import ch.epfl.bluebrain.nexus.kg.resources.Views._
 import ch.epfl.bluebrain.nexus.kg.routes.OutputFormat.{Compacted, Expanded}
-import ch.epfl.bluebrain.nexus.rdf.RootedGraph
-import ch.epfl.bluebrain.nexus.rdf.decoder.GraphDecoder.DecoderResult
-import ch.epfl.bluebrain.nexus.rdf.encoder.{GraphEncoder, RootNode}
-import ch.epfl.bluebrain.nexus.rdf.syntax._
-import ch.epfl.bluebrain.nexus.rdf.instances._
+import ch.epfl.bluebrain.nexus.rdf.Graph
+import ch.epfl.bluebrain.nexus.rdf.implicits._
 import io.circe.Json
 
 object ResourceEncoder {
 
-  private implicit val rootNodeResourceV: RootNode[ResourceV] = _.id.value
-  private implicit val rootNodeResource: RootNode[Resource]   = _.id.value
+  def json(r: Resource)(implicit config: AppConfig, project: Project): Either[String, Json] =
+    Graph(r.id.value, r.metadata()).toJson(resourceCtx).map(_.replaceContext(resourceCtxUri))
 
-  private implicit val resourceVGraphEnc: GraphEncoder[Id, ResourceV]                  = GraphEncoder((_, res) => res.value.graph)
-  private implicit val resourceVGraphEncEither: GraphEncoder[DecoderResult, ResourceV] = resourceVGraphEnc.toEither
-
-  private implicit def resourceGraphEnc(implicit config: AppConfig, project: Project): GraphEncoder[Id, Resource] =
-    GraphEncoder((rootNode, res) => RootedGraph(rootNode, res.metadata()))
-  private implicit def resourceGraphEncEither(
-      implicit config: AppConfig,
-      project: Project
-  ): GraphEncoder[DecoderResult, Resource] =
-    resourceGraphEnc.toEither
-
-  def json(r: Resource)(implicit config: AppConfig, project: Project): DecoderResult[Json] =
-    r.as[Json](resourceCtx).map(_.replaceContext(resourceCtxUri))
-
-  def json(res: ResourceV)(implicit output: JsonLDOutputFormat): DecoderResult[Json] =
+  def json(res: ResourceV)(implicit output: JsonLDOutputFormat): Either[String, Json] =
     output match {
       case Compacted => jsonCompacted(res)
       case Expanded  => jsonExpanded(res)
@@ -43,9 +24,9 @@ object ResourceEncoder {
 
   private val resourceKeys: List[String] = resourceCtx.contextValue.asObject.map(_.keys.toList).getOrElse(List.empty)
 
-  private def jsonCompacted(res: ResourceV): DecoderResult[Json] = {
+  private def jsonCompacted(res: ResourceV): Either[String, Json] = {
     val flattenedContext = Json.obj("@context" -> res.value.ctx) mergeContext resourceCtx
-    res.as[Json](flattenedContext).map { fieldsJson =>
+    res.value.graph.toJson(flattenedContext).map { fieldsJson =>
       val contextJson =
         Json.obj("@context" -> res.value.source.contextValue.removeKeys(resourceKeys: _*)).addContext(resourceCtxUri)
       val json = fieldsJson deepMerge contextJson
@@ -54,5 +35,6 @@ object ResourceEncoder {
     }
   }
 
-  private def jsonExpanded(r: ResourceV): DecoderResult[Json] = r.as[Json]()
+  private def jsonExpanded(r: ResourceV): Either[String, Json] =
+    r.value.graph.toJson()
 }

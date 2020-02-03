@@ -1,58 +1,50 @@
 package ch.epfl.bluebrain.nexus.kg.indexing
 
-import cats.Id
 import cats.syntax.show._
 import ch.epfl.bluebrain.nexus.iam.client.config.IamClientConfig
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity.{Authenticated, Group, User}
-import ch.epfl.bluebrain.nexus.kg.config.Vocabulary._
+import ch.epfl.bluebrain.nexus.kg.config.Vocabulary.nxv
 import ch.epfl.bluebrain.nexus.kg.indexing.View.CompositeView.Source._
 import ch.epfl.bluebrain.nexus.kg.indexing.View.CompositeView.{Projection, Source}
 import ch.epfl.bluebrain.nexus.kg.indexing.View._
 import ch.epfl.bluebrain.nexus.rdf.Graph.Triple
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import ch.epfl.bluebrain.nexus.rdf.Node._
-import ch.epfl.bluebrain.nexus.rdf.{Node, RootedGraph}
+import ch.epfl.bluebrain.nexus.rdf.{Graph, GraphEncoder, Node}
 import ch.epfl.bluebrain.nexus.rdf.Vocabulary._
-import ch.epfl.bluebrain.nexus.rdf.encoder.GraphEncoder.EncoderResult
-import ch.epfl.bluebrain.nexus.rdf.encoder.{GraphEncoder, RootNode}
-import ch.epfl.bluebrain.nexus.rdf.instances._
 
 /**
   * Encoders for [[View]]
   */
 object ViewEncoder {
 
-  implicit val viewRootNode: RootNode[View] = v => IriNode(v.id)
+  private def triples(view: SparqlView) =
+    filterTriples(view.id, view.filter) + metadataTriple(view.id, view.includeMetadata)
 
-  private def triples(rootNode: IriOrBNode, view: SparqlView) =
-    filterTriples(rootNode, view.filter) + metadataTriple(rootNode, view.includeMetadata)
-
-  private def triples(rootNode: IriOrBNode, view: ElasticSearchView) =
+  private def triples(view: ElasticSearchView) =
     Set[Triple](
-      metadataTriple(rootNode, view.includeMetadata),
-      (rootNode, nxv.mapping, view.mapping.noSpaces),
-      (rootNode, nxv.sourceAsText, view.sourceAsText)
-    ) ++ filterTriples(rootNode, view.filter)
+      metadataTriple(view.id, view.includeMetadata),
+      (view.id, nxv.mapping, view.mapping.noSpaces),
+      (view.id, nxv.sourceAsText, view.sourceAsText)
+    ) ++ filterTriples(view.id, view.filter)
 
-  implicit def viewGraphEncoder(implicit config: IamClientConfig): GraphEncoder[Id, View] = GraphEncoder {
-    case (rootNode, view: ElasticSearchView) =>
-      RootedGraph(rootNode, triples(rootNode, view) ++ view.mainTriples(nxv.ElasticSearchView))
+  implicit def viewGraphEncoder(implicit config: IamClientConfig): GraphEncoder[View] = GraphEncoder.instance {
+    case view: ElasticSearchView =>
+      Graph(view.id, triples(view) ++ view.mainTriples(nxv.ElasticSearchView))
 
-    case (rootNode, view: SparqlView) =>
-      RootedGraph(rootNode, triples(rootNode, view) ++ view.mainTriples(nxv.SparqlView))
+    case view: SparqlView =>
+      Graph(view.id, triples(view) ++ view.mainTriples(nxv.SparqlView))
 
-    case (rootNode, view: AggregateElasticSearchView) =>
-      val triples = view.mainTriples(nxv.AggregateElasticSearchView) ++ view.triplesForView(view.value)
-      RootedGraph(rootNode, triples)
+    case view: AggregateElasticSearchView =>
+      Graph(view.id, view.mainTriples(nxv.AggregateElasticSearchView) ++ view.triplesForView(view.value))
 
-    case (rootNode, view: AggregateSparqlView) =>
-      val triples = view.mainTriples(nxv.AggregateSparqlView) ++ view.triplesForView(view.value)
-      RootedGraph(rootNode, triples)
+    case view: AggregateSparqlView =>
+      Graph(view.id, view.mainTriples(nxv.AggregateSparqlView) ++ view.triplesForView(view.value))
 
-    case (rootNode, view @ CompositeView(sources, projections, rebuildStrategy, _, _, _, _, _)) =>
+    case composite @ CompositeView(sources, projections, rebuildStrategy, _, _, _, _, _) =>
       val sourcesTriples = sources.foldLeft(Set.empty[Triple]) { (acc, source) =>
-        val sourceCommon = sourceCommons(rootNode, source)
+        val sourceCommon = sourceCommons(composite.id, source)
         source match {
           case ProjectEventStream(id, _, _, _) =>
             acc ++ sourceCommon + ((id, rdf.tpe, nxv.ProjectEventStream))
@@ -71,7 +63,7 @@ object ViewEncoder {
         .map { interval =>
           val node = Node.blank
           Set[Triple](
-            (rootNode, nxv.rebuildStrategy, node),
+            (composite.id, nxv.rebuildStrategy, node),
             (node, rdf.tpe, nxv.Interval),
             (node, nxv.value, interval.value.toString())
           )
@@ -81,29 +73,26 @@ object ViewEncoder {
         case Projection.ElasticSearchProjection(query, view, context) =>
           val node: IriNode = view.id
           Set[Triple](
-            (rootNode, nxv.projections, node),
+            (composite.id, nxv.projections, node),
             (node, rdf.tpe, nxv.ElasticSearch),
             (node, nxv.query, query),
             (node, nxv.uuid, view.uuid.toString),
             (node, nxv.context, context.noSpaces)
-          ) ++ triples(node, view)
+          ) ++ triples(view)
         case Projection.SparqlProjection(query, view) =>
           val node: IriNode = view.id
           Set[Triple](
-            (rootNode, nxv.projections, node),
+            (composite.id, nxv.projections, node),
             (node, rdf.tpe, nxv.Sparql),
             (node, nxv.query, query),
             (node, nxv.uuid, view.uuid.toString)
-          ) ++ triples(node, view)
+          ) ++ triples(view)
       }
-      RootedGraph(
-        rootNode,
-        view.mainTriples(nxv.CompositeView) ++ sourcesTriples ++ projectionsTriples ++ rebuildTriples
+      Graph(
+        composite.id,
+        composite.mainTriples(nxv.CompositeView) ++ sourcesTriples ++ projectionsTriples ++ rebuildTriples
       )
   }
-
-  implicit def viewGraphEncoderEither(implicit config: IamClientConfig): GraphEncoder[EncoderResult, View] =
-    viewGraphEncoder.toEither
 
   private def sourceCommons(s: IriOrBNode, source: Source): Set[Triple] =
     Set[Triple](
@@ -122,7 +111,7 @@ object ViewEncoder {
   private def metadataTriple(s: IriOrBNode, includeMetadata: Boolean): Triple =
     (s, nxv.includeMetadata, includeMetadata)
 
-  def identitiesTriples(s: IriOrBNode, identities: List[Identity])(implicit config: IamClientConfig): Set[Triple] =
+  def identitiesTriples(s: IriOrBNode, identities: Set[Identity])(implicit config: IamClientConfig): Set[Triple] =
     identities.foldLeft(Set.empty[Triple]) { (acc, identity) =>
       val (identityId, triples) = identityTriples(identity)
       acc + ((s, nxv.identities, identityId)) ++ triples

@@ -14,8 +14,7 @@ import ch.epfl.bluebrain.nexus.kg.resources.ResourceF.Value
 import ch.epfl.bluebrain.nexus.kg.resources.{Ref, ResId, ResourceF}
 import ch.epfl.bluebrain.nexus.kg.storage.AkkaSource
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
-import ch.epfl.bluebrain.nexus.rdf.instances._
-import ch.epfl.bluebrain.nexus.rdf.syntax._
+import ch.epfl.bluebrain.nexus.rdf.implicits._
 import io.circe.Json
 
 trait TestHelper extends EitherValues with Randomness {
@@ -34,7 +33,7 @@ trait TestHelper extends EitherValues with Randomness {
 
   def resourceAcls(acl: AccessControlList): ResourceAccessControlList =
     ResourceAccessControlList(
-      url"http://example.com/id".value,
+      url"http://example.com/id",
       1L,
       Set.empty,
       clock.instant(),
@@ -66,7 +65,7 @@ trait TestHelper extends EitherValues with Randomness {
       created,
       updated,
       schema,
-      Value(value, value.contextValue, value.asGraph(id.value).rightValue)
+      Value(value, value.contextValue, value.toGraph(id.value).rightValue)
     )
 
   def simpleV(res: ResourceF[Json])(implicit clock: Clock) = ResourceF(
@@ -81,12 +80,12 @@ trait TestHelper extends EitherValues with Randomness {
     res.createdBy,
     res.updatedBy,
     res.schema,
-    Value(res.value, res.value.contextValue, res.value.asGraph(res.id.value).rightValue)
+    Value(res.value, res.value.contextValue, res.value.toGraph(res.id.value).rightValue)
   )
 
   def genUUID: UUID = UUID.randomUUID()
 
-  def genIri: AbsoluteIri = url"http://example.com/".value + genUUID.toString
+  def genIri: AbsoluteIri = url"http://example.com/" + genUUID.toString
 
   private def sourceInChunks(input: String): AkkaSource =
     Source.fromIterator(() => input.grouped(10000).map(ByteString(_)))

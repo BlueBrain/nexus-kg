@@ -13,7 +13,6 @@ import ch.epfl.bluebrain.nexus.kg.resources.Rejection.InvalidResourceFormat
 import ch.epfl.bluebrain.nexus.kg.resources._
 import ch.epfl.bluebrain.nexus.kg.resources.syntax._
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
-import ch.epfl.bluebrain.nexus.rdf.syntax._
 import shapeless.{TypeCase, Typeable}
 
 /**
@@ -76,23 +75,23 @@ object Resolver {
     * @return Some(resolver) if the resource is compatible with a Resolver, None otherwise
     */
   final def apply(res: ResourceV): Either[Rejection, Resolver] = {
-    val c  = res.value.graph.cursor()
+    val c  = res.value.graph.cursor
     val id = res.id
 
     def inProject: Either[Rejection, Resolver] =
       for {
-        priority <- c.downField(nxv.priority).focus.as[Int].onError(res.id.ref, nxv.priority.prefix)
+        priority <- c.down(nxv.priority).as[Int].onError(res.id.ref, nxv.priority.prefix)
       } yield InProjectResolver(id.parent, id.value, res.rev, res.deprecated, priority)
 
     def crossProject: Either[Rejection, CrossProjectResolver] =
       // format: off
       for {
-        ids       <- identities(res.id, c.downField(nxv.identities).downSet)
-        prio      <- c.downField(nxv.priority).focus.as[Int].onError(res.id.ref, nxv.priority.prefix)
-        projects  <- c.downField(nxv.projects).values.asListOf[ProjectIdentifier].onError(res.id.ref, nxv.projects.prefix)
-        types     <- c.downField(nxv.resourceTypes).values.asListOf[AbsoluteIri].withDefault(List.empty).map(_.toSet).onError(res.id.ref, nxv.resourceTypes.prefix)
-      } yield CrossProjectResolver(types, projects.toList, ids, id.parent, id.value, res.rev, res.deprecated, prio)
-      // format: on
+        ids       <- identities(res.id, c.downSet(nxv.identities).cursors.getOrElse(Set.empty))
+        prio      <- c.down(nxv.priority).as[Int].onError(res.id.ref, nxv.priority.prefix)
+        projects  <- c.down(nxv.projects).as[List[ProjectIdentifier]].onError(res.id.ref, nxv.projects.prefix)
+        types     <- c.downSet(nxv.resourceTypes).as[Set[AbsoluteIri]].onError(res.id.ref, nxv.resourceTypes.prefix)
+      } yield CrossProjectResolver(types, projects, ids, id.parent, id.value, res.rev, res.deprecated, prio)
+    // format: on
 
     if (Set(nxv.Resolver.value, nxv.CrossProject.value).subsetOf(res.types)) crossProject
     else if (Set(nxv.Resolver.value, nxv.InProject.value).subsetOf(res.types)) inProject
@@ -127,7 +126,7 @@ object Resolver {
   final case class CrossProjectResolver(
       resourceTypes: Set[AbsoluteIri],
       projects: List[ProjectIdentifier],
-      identities: List[Identity],
+      identities: Set[Identity],
       ref: ProjectRef,
       id: AbsoluteIri,
       rev: Long,

@@ -17,7 +17,7 @@ import ch.epfl.bluebrain.nexus.commons.http.HttpClient
 import ch.epfl.bluebrain.nexus.commons.http.HttpClient.UntypedHttpClient
 import ch.epfl.bluebrain.nexus.commons.http.JsonLdCirceSupport._
 import ch.epfl.bluebrain.nexus.commons.http.RdfMediaTypes.`application/ld+json`
-import ch.epfl.bluebrain.nexus.commons.rdf.syntax._
+import ch.epfl.bluebrain.nexus.rdf.implicits._
 import ch.epfl.bluebrain.nexus.iam.client.IamClientError.{Forbidden, Unauthorized}
 import ch.epfl.bluebrain.nexus.iam.client.types.AuthToken
 import ch.epfl.bluebrain.nexus.kg.client.KgClientError._
@@ -92,7 +92,7 @@ class KgClient[F[_]] private[client] (
     }
 
   private def requestFrom(iri: AbsoluteIri, query: Query)(implicit credentials: Option[AuthToken]) = {
-    val request = Get(iri.toAkkaUri.withQuery(query)).addHeader(accept)
+    val request = Get(iri.asAkka.withQuery(query)).addHeader(accept)
     credentials.map(token => request.addCredentials(OAuth2BearerToken(token.value))).getOrElse(request)
   }
 

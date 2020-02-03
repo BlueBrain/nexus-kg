@@ -4,13 +4,11 @@ import java.time.Instant
 
 import cats.data.EitherT
 import cats.effect.Effect
-import cats.{Id => CId}
+import cats.implicits._
 import ch.epfl.bluebrain.nexus.admin.client.types.Project
 import ch.epfl.bluebrain.nexus.commons.es.client.ElasticSearchClient
 import ch.epfl.bluebrain.nexus.commons.http.HttpClient
-import ch.epfl.bluebrain.nexus.commons.rdf.syntax._
 import ch.epfl.bluebrain.nexus.commons.search.{FromPagination, Pagination}
-import ch.epfl.bluebrain.nexus.commons.shacl.ShaclEngine
 import ch.epfl.bluebrain.nexus.commons.sparql.client.BlazegraphClient
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity.Subject
 import ch.epfl.bluebrain.nexus.kg.cache.StorageCache
@@ -30,15 +28,13 @@ import ch.epfl.bluebrain.nexus.kg.routes.SearchParams
 import ch.epfl.bluebrain.nexus.kg.storage.Storage
 import ch.epfl.bluebrain.nexus.kg.storage.Storage.StorageOperations.Verify
 import ch.epfl.bluebrain.nexus.kg.storage.StorageEncoder._
-import ch.epfl.bluebrain.nexus.rdf.Graph.Triple
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import ch.epfl.bluebrain.nexus.rdf.Node.IriNode
-import ch.epfl.bluebrain.nexus.rdf.RootedGraph
+import ch.epfl.bluebrain.nexus.rdf.Graph
 import ch.epfl.bluebrain.nexus.rdf.Vocabulary.rdf
-import ch.epfl.bluebrain.nexus.rdf.instances._
-import ch.epfl.bluebrain.nexus.rdf.syntax._
+import ch.epfl.bluebrain.nexus.rdf.implicits._
+import ch.epfl.bluebrain.nexus.rdf.shacl.ShaclEngine
 import io.circe.Json
-import org.apache.jena.rdf.model.Model
 
 class Storages[F[_]](repo: Repo[F])(
     implicit F: Effect[F],
@@ -93,8 +89,8 @@ class Storages[F[_]](repo: Repo[F])(
   )(implicit subject: Subject, verify: Verify[F], project: Project): RejOrResource[F] =
     for {
       matValue <- materializer(source.addContext(storageCtxUri), id.value)
-      typedGraph = addStorageType(id.value, matValue.graph)
-      types      = typedGraph.rootTypes.map(_.value)
+      typedGraph = addStorageType(matValue.graph)
+      types      = typedGraph.rootTypes
       _       <- validateShacl(typedGraph)
       storage <- storageValidation(id, typedGraph, 1L, types)
       json    <- jsonForRepo(storage.encrypt)
@@ -251,18 +247,19 @@ class Storages[F[_]](repo: Repo[F])(
 
   private def fetch(resource: Resource, dropKeys: Boolean)(implicit project: Project): RejOrResourceV[F] =
     materializer.withMeta(resource).map { resourceV =>
-      val graph      = resourceV.value.graph
-      val filter     = Set[IriNode](nxv.accessKey, nxv.secretKey, nxv.credentials)
-      val finalGraph = if (dropKeys) graph.remove(p = filter.contains) else graph
-      resourceV.map(_.copy(graph = RootedGraph(graph.rootNode, finalGraph)))
+      val graph  = resourceV.value.graph
+      val filter = Set[IriNode](nxv.accessKey, nxv.secretKey, nxv.credentials)
+      val finalGraph = if (dropKeys) graph.filter { case (_, p, _) => !filter.contains(p) }
+      else graph
+      resourceV.map(_.copy(graph = finalGraph))
     }
 
   private def create(
       id: ResId,
-      graph: RootedGraph
+      graph: Graph
   )(implicit subject: Subject, project: Project, verify: Verify[F]): RejOrResource[F] = {
-    val typedGraph = addStorageType(id.value, graph)
-    val types      = typedGraph.rootTypes.map(_.value)
+    val typedGraph = addStorageType(graph)
+    val types      = typedGraph.rootTypes
 
     for {
       _       <- validateShacl(typedGraph)
@@ -273,15 +270,13 @@ class Storages[F[_]](repo: Repo[F])(
     } yield created
   }
 
-  private def addStorageType(id: AbsoluteIri, graph: RootedGraph): RootedGraph =
-    RootedGraph(id, graph.triples + ((id.value, rdf.tpe, nxv.Storage): Triple))
+  private def addStorageType(graph: Graph): Graph =
+    graph.append(rdf.tpe, nxv.Storage)
 
-  private def validateShacl(data: RootedGraph): EitherT[F, Rejection, Unit] = {
-    val model: CId[Model] = data.as[Model]()
-    toEitherT(storageRef, ShaclEngine(model, storageSchemaModel, validateShapes = false, reportDetails = true))
-  }
+  private def validateShacl(data: Graph): EitherT[F, Rejection, Unit] =
+    toEitherT(storageRef, ShaclEngine(data.asJena, storageSchemaModel, validateShapes = false, reportDetails = true))
 
-  private def storageValidation(resId: ResId, graph: RootedGraph, rev: Long, types: Set[AbsoluteIri])(
+  private def storageValidation(resId: ResId, graph: Graph, rev: Long, types: Set[AbsoluteIri])(
       implicit verify: Verify[F]
   ): EitherT[F, Rejection, Storage] = {
     val resource =
@@ -293,9 +288,9 @@ class Storages[F[_]](repo: Repo[F])(
   }
 
   private def jsonForRepo(storage: Storage): EitherT[F, Rejection, Json] = {
-    val graph                = storage.asGraph[CId].removeMetadata
-    val jsonOrMarshallingErr = graph.as[Json](storageCtx).map(_.replaceContext(storageCtxUri))
-    EitherT.fromEither[F](jsonOrMarshallingErr).leftSemiflatMap(fromMarshallingErr(storage.id, _)(F))
+    val graph     = storage.asGraph.removeMetadata
+    val errOrJson = graph.toJson(storageCtx).map(_.replaceContext(storageCtxUri)).leftMap(err => InvalidJsonLD(err))
+    EitherT.fromEither[F](errOrJson)
   }
 }
 

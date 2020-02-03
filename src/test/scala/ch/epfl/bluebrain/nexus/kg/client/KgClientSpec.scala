@@ -27,8 +27,7 @@ import ch.epfl.bluebrain.nexus.kg.resources.Event.JsonLd._
 import ch.epfl.bluebrain.nexus.kg.resources.syntax._
 import ch.epfl.bluebrain.nexus.kg.resources.{Event, Id, ResourceF, ResourceV}
 import ch.epfl.bluebrain.nexus.kg.{urlEncode, TestHelper}
-import ch.epfl.bluebrain.nexus.rdf.instances._
-import ch.epfl.bluebrain.nexus.rdf.syntax._
+import ch.epfl.bluebrain.nexus.rdf.implicits._
 import io.circe.Json
 import org.mockito.{ArgumentMatchersSugar, IdiomaticMockito, Mockito}
 import org.scalatest.concurrent.Eventually
@@ -54,7 +53,7 @@ class KgClientSpec
   override implicit val patienceConfig: PatienceConfig = PatienceConfig(5.seconds, 15.milliseconds)
 
   private val config =
-    KgClientConfig(url"http://example.com/".value, "v1")
+    KgClientConfig(url"http://example.com/", "v1")
 
   private val resClient: HttpClient[IO, ResourceV] = mock[HttpClient[IO, ResourceV]]
   private val accept                               = Accept(`application/json`.mediaType, `application/ld+json`)
@@ -70,16 +69,16 @@ class KgClientSpec
     // format: off
     val project = Project(genIri, genString(), genString(), None, genIri, genIri, Map.empty, genUUID, genUUID, 1L, false, Instant.EPOCH, genIri, Instant.EPOCH, genIri)
     // format: on
-    val id         = url"http://example.com/prefix/myId".value
+    val id         = url"http://example.com/prefix/myId"
     val resourceId = urlEncode(id)
 
     val json          = jsonContentOf("/serialization/resource.json")
-    private val graph = json.asGraph(id).rightValue
+    private val graph = json.toGraph(id).rightValue
 
     val model = ResourceF(
-      Id(project.ref, url"http://example.com/prefix/myId".value),
+      Id(project.ref, url"http://example.com/prefix/myId"),
       1L,
-      Set(url"https://example.com/vocab/A".value, url"https://example.com/vocab/B".value),
+      Set(url"https://example.com/vocab/A", url"https://example.com/vocab/B"),
       deprecated = false,
       Map.empty,
       None,
@@ -94,7 +93,7 @@ class KgClientSpec
 
     val resourceEndpoint =
       s"http://example.com/v1/resources/${project.organizationLabel}/${project.label}/_/$resourceId"
-    val eventsEndpoint = url"http://example.com/v1/resources/${project.organizationLabel}/${project.label}/events".value
+    val eventsEndpoint = url"http://example.com/v1/resources/${project.organizationLabel}/${project.label}/events"
   }
 
   "A KgClient" when {

@@ -3,25 +3,19 @@ package ch.epfl.bluebrain.nexus.kg.resources.file
 import java.security.MessageDigest
 import java.util.UUID
 
+import cats.implicits._
 import akka.http.scaladsl.model.ContentTypes.`application/octet-stream`
 import akka.http.scaladsl.model.Uri.Path
 import akka.http.scaladsl.model.Uri.Path.{Empty, Segment, SingleSlash}
 import akka.http.scaladsl.model.{ContentType, Uri}
-import ch.epfl.bluebrain.nexus.commons.rdf.instances._
 import ch.epfl.bluebrain.nexus.iam.client.types.Permission
 import ch.epfl.bluebrain.nexus.kg.config.Contexts._
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary.nxv
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection.{InvalidJsonLD, InvalidResourceFormat}
 import ch.epfl.bluebrain.nexus.kg.resources.syntax._
-import ch.epfl.bluebrain.nexus.kg.resources.{nonEmpty, Rejection, ResId}
-import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
-import ch.epfl.bluebrain.nexus.rdf.Vocabulary.rdf
-import ch.epfl.bluebrain.nexus.rdf.encoder.GraphEncoder._
-import ch.epfl.bluebrain.nexus.rdf.encoder.NodeEncoder.{stringEncoder, EncoderResult}
-import ch.epfl.bluebrain.nexus.rdf.encoder.NodeEncoderError
-import ch.epfl.bluebrain.nexus.rdf.encoder.NodeEncoderError.IllegalConversion
-import ch.epfl.bluebrain.nexus.rdf.instances._
-import ch.epfl.bluebrain.nexus.rdf.syntax._
+import ch.epfl.bluebrain.nexus.kg.resources.{Rejection, ResId}
+import ch.epfl.bluebrain.nexus.rdf.{Cursor, DecodingError, GraphDecoder, NonEmptyString}
+import ch.epfl.bluebrain.nexus.rdf.implicits._
 import io.circe.Json
 import ch.epfl.bluebrain.nexus.storage.client.types.FileAttributes.{Digest => StorageDigest}
 import ch.epfl.bluebrain.nexus.storage.client.types.{FileAttributes => StorageFileAttributes}
@@ -30,6 +24,19 @@ import scala.annotation.tailrec
 import scala.util.Try
 
 object File {
+
+  private implicit final val contentyTypeGraphDecoder: GraphDecoder[ContentType] =
+    GraphDecoder.graphDecodeString.emap { str =>
+      ContentType.parse(str).leftMap(_ => s"Unable to parse string '$str' as a valid Content-Type.")
+    }
+  private implicit final val pathGraphDecoder: GraphDecoder[Path] =
+    GraphDecoder.graphDecodeString.emap { str =>
+      Try(Path(str)).toEither.leftMap(_ => s"Unable to parse string '$str' as a valid Path.")
+    }
+  private implicit final val uriGraphDecoder: GraphDecoder[Uri] =
+    GraphDecoder.graphDecodeString.emap { str =>
+      Try(Uri(str)).toEither.leftMap(_ => s"Unable to parse string '$str' as a valid Uri.")
+    }
 
   val write: Permission = Permission.unsafe("files/write")
 
@@ -51,16 +58,18 @@ object File {
       * @param source the JSON payload
       * @return a link description if the resource is compatible or a rejection otherwise
       */
-    final def apply(id: ResId, source: Json): Either[Rejection, LinkDescription] =
+    final def apply(id: ResId, source: Json): Either[Rejection, LinkDescription] = {
       // format: off
       for {
-        graph       <- source.replaceContext(storageCtx).id(id.value).asGraph(id.value).left.map(_ => InvalidJsonLD("Invalid JSON payload."))
-        c            = graph.cursor()
-        filename    <- c.downField(nxv.filename).focus.asOption[String].flatMap(nonEmpty).onError(id.ref, nxv.filename.prefix)
-        mediaType   <- c.downField(nxv.mediaType).focus.asOption[ContentType].onError(id.ref, nxv.mediaType.prefix)
-        path        <- c.downField(nxv.path).focus.as[Path].onError(id.ref, nxv.path.prefix)
+        graph       <- source.replaceContext(storageCtx).id(id.value).toGraph(id.value).left.map(_ => InvalidJsonLD("Invalid JSON payload."))
+        c            = graph.cursor
+        filename    <- c.down(nxv.filename).as[Option[NonEmptyString]].map(_.map(_.asString)).onError(id.ref, nxv.filename.prefix)
+        mediaType   <- c.down(nxv.mediaType).as[Option[ContentType]].onError(id.ref, nxv.mediaType.prefix)
+        path        <- c.down(nxv.path).as[Path].onError(id.ref, nxv.path.prefix)
       } yield LinkDescription(path, filename, mediaType)
-    // format: on
+      // format: on
+    }
+
   }
 
   /**
@@ -134,23 +143,27 @@ object File {
     final def apply(resId: ResId, json: Json): Either[Rejection, StorageFileAttributes] =
       // format: off
       for {
-        graph     <- (json deepMerge fileAttrCtx).id(resId.value).asGraph(resId.value).left.map(_ => InvalidResourceFormat(resId.ref, "Empty or wrong Json-LD"))
-        cursor     = graph.cursor()
-        _         <- cursor.downField(rdf.tpe).focus.as[AbsoluteIri].flatMap(validType).onError(resId.ref, "@type")
-        mediaType <- cursor.downField(nxv.mediaType).focus.as[ContentType].onError(resId.ref, "mediaType")
-        bytes     <- cursor.downField(nxv.bytes).focus.as[Long].onError(resId.ref, nxv.bytes.prefix)
-        location  <- cursor.downField(nxv.location).focus.as[Uri].onError(resId.ref, nxv.location.prefix)
-        digestC    = cursor.downField(nxv.digest)
-        algorithm <- digestC.downField(nxv.algorithm).focus.as[String].flatMap(validAlgorithm).onError(resId.ref, "algorithm")
-        value     <- digestC.downField(nxv.value).focus.as[String].flatMap(nonEmpty).onError(resId.ref, "value")
+        graph     <- (json deepMerge fileAttrCtx).id(resId.value).toGraph(resId.value).leftMap(_ => InvalidResourceFormat(resId.ref, "Empty or wrong Json-LD"): Rejection)
+        cursor     = graph.cursor
+        _         <- cursor.expectType(nxv.UpdateFileAttributes.value).onError(resId.ref, "@type")
+        mediaType <- cursor.down(nxv.mediaType).as[ContentType].onError(resId.ref, "mediaType")
+        bytes     <- cursor.down(nxv.bytes).as[Long].onError(resId.ref, nxv.bytes.prefix)
+        location  <- cursor.down(nxv.location).as[Uri].onError(resId.ref, nxv.location.prefix)
+        digestC    = cursor.down(nxv.digest)
+        algorithm <- decodeAlgorithm(digestC).onError(resId.ref, "algorithm")
+        value     <- digestC.down(nxv.value).as[NonEmptyString].map(_.asString).onError(resId.ref, "value")
       } yield StorageFileAttributes(location, bytes, StorageDigest(algorithm, value), mediaType)
     // format: on
 
-    private def validType(iri: AbsoluteIri): EncoderResult[AbsoluteIri] =
-      if (iri == nxv.UpdateFileAttributes.value) Right(iri) else Left(IllegalConversion(""))
-
-    private def validAlgorithm(s: String): EncoderResult[String] =
-      Try(MessageDigest.getInstance(s)).map(_ => s).toOption.toRight[NodeEncoderError](IllegalConversion(""))
+    private def decodeAlgorithm(c: Cursor): Either[DecodingError, String] = {
+      val focus = c.down(nxv.algorithm)
+      focus.as[String].flatMap { s =>
+        Try(MessageDigest.getInstance(s))
+          .map(_ => s)
+          .toEither
+          .leftMap(_ => DecodingError(s"Unable to decode string '$s' as a valid digest algorithm.", c.history))
+      }
+    }
   }
 
   /**

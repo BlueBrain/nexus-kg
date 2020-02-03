@@ -12,8 +12,6 @@ import ch.epfl.bluebrain.nexus.kg.resources.Rejection.NotFound.notFound
 import ch.epfl.bluebrain.nexus.kg.resources.{Ref, Rejection, ResourceV}
 import ch.epfl.bluebrain.nexus.kg.routes.OutputFormat.{DOT, Triples}
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
-import ch.epfl.bluebrain.nexus.rdf.syntax._
-import ch.epfl.bluebrain.nexus.rdf.{Dot, NTriples}
 import monix.execution.Scheduler.Implicits.global
 
 import scala.concurrent.Future
@@ -34,10 +32,10 @@ package object routes {
         complete(fetched.value)
       case Triples =>
         implicit val format = Triples
-        complete(fetched.map { case (status, resource) => status -> resource.value.graph.as[NTriples]().value }.value)
+        complete(fetched.map { case (status, resource) => status -> resource.value.graph.ntriples }.value)
       case DOT =>
         implicit val format = DOT
-        complete(fetched.map { case (status, resource) => status -> resource.value.graph.as[Dot]().value }.value)
+        complete(fetched.map { case (status, resource) => status -> resource.value.graph.dot() }.value)
     }
 
   private[routes] val read: Permission = Permission.unsafe("resources/read")

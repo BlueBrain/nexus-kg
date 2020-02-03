@@ -20,9 +20,8 @@ import ch.epfl.bluebrain.nexus.kg.resources.Id
 import ch.epfl.bluebrain.nexus.kg.resources.ProjectIdentifier.ProjectRef
 import ch.epfl.bluebrain.nexus.kg.storage.Storage._
 import ch.epfl.bluebrain.nexus.kg.storage.StorageEncoder._
-import ch.epfl.bluebrain.nexus.rdf.syntax._
+import ch.epfl.bluebrain.nexus.rdf.implicits._
 import ch.epfl.bluebrain.nexus.sourcing.RetryStrategyConfig
-import io.circe.Json
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AnyWordSpecLike
 import org.scalatest.{Inspectors, OptionValues}
@@ -65,7 +64,7 @@ class StorageSpec
   )
 
   "A Storage" when {
-    val iri        = url"http://example.com/id".value
+    val iri        = url"http://example.com/id"
     val projectRef = ProjectRef(genUUID)
     val id         = Id(projectRef, iri)
 
@@ -263,7 +262,8 @@ class StorageSpec
           )
         ) {
           case (storage, expectedJson) =>
-            val json = storage.as[Json](storageCtx.appendContextOf(resourceCtx)).rightValue.removeNestedKeys("@context")
+            val json =
+              storage.asGraph.toJson(storageCtx.appendContextOf(resourceCtx)).rightValue.removeNestedKeys("@context")
             json should equalIgnoreArrayOrder(expectedJson.removeNestedKeys("@context"))
         }
       }

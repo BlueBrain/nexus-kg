@@ -19,7 +19,7 @@ import ch.epfl.bluebrain.nexus.kg.resources.{Id, OrganizationRef}
 import ch.epfl.bluebrain.nexus.kg.resources.ProjectIdentifier.ProjectRef
 import ch.epfl.bluebrain.nexus.kg.storage.Storage.DiskStorage
 import ch.epfl.bluebrain.nexus.rdf.Iri.Path
-import ch.epfl.bluebrain.nexus.rdf.syntax.node.unsafe._
+import ch.epfl.bluebrain.nexus.rdf.implicits._
 import com.typesafe.config.{Config, ConfigFactory}
 import io.circe.Json
 import org.mockito.IdiomaticMockito
@@ -48,7 +48,7 @@ class EventsSpecBase
 
   override def testConfig: Config = ConfigFactory.load("test.conf")
 
-  val base = url"http://example.com/base".value
+  val base = url"http://example.com/base"
 
   val instant = Instant.EPOCH
   val subject = User("uuid", "myrealm")

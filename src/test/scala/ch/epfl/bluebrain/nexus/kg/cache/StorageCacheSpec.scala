@@ -10,7 +10,7 @@ import ch.epfl.bluebrain.nexus.kg.config.AppConfig._
 import ch.epfl.bluebrain.nexus.kg.config.{AppConfig, Settings}
 import ch.epfl.bluebrain.nexus.kg.resources.ProjectIdentifier.{ProjectRef}
 import ch.epfl.bluebrain.nexus.kg.storage.Storage.DiskStorage
-import ch.epfl.bluebrain.nexus.rdf.syntax._
+import ch.epfl.bluebrain.nexus.rdf.implicits._
 import monix.eval.Task
 import monix.execution.Scheduler.Implicits.global
 import org.scalatest.concurrent.ScalaFutures
@@ -37,7 +37,7 @@ class StorageCacheSpec
   val ref2 = ProjectRef(genUUID)
 
   val time   = clock.instant()
-  val lastId = url"http://example.com/lastA".value
+  val lastId = url"http://example.com/lastA"
   // initialInstant.minusSeconds(1L + genInt().toLong)
 
   val tempStorage = DiskStorage(ref1, genIri, 1L, false, true, "alg", Paths.get("/tmp"), read, write, 1024L)

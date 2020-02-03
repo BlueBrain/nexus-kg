@@ -15,7 +15,7 @@ import ch.epfl.bluebrain.nexus.kg.config.Schemas._
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary._
 import ch.epfl.bluebrain.nexus.kg.storage.Crypto
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
-import ch.epfl.bluebrain.nexus.rdf.syntax.node.unsafe._
+import ch.epfl.bluebrain.nexus.rdf.implicits._
 import ch.epfl.bluebrain.nexus.sourcing.RetryStrategyConfig
 import ch.epfl.bluebrain.nexus.sourcing.akka.aggregate.AggregateConfig
 import ch.epfl.bluebrain.nexus.sourcing.akka.statemachine.StateMachineConfig
@@ -96,7 +96,7 @@ object AppConfig {
     /**
       * The base IRI for all resource IDs.
       */
-    val baseIri: AbsoluteIri = url"$publicUri/$prefix".value
+    val baseIri: AbsoluteIri = url"$publicUri/$prefix"
 
     val projectsIri: AbsoluteIri = baseIri + "projects"
   }

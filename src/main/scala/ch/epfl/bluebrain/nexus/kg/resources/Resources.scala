@@ -5,9 +5,7 @@ import cats.effect.Effect
 import ch.epfl.bluebrain.nexus.admin.client.types.Project
 import ch.epfl.bluebrain.nexus.commons.es.client.ElasticSearchClient
 import ch.epfl.bluebrain.nexus.commons.http.HttpClient
-import ch.epfl.bluebrain.nexus.commons.rdf.syntax._
 import ch.epfl.bluebrain.nexus.commons.search.{FromPagination, Pagination}
-import ch.epfl.bluebrain.nexus.commons.shacl.ShaclEngine
 import ch.epfl.bluebrain.nexus.commons.sparql.client.BlazegraphClient
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity.Subject
 import ch.epfl.bluebrain.nexus.kg._
@@ -21,16 +19,14 @@ import ch.epfl.bluebrain.nexus.kg.resources.ResourceF.Value
 import ch.epfl.bluebrain.nexus.kg.resources.Resources._
 import ch.epfl.bluebrain.nexus.kg.resources.syntax._
 import ch.epfl.bluebrain.nexus.kg.routes.SearchParams
+import ch.epfl.bluebrain.nexus.rdf.Graph
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import ch.epfl.bluebrain.nexus.rdf.Node.blank
-import ch.epfl.bluebrain.nexus.rdf.Vocabulary._
-import ch.epfl.bluebrain.nexus.rdf.circe.JsonLd.IdRetrievalError
-import ch.epfl.bluebrain.nexus.rdf.instances._
-import ch.epfl.bluebrain.nexus.rdf.syntax._
-import ch.epfl.bluebrain.nexus.rdf.{Graph, RootedGraph}
+import ch.epfl.bluebrain.nexus.rdf.implicits._
+import ch.epfl.bluebrain.nexus.rdf.jsonld.JsonLd.IdRetrievalError
+import ch.epfl.bluebrain.nexus.rdf.shacl.ShaclEngine
 import io.circe.Json
 import io.circe.syntax._
-import org.apache.jena.rdf.model.Model
 
 /**
   * Resource operations.
@@ -78,12 +74,12 @@ class Resources[F[_]](
     }
   }
 
-  private def create(id: ResId, schema: Ref, source: Json, graph: RootedGraph)(
+  private def create(id: ResId, schema: Ref, source: Json, graph: Graph)(
       implicit subject: Subject,
       project: Project
   ): RejOrResource[F] =
     validate(schema, graph).flatMap { _ =>
-      repo.create(id, OrganizationRef(project.organizationUuid), schema, graph.types(id.value).map(_.value), source)
+      repo.create(id, OrganizationRef(project.organizationUuid), schema, graph.rootTypes, source)
     }
 
   /**
@@ -104,7 +100,7 @@ class Resources[F[_]](
       matValue <- materializer(sourceWithCtx, id.value)
       graph = matValue.graph.removeMetadata
       _       <- validate(schema, graph)
-      updated <- repo.update(id, schema, rev, graph.types(id.value).map(_.value), sourceWithCtx)
+      updated <- repo.update(id, schema, rev, graph.rootTypes, sourceWithCtx)
     } yield updated
   }
 
@@ -347,9 +343,9 @@ class Resources[F[_]](
         schemaContext().flatMap { resolved =>
           val resolvedSchemaSets =
             resolved.schemaImports.foldLeft(resolved.schema.value.graph.triples)(_ ++ _.value.graph.triples)
-          val resolvedSchema   = RootedGraph(blank, resolvedSchemaSets).as[Model]()
+          val resolvedSchema   = Graph(blank, resolvedSchemaSets).asJena
           val resolvedDataSets = resolved.dataImports.foldLeft(data.triples)(_ ++ _.value.graph.triples)
-          val resolvedData     = RootedGraph(blank, resolvedDataSets).as[Model]()
+          val resolvedData     = Graph(blank, resolvedDataSets).asJena
           toEitherT(schema, ShaclEngine(resolvedData, resolvedSchema, validateShapes = false, reportDetails = true))
         }
     }

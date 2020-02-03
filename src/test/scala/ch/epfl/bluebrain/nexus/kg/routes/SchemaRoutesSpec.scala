@@ -32,8 +32,7 @@ import ch.epfl.bluebrain.nexus.kg.resources.ResourceF.Value
 import ch.epfl.bluebrain.nexus.kg.resources._
 import ch.epfl.bluebrain.nexus.rdf.Iri.Path._
 import ch.epfl.bluebrain.nexus.rdf.Iri.{AbsoluteIri, Path}
-import ch.epfl.bluebrain.nexus.rdf.instances._
-import ch.epfl.bluebrain.nexus.rdf.syntax._
+import ch.epfl.bluebrain.nexus.rdf.implicits._
 import ch.epfl.bluebrain.nexus.storage.client.StorageClient
 import com.typesafe.config.{Config, ConfigFactory}
 import io.circe.Json
@@ -138,7 +137,7 @@ class SchemaRoutesSpec
       ResourceF.simpleF(id, schema, created = user, updated = user, schema = shaclRef, types = types)
 
     // format: off
-    val resourceValue = Value(schema, shaclCtx.contextValue, schema.replaceContext(shaclCtx).deepMerge(Json.obj("@id" -> Json.fromString(id.value.asString))).asGraph(id.value).rightValue)
+    val resourceValue = Value(schema, shaclCtx.contextValue, schema.replaceContext(shaclCtx).deepMerge(Json.obj("@id" -> Json.fromString(id.value.asString))).toGraph(id.value).rightValue)
     // format: on
 
     val resourceV =
@@ -224,7 +223,7 @@ class SchemaRoutesSpec
 
     "fetch latest revision of a schema" in new Context {
       schemas.fetch(id) shouldReturn EitherT.rightT[Task, Rejection](resourceV)
-      val expected = resourceValue.graph.as[Json](shaclCtx).rightValue.removeNestedKeys("@context") deepMerge Json.obj(
+      val expected = resourceValue.graph.toJson(shaclCtx).rightValue.removeNestedKeys("@context") deepMerge Json.obj(
         "@type" -> Json.fromString("Schema")
       )
       forAll(endpoints()) { endpoint =>
@@ -237,7 +236,7 @@ class SchemaRoutesSpec
 
     "fetch specific revision of a schema" in new Context {
       schemas.fetch(id, 1L) shouldReturn EitherT.rightT[Task, Rejection](resourceV)
-      val expected = resourceValue.graph.as[Json](shaclCtx).rightValue.removeNestedKeys("@context") deepMerge Json.obj(
+      val expected = resourceValue.graph.toJson(shaclCtx).rightValue.removeNestedKeys("@context") deepMerge Json.obj(
         "@type" -> Json.fromString("Schema")
       )
       forAll(endpoints(rev = Some(1L))) { endpoint =>
@@ -250,7 +249,7 @@ class SchemaRoutesSpec
 
     "fetch specific tag of a schema" in new Context {
       schemas.fetch(id, "some") shouldReturn EitherT.rightT[Task, Rejection](resourceV)
-      val expected = resourceValue.graph.as[Json](shaclCtx).rightValue.removeNestedKeys("@context") deepMerge Json.obj(
+      val expected = resourceValue.graph.toJson(shaclCtx).rightValue.removeNestedKeys("@context") deepMerge Json.obj(
         "@type" -> Json.fromString("Schema")
       )
       forAll(endpoints(tag = Some("some"))) { endpoint =>

@@ -11,7 +11,7 @@ import akka.persistence.query.{NoOffset, Offset, Sequence, TimeBasedUUID}
 import akka.stream.Materializer
 import akka.stream.alpakka.sse.scaladsl.{EventSource => SSESource}
 import akka.stream.scaladsl.Source
-import ch.epfl.bluebrain.nexus.commons.rdf.syntax._
+import ch.epfl.bluebrain.nexus.rdf.implicits._
 import ch.epfl.bluebrain.nexus.iam.client.types.AuthToken
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import com.typesafe.scalalogging.Logger
@@ -67,7 +67,7 @@ object EventSource {
       override def apply(iri: AbsoluteIri, offset: Option[String])(
           implicit cred: Option[AuthToken]
       ): Source[(Offset, A), NotUsed] =
-        SSESource(iri.toAkkaUri, send, offset, config.sseRetryDelay).flatMapConcat { sse =>
+        SSESource(iri.asAkka, send, offset, config.sseRetryDelay).flatMapConcat { sse =>
           val offset = sse.id.map(toOffset).getOrElse(NoOffset)
           decode[A](sse.data) match {
             case Right(ev) => Source.single(offset -> ev)

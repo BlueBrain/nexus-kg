@@ -33,8 +33,7 @@ import ch.epfl.bluebrain.nexus.kg.resources._
 import ch.epfl.bluebrain.nexus.kg.urlEncode
 import ch.epfl.bluebrain.nexus.rdf.Iri.Path._
 import ch.epfl.bluebrain.nexus.rdf.Iri.{AbsoluteIri, Path}
-import ch.epfl.bluebrain.nexus.rdf.syntax._
-import ch.epfl.bluebrain.nexus.rdf.instances._
+import ch.epfl.bluebrain.nexus.rdf.implicits._
 import ch.epfl.bluebrain.nexus.storage.client.StorageClient
 import com.typesafe.config.{Config, ConfigFactory}
 import io.circe.Json
@@ -136,7 +135,7 @@ class ResolverRoutesSpec
       ResourceF.simpleF(id, resolver, created = user, updated = user, schema = resolverRef, types = types)
 
     // format: off
-    val resourceValue = Value(resolver, resolverCtx.contextValue, resolver.replaceContext(resolverCtx).deepMerge(Json.obj("@id" -> Json.fromString(id.value.asString))).asGraph(id.value).rightValue)
+    val resourceValue = Value(resolver, resolverCtx.contextValue, resolver.replaceContext(resolverCtx).deepMerge(Json.obj("@id" -> Json.fromString(id.value.asString))).toGraph(id.value).rightValue)
     // format: on
 
     val resourceV =
@@ -219,7 +218,7 @@ class ResolverRoutesSpec
 
     "fetch latest revision of a resolver" in new Context {
       resolvers.fetch(id) shouldReturn EitherT.rightT[Task, Rejection](resourceV)
-      val expected = resourceValue.graph.as[Json](resolverCtx).rightValue.removeNestedKeys("@context")
+      val expected = resourceValue.graph.toJson(resolverCtx).rightValue.removeNestedKeys("@context")
       forAll(endpoints()) { endpoint =>
         Get(endpoint) ~> addCredentials(oauthToken) ~> Accept(MediaRanges.`*/*`) ~> routes ~> check {
           status shouldEqual StatusCodes.OK
@@ -230,7 +229,7 @@ class ResolverRoutesSpec
 
     "fetch specific revision of a resolver" in new Context {
       resolvers.fetch(id, 1L) shouldReturn EitherT.rightT[Task, Rejection](resourceV)
-      val expected = resourceValue.graph.as[Json](resolverCtx).rightValue.removeNestedKeys("@context")
+      val expected = resourceValue.graph.toJson(resolverCtx).rightValue.removeNestedKeys("@context")
       forAll(endpoints(rev = Some(1L))) { endpoint =>
         Get(endpoint) ~> addCredentials(oauthToken) ~> Accept(MediaRanges.`*/*`) ~> routes ~> check {
           status shouldEqual StatusCodes.OK
@@ -241,7 +240,7 @@ class ResolverRoutesSpec
 
     "fetch specific tag of a resolver" in new Context {
       resolvers.fetch(id, "some") shouldReturn EitherT.rightT[Task, Rejection](resourceV)
-      val expected = resourceValue.graph.as[Json](resolverCtx).rightValue.removeNestedKeys("@context")
+      val expected = resourceValue.graph.toJson(resolverCtx).rightValue.removeNestedKeys("@context")
       forAll(endpoints(tag = Some("some"))) { endpoint =>
         Get(endpoint) ~> addCredentials(oauthToken) ~> Accept(MediaRanges.`*/*`) ~> routes ~> check {
           status shouldEqual StatusCodes.OK
@@ -286,7 +285,7 @@ class ResolverRoutesSpec
     "fetch resolved resource for a concrete resolver" in new Context {
       val resourceId = genIri
       resolvers.resolve(id, resourceId) shouldReturn EitherT.rightT[Task, Rejection](resourceV)
-      val expected = resourceValue.graph.as[Json](resolverCtx).rightValue.removeNestedKeys("@context")
+      val expected = resourceValue.graph.toJson(resolverCtx).rightValue.removeNestedKeys("@context")
       forAll(endpoints()) { endpoint =>
         Get(s"$endpoint/${urlEncode(resourceId)}") ~> addCredentials(oauthToken) ~> Accept(MediaRanges.`*/*`) ~> routes ~> check {
           status shouldEqual StatusCodes.OK
@@ -298,7 +297,7 @@ class ResolverRoutesSpec
     "fetch resolved resource" in new Context {
       val resourceId = genIri
       resolvers.resolve(resourceId, 1L) shouldReturn EitherT.rightT[Task, Rejection](resourceV)
-      val expected = resourceValue.graph.as[Json](resolverCtx).rightValue.removeNestedKeys("@context")
+      val expected = resourceValue.graph.toJson(resolverCtx).rightValue.removeNestedKeys("@context")
 
       Get(s"/v1/resolvers/$organization/$project/_/${urlEncode(resourceId)}?rev=1") ~> addCredentials(oauthToken) ~> Accept(
         MediaRanges.`*/*`

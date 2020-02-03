@@ -27,16 +27,15 @@ import ch.epfl.bluebrain.nexus.kg.resources.syntax._
 import ch.epfl.bluebrain.nexus.kg.storage.Storage
 import ch.epfl.bluebrain.nexus.kg.storage.Storage.StorageOperations.Verify
 import ch.epfl.bluebrain.nexus.kg.storage.Storage._
+import ch.epfl.bluebrain.nexus.rdf.Iri
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
-import ch.epfl.bluebrain.nexus.rdf.instances._
-import ch.epfl.bluebrain.nexus.rdf.syntax._
-import ch.epfl.bluebrain.nexus.rdf.{Iri, RootedGraph}
+import ch.epfl.bluebrain.nexus.rdf.implicits._
 import io.circe.Json
 import javax.crypto.SecretKey
 import org.mockito.{ArgumentMatchersSugar, IdiomaticMockito, Mockito}
-import org.scalatest.{BeforeAndAfter, Inspectors, OptionValues}
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AnyWordSpecLike
+import org.scalatest.{BeforeAndAfter, Inspectors, OptionValues}
 
 import scala.concurrent.ExecutionContext
 import scala.concurrent.duration._
@@ -130,13 +129,13 @@ class StoragesSpec
       val ctx = Json.obj("@context" -> (storageCtx.contextValue deepMerge resourceCtx.contextValue))
       val graph = (json deepMerge Json.obj("@id" -> Json.fromString(id.asString)))
         .replaceContext(ctx)
-        .asGraph(resId.value)
+        .toGraph(resId.value)
         .rightValue
 
       val resourceV =
         ResourceF.simpleV(resId, Value(json, ctx.contextValue, graph), rev, schema = storageRef, types = types)
       resourceV.copy(
-        value = resourceV.value.copy(graph = RootedGraph(resId.value, graph.triples ++ resourceV.metadata()))
+        value = resourceV.value.copy(graph = graph ++ resourceV.metadata())
       )
     }
   }

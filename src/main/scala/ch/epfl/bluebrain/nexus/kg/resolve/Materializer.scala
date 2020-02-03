@@ -17,10 +17,9 @@ import ch.epfl.bluebrain.nexus.kg.resources.syntax._
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import ch.epfl.bluebrain.nexus.rdf.Node.IriNode
 import ch.epfl.bluebrain.nexus.rdf.Vocabulary._
-import ch.epfl.bluebrain.nexus.rdf.circe.JsonLd.IdRetrievalError
-import ch.epfl.bluebrain.nexus.rdf.instances._
-import ch.epfl.bluebrain.nexus.rdf.syntax._
-import ch.epfl.bluebrain.nexus.rdf.{Graph, Iri, RootedGraph}
+import ch.epfl.bluebrain.nexus.rdf.jsonld.JsonLd.IdRetrievalError
+import ch.epfl.bluebrain.nexus.rdf.implicits._
+import ch.epfl.bluebrain.nexus.rdf.{Graph, Iri}
 import io.circe.Json
 
 class Materializer[F[_]: Effect](resolution: ProjectResolution[F], projectCache: ProjectCache[F])(
@@ -104,9 +103,7 @@ class Materializer[F[_]: Effect](resolution: ProjectResolution[F], projectCache:
         }
       }
   private def asGraphOrError(id: AbsoluteIri, resolved: Json, source: Json, ctx: Json): EitherT[F, Rejection, Value] =
-    EitherT
-      .fromEither[F](resolved.asGraph(id).map(Value(source, ctx, _)))
-      .leftSemiflatMap(e => Rejection.fromMarshallingErr[F](id, e))
+    EitherT.fromEither[F](resolved.toGraph(id).map(Value(source, ctx, _)).leftMap(err => InvalidJsonLD(err)))
 
   private def verifyId(json: Json, id: AbsoluteIri): Either[Rejection, Json] =
     json.id match {
@@ -191,11 +188,7 @@ class Materializer[F[_]: Effect](resolution: ProjectResolution[F], projectCache:
       implicit project: Project
   ): RejOrResourceV[F] =
     apply(resource, checkId = false).map { resourceV =>
-      val graph =
-        RootedGraph(
-          resourceV.value.graph.rootNode,
-          resourceV.value.graph.triples ++ resourceV.metadata(metadataOptions)
-        )
+      val graph = resourceV.value.graph ++ resourceV.metadata(metadataOptions)
       resourceV.map(_.copy(graph = graph))
     }
 
@@ -210,7 +203,7 @@ class Materializer[F[_]: Effect](resolution: ProjectResolution[F], projectCache:
 
     val currentRef = resId.value.ref
     def importsValues(id: AbsoluteIri, g: Graph): Set[Ref] =
-      g.objects(IriNode(id), owl.imports).unorderedFoldMap {
+      g.select(IriNode(id), owl.imports).unorderedFoldMap {
         case IriNode(iri) => Set(iri.ref)
         case _            => Set.empty
       }

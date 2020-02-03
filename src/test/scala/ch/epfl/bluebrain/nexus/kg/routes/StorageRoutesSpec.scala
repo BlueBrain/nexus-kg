@@ -33,8 +33,7 @@ import ch.epfl.bluebrain.nexus.kg.resources._
 import ch.epfl.bluebrain.nexus.kg.storage.Storage.StorageOperations.Verify
 import ch.epfl.bluebrain.nexus.rdf.Iri.Path._
 import ch.epfl.bluebrain.nexus.rdf.Iri.{AbsoluteIri, Path}
-import ch.epfl.bluebrain.nexus.rdf.syntax._
-import ch.epfl.bluebrain.nexus.rdf.instances._
+import ch.epfl.bluebrain.nexus.rdf.implicits._
 import ch.epfl.bluebrain.nexus.storage.client.StorageClient
 import com.typesafe.config.{Config, ConfigFactory}
 import io.circe.Json
@@ -139,7 +138,7 @@ class StorageRoutesSpec
       ResourceF.simpleF(id, storage, created = user, updated = user, schema = storageRef, types = types)
 
     // format: off
-    val resourceValue = Value(storage, storageCtx.contextValue, storage.replaceContext(storageCtx).deepMerge(Json.obj("@id" -> Json.fromString(id.value.asString))).asGraph(id.value).rightValue)
+    val resourceValue = Value(storage, storageCtx.contextValue, storage.replaceContext(storageCtx).deepMerge(Json.obj("@id" -> Json.fromString(id.value.asString))).toGraph(id.value).rightValue)
     // format: on
 
     val resourceV =
@@ -225,7 +224,7 @@ class StorageRoutesSpec
 
     "fetch latest revision of a storage" in new Context {
       storages.fetch(id) shouldReturn EitherT.rightT[Task, Rejection](resourceV)
-      val expected = resourceValue.graph.as[Json](storageCtx).rightValue.removeNestedKeys("@context")
+      val expected = resourceValue.graph.toJson(storageCtx).rightValue.removeNestedKeys("@context")
       forAll(endpoints()) { endpoint =>
         Get(endpoint) ~> addCredentials(oauthToken) ~> Accept(MediaRanges.`*/*`) ~> routes ~> check {
           status shouldEqual StatusCodes.OK
@@ -236,7 +235,7 @@ class StorageRoutesSpec
 
     "fetch specific revision of a storage" in new Context {
       storages.fetch(id, 1L) shouldReturn EitherT.rightT[Task, Rejection](resourceV)
-      val expected = resourceValue.graph.as[Json](storageCtx).rightValue.removeNestedKeys("@context")
+      val expected = resourceValue.graph.toJson(storageCtx).rightValue.removeNestedKeys("@context")
       forAll(endpoints(rev = Some(1L))) { endpoint =>
         Get(endpoint) ~> addCredentials(oauthToken) ~> Accept(MediaRanges.`*/*`) ~> routes ~> check {
           status shouldEqual StatusCodes.OK
@@ -247,7 +246,7 @@ class StorageRoutesSpec
 
     "fetch specific tag of a storage" in new Context {
       storages.fetch(id, "some") shouldReturn EitherT.rightT[Task, Rejection](resourceV)
-      val expected = resourceValue.graph.as[Json](storageCtx).rightValue.removeNestedKeys("@context")
+      val expected = resourceValue.graph.toJson(storageCtx).rightValue.removeNestedKeys("@context")
       forAll(endpoints(tag = Some("some"))) { endpoint =>
         Get(endpoint) ~> addCredentials(oauthToken) ~> Accept(MediaRanges.`*/*`) ~> routes ~> check {
           status shouldEqual StatusCodes.OK

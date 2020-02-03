@@ -10,7 +10,6 @@ import akka.stream.alpakka.s3
 import akka.stream.alpakka.s3.{ApiVersion, MemoryBufferType}
 import cats.effect.Effect
 import cats.implicits._
-import ch.epfl.bluebrain.nexus.commons.rdf.instances._
 import ch.epfl.bluebrain.nexus.iam.client.types.Permission
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig._
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary.nxv
@@ -22,11 +21,9 @@ import ch.epfl.bluebrain.nexus.kg.resources.{Rejection, ResId, ResourceV, Storag
 import ch.epfl.bluebrain.nexus.kg.resources.ProjectIdentifier.ProjectRef
 import ch.epfl.bluebrain.nexus.kg.storage.Storage.StorageOperations._
 import ch.epfl.bluebrain.nexus.kg.storage.Storage.{FetchFile, FetchFileAttributes, LinkFile, SaveFile, VerifyStorage}
+import ch.epfl.bluebrain.nexus.rdf.GraphDecoder
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
-import ch.epfl.bluebrain.nexus.rdf.encoder.NodeEncoder
-import ch.epfl.bluebrain.nexus.rdf.encoder.NodeEncoder.stringEncoder
-import ch.epfl.bluebrain.nexus.rdf.encoder.NodeEncoderError.IllegalConversion
-import ch.epfl.bluebrain.nexus.rdf.syntax._
+import ch.epfl.bluebrain.nexus.rdf.implicits._
 import ch.epfl.bluebrain.nexus.storage.client.StorageClient
 import ch.epfl.bluebrain.nexus.storage.client.config.StorageClientConfig
 import ch.epfl.bluebrain.nexus.storage.client.types.{FileAttributes => StorageFileAttributes}
@@ -228,7 +225,7 @@ object Storage {
     def reference: StorageReference = RemoteDiskStorageReference(id, rev)
 
     def client[F[_]: Effect](implicit as: ActorSystem): StorageClient[F] = {
-      implicit val config = StorageClientConfig(url"$endpoint".value)
+      implicit val config: StorageClientConfig = StorageClientConfig(url"$endpoint")
       StorageClient[F]
     }
 
@@ -279,9 +276,9 @@ object Storage {
 
   }
 
-  private implicit val permissionEncoder: NodeEncoder[Permission] = node =>
-    stringEncoder(node).flatMap { perm =>
-      Permission(perm).toRight(IllegalConversion(s"Invalid Permission '$perm'"))
+  private implicit val permissionDecoder: GraphDecoder[Permission] =
+    GraphDecoder.graphDecodeString.emap { str =>
+      Permission(str).toRight(s"Unable to parse a permission from string '$str'")
     }
 
   /**
@@ -370,52 +367,60 @@ object Storage {
     else Left(InvalidResourceFormat(res.id.ref, "The provided @type do not match any of the storage types"))
 
   private def diskStorage(res: ResourceV)(implicit config: StorageConfig): Either[Rejection, DiskStorage] = {
-    val c = res.value.graph.cursor()
+    val c = res.value.graph.cursor
     // format: off
-    for {
-      default   <- c.downField(nxv.default).focus.as[Boolean].onError(res.id.ref, nxv.default.prefix)
-      volume    <- c.downField(nxv.volume).focus.as[String].map(Paths.get(_)).onError(res.id.ref, nxv.volume.prefix)
-      read      <- c.downField(nxv.readPermission).focus.as[Permission].withDefault(config.disk.readPermission).onError(res.id.ref, nxv.readPermission.prefix)
-      write     <- c.downField(nxv.writePermission).focus.as[Permission].withDefault(config.disk.writePermission).onError(res.id.ref, nxv.writePermission.prefix)
-      fileSize  <- c.downField(nxv.maxFileSize).focus.as[Long].withDefault(config.disk.maxFileSize).onError(res.id.ref, nxv.maxFileSize.prefix)
+    val ds = for {
+      default   <- c.down(nxv.default).as[Boolean]
+      volume    <- c.down(nxv.volume).as[String].map(Paths.get(_))
+      read      <- c.down(nxv.readPermission).as[Option[Permission]].map(_.getOrElse(config.disk.readPermission))
+      write     <- c.down(nxv.writePermission).as[Option[Permission]].map(_.getOrElse(config.disk.writePermission))
+      fileSize  <- c.down(nxv.maxFileSize).as[Option[Long]].map(_.getOrElse(config.disk.maxFileSize))
     } yield DiskStorage(res.id.parent, res.id.value, res.rev, res.deprecated, default, config.disk.digestAlgorithm, volume, read, write, fileSize)
     // format: on
+    ds.leftRejectionFor(res.id.ref)
   }
 
   private def remoteDiskStorage(
       res: ResourceV
   )(implicit config: StorageConfig): Either[Rejection, RemoteDiskStorage] = {
-    val c = res.value.graph.cursor()
+    val c = res.value.graph.cursor
+
+    implicit val uriDecoder: GraphDecoder[Uri] =
+      GraphDecoder.graphDecodeString.emap { str =>
+        Try(Uri(str)).toEither.leftMap(_ => s"Unable to decode string '$str' as an Uri.")
+      }
 
     // format: off
-    for {
-      default       <- c.downField(nxv.default).focus.as[Boolean].onError(res.id.ref, nxv.default.prefix)
-      endpoint      <- c.downField(nxv.endpoint).focus.as[Uri].withDefault(config.remoteDisk.endpoint).onError(res.id.ref, nxv.endpoint.prefix)
-      credentials   <- if(endpoint == config.remoteDisk.endpoint) c.downField(nxv.credentials).focus.asOption[String].map(_ orElse config.remoteDisk.defaultCredentials.map(_.value)).onError(res.id.ref, nxv.credentials.prefix)
-                       else c.downField(nxv.credentials).focus.asOption[String].onError(res.id.ref, nxv.credentials.prefix)
-      folder        <- c.downField(nxv.folder).focus.as[String].onError(res.id.ref, nxv.folder.prefix)
-      read          <- c.downField(nxv.readPermission).focus.as[Permission].withDefault(config.remoteDisk.readPermission).onError(res.id.ref, nxv.readPermission.prefix)
-      write         <- c.downField(nxv.writePermission).focus.as[Permission].withDefault(config.remoteDisk.writePermission).onError(res.id.ref, nxv.writePermission.prefix)
-      fileSize      <- c.downField(nxv.maxFileSize).focus.as[Long].withDefault(config.remoteDisk.maxFileSize).onError(res.id.ref, nxv.maxFileSize.prefix)
+    val rds = for {
+      default       <- c.down(nxv.default).as[Boolean]
+      endpoint      <- c.down(nxv.endpoint).as[Option[Uri]].map(_.getOrElse(config.remoteDisk.endpoint))
+      credentials   <- if (endpoint == config.remoteDisk.endpoint) c.down(nxv.credentials).as[Option[String]].map(_ orElse config.remoteDisk.defaultCredentials.map(_.value))
+                       else c.down(nxv.credentials).as[Option[String]]
+      folder        <- c.down(nxv.folder).as[String]
+      read          <- c.down(nxv.readPermission).as[Option[Permission]].map(_.getOrElse(config.remoteDisk.readPermission))
+      write         <- c.down(nxv.writePermission).as[Option[Permission]].map(_.getOrElse(config.remoteDisk.writePermission))
+      fileSize      <- c.down(nxv.maxFileSize).as[Option[Long]].map(_.getOrElse(config.remoteDisk.maxFileSize))
     } yield RemoteDiskStorage(res.id.parent, res.id.value, res.rev, res.deprecated, default, config.remoteDisk.digestAlgorithm, endpoint, credentials, folder, read, write, fileSize)
     // format: on
+    rds.leftRejectionFor(res.id.ref)
   }
 
   private def s3Storage(res: ResourceV)(implicit config: StorageConfig): Either[Rejection, S3Storage] = {
-    val c = res.value.graph.cursor()
+    val c = res.value.graph.cursor
     // format: off
-    for {
-      default   <- c.downField(nxv.default).focus.as[Boolean].onError(res.id.ref, nxv.default.prefix)
-      bucket    <- c.downField(nxv.bucket).focus.as[String].onError(res.id.ref, nxv.bucket.prefix)
-      endpoint  <- c.downField(nxv.endpoint).focus.asOption[String].onError(res.id.ref, nxv.endpoint.prefix)
-      region    <- c.downField(nxv.region).focus.asOption[String].onError(res.id.ref, nxv.region.prefix)
-      read      <- c.downField(nxv.readPermission).focus.as[Permission].withDefault(config.amazon.readPermission).onError(res.id.ref, nxv.readPermission.prefix)
-      write     <- c.downField(nxv.writePermission).focus.as[Permission].withDefault(config.amazon.writePermission).onError(res.id.ref, nxv.writePermission.prefix)
-      fileSize  <- c.downField(nxv.maxFileSize).focus.as[Long].withDefault(config.amazon.maxFileSize).onError(res.id.ref, nxv.maxFileSize.prefix)
-      akOpt     <- c.downField(nxv.accessKey).focus.asOption[String].onError(res.id.ref, nxv.accessKey.prefix)
-      skOpt     <- c.downField(nxv.secretKey).focus.asOption[String].onError(res.id.ref, nxv.secretKey.prefix)
+    val s3s = for {
+      default   <- c.down(nxv.default).as[Boolean]
+      bucket    <- c.down(nxv.bucket).as[String]
+      endpoint  <- c.down(nxv.endpoint).as[Option[String]]
+      region    <- c.down(nxv.region).as[Option[String]]
+      read      <- c.down(nxv.readPermission).as[Option[Permission]].map(_.getOrElse(config.amazon.readPermission))
+      write     <- c.down(nxv.writePermission).as[Option[Permission]].map(_.getOrElse(config.amazon.writePermission))
+      fileSize  <- c.down(nxv.maxFileSize).as[Option[Long]].map(_.getOrElse(config.amazon.maxFileSize))
+      akOpt     <- c.down(nxv.accessKey).as[Option[String]]
+      skOpt     <- c.down(nxv.secretKey).as[Option[String]]
     } yield S3Storage(res.id.parent, res.id.value, res.rev, res.deprecated, default, config.amazon.digestAlgorithm, bucket, S3Settings((akOpt, skOpt).mapN(S3Credentials), endpoint, region), read, write, fileSize)
     // format: on
+    s3s.leftRejectionFor(res.id.ref)
   }
 
   trait FetchFile[F[_], Out] {

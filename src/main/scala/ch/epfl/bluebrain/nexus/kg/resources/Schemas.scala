@@ -5,9 +5,7 @@ import cats.effect.Effect
 import ch.epfl.bluebrain.nexus.admin.client.types.Project
 import ch.epfl.bluebrain.nexus.commons.es.client.ElasticSearchClient
 import ch.epfl.bluebrain.nexus.commons.http.HttpClient
-import ch.epfl.bluebrain.nexus.commons.rdf.syntax._
 import ch.epfl.bluebrain.nexus.commons.search.{FromPagination, Pagination}
-import ch.epfl.bluebrain.nexus.commons.shacl.ShaclEngine
 import ch.epfl.bluebrain.nexus.commons.sparql.client.BlazegraphClient
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity.Subject
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig
@@ -20,14 +18,12 @@ import ch.epfl.bluebrain.nexus.kg.resources.Rejection.NotFound._
 import ch.epfl.bluebrain.nexus.kg.resources.ResourceF.Value
 import ch.epfl.bluebrain.nexus.kg.resources.syntax._
 import ch.epfl.bluebrain.nexus.kg.routes.SearchParams
-import ch.epfl.bluebrain.nexus.rdf.Graph.Triple
+import ch.epfl.bluebrain.nexus.rdf.Graph
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
-import ch.epfl.bluebrain.nexus.rdf.RootedGraph
 import ch.epfl.bluebrain.nexus.rdf.Vocabulary.rdf
-import ch.epfl.bluebrain.nexus.rdf.instances._
-import ch.epfl.bluebrain.nexus.rdf.syntax._
+import ch.epfl.bluebrain.nexus.rdf.implicits._
+import ch.epfl.bluebrain.nexus.rdf.shacl.ShaclEngine
 import io.circe.Json
-import org.apache.jena.rdf.model.Model
 
 class Schemas[F[_]](repo: Repo[F])(implicit F: Effect[F], materializer: Materializer[F], config: AppConfig) {
 
@@ -70,8 +66,8 @@ class Schemas[F[_]](repo: Repo[F])(implicit F: Effect[F], materializer: Material
   def update(id: ResId, rev: Long, source: Json)(implicit subject: Subject, project: Project): RejOrResource[F] =
     for {
       matValue <- materializer(source.addContext(shaclCtxUri), id.value)
-      typedGraph = addSchemaType(id.value, matValue.graph.removeMetadata)
-      types      = typedGraph.rootTypes.map(_.value)
+      typedGraph = addSchemaType(matValue.graph.removeMetadata)
+      types      = typedGraph.cursor.downSet(rdf.tpe).as[Set[AbsoluteIri]].getOrElse(Set.empty)
       _       <- validateShacl(id, typedGraph)
       updated <- repo.update(id, shaclRef, rev, types, source.addContext(shaclCtxUri))
     } yield updated
@@ -188,12 +184,12 @@ class Schemas[F[_]](repo: Repo[F])(implicit F: Effect[F], materializer: Material
   )(implicit sparql: BlazegraphClient[F]): F[LinkResults] =
     view.outgoing(id, pagination, includeExternalLinks)
 
-  private def create(id: ResId, source: Json, graph: RootedGraph)(
+  private def create(id: ResId, source: Json, graph: Graph)(
       implicit subject: Subject,
       project: Project
   ): RejOrResource[F] = {
-    val typedGraph = addSchemaType(id.value, graph)
-    val types      = typedGraph.rootTypes.map(_.value)
+    val typedGraph = addSchemaType(graph)
+    val types      = typedGraph.cursor.downSet(rdf.tpe).as[Set[AbsoluteIri]].getOrElse(Set.empty)
 
     for {
       _        <- validateShacl(id, typedGraph)
@@ -201,13 +197,13 @@ class Schemas[F[_]](repo: Repo[F])(implicit F: Effect[F], materializer: Material
     } yield resource
   }
 
-  private def addSchemaType(id: AbsoluteIri, graph: RootedGraph): RootedGraph =
-    RootedGraph(id, graph.triples + ((id.value, rdf.tpe, nxv.Schema): Triple))
+  private def addSchemaType(graph: Graph): Graph =
+    graph.append(rdf.tpe, nxv.Schema)
 
-  private def validateShacl(resId: ResId, data: RootedGraph)(implicit project: Project): EitherT[F, Rejection, Unit] =
+  private def validateShacl(resId: ResId, data: Graph)(implicit project: Project): EitherT[F, Rejection, Unit] =
     materializer.imports(resId, data).flatMap { resolved =>
       val resolvedSets = resolved.foldLeft(data.triples)(_ ++ _.value.graph.triples)
-      val resolvedData = RootedGraph(data.rootNode, resolvedSets).as[Model]()
+      val resolvedData = Graph(data.root, resolvedSets).asJena
       toEitherT(shaclRef, ShaclEngine(resolvedData, reportDetails = true))
     }
 }

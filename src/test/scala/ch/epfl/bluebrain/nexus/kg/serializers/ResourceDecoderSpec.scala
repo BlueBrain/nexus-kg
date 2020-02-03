@@ -9,8 +9,7 @@ import ch.epfl.bluebrain.nexus.kg.TestHelper
 import ch.epfl.bluebrain.nexus.kg.config.Schemas
 import ch.epfl.bluebrain.nexus.kg.resources.ProjectIdentifier.ProjectRef
 import ch.epfl.bluebrain.nexus.kg.resources.{Id, ResourceF, ResourceGraph}
-import ch.epfl.bluebrain.nexus.rdf.instances._
-import ch.epfl.bluebrain.nexus.rdf.syntax._
+import ch.epfl.bluebrain.nexus.rdf.implicits._
 import io.circe.Decoder
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AnyWordSpecLike
@@ -28,14 +27,14 @@ class ResourceDecoderSpec
 
   private val json                                     = jsonContentOf("/serialization/resource.json")
   private val projectRef                               = ProjectRef(genUUID)
-  private val id                                       = url"http://example.com/prefix/myId".value
-  private val graph                                    = json.asGraph(id).rightValue
+  private val id                                       = url"http://example.com/prefix/myId"
+  private val graph                                    = json.toGraph(id).rightValue
   private implicit val decoder: Decoder[ResourceGraph] = ResourceF.resourceGraphDecoder(projectRef)
 
   private val model = ResourceF(
-    Id(projectRef, url"http://example.com/prefix/myId".value),
+    Id(projectRef, url"http://example.com/prefix/myId"),
     1L,
-    Set(url"https://example.com/vocab/A".value, url"https://example.com/vocab/B".value),
+    Set(url"https://example.com/vocab/A", url"https://example.com/vocab/B"),
     deprecated = false,
     Map.empty,
     None,

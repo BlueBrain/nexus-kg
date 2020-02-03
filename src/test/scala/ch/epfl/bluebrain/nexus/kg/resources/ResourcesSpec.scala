@@ -33,9 +33,8 @@ import ch.epfl.bluebrain.nexus.kg.resources.Rejection._
 import ch.epfl.bluebrain.nexus.kg.resources.ResourceF.Value
 import ch.epfl.bluebrain.nexus.kg.resources.syntax._
 import ch.epfl.bluebrain.nexus.rdf.Vocabulary.xsd
-import ch.epfl.bluebrain.nexus.rdf.instances._
-import ch.epfl.bluebrain.nexus.rdf.syntax._
-import ch.epfl.bluebrain.nexus.rdf.{Iri, RootedGraph}
+import ch.epfl.bluebrain.nexus.rdf.implicits._
+import ch.epfl.bluebrain.nexus.rdf.{Graph, Iri}
 import io.circe.Json
 import org.mockito.{ArgumentMatchersSugar, IdiomaticMockito}
 import org.mockito.Mockito.when
@@ -116,11 +115,11 @@ class ResourcesSpec
     def resourceV(json: Json, rev: Long = 1L): ResourceV = {
       val defaultCtxValue = defaultCtx.contextValue deepMerge resourceCtx.contextValue
       val graph = (json deepMerge Json.obj("@context" -> defaultCtxValue, "@id" -> Json.fromString(id.asString)))
-        .asGraph(resId.value)
+        .toGraph(resId.value)
         .rightValue
       val resourceV = ResourceF.simpleV(resId, Value(json, defaultCtxValue, graph), rev, schema = schemaRef)
       resourceV.copy(
-        value = resourceV.value.copy(graph = RootedGraph(resId.value, graph.triples ++ resourceV.metadata()))
+        value = resourceV.value.copy(graph = Graph(resId.value, graph.triples ++ resourceV.metadata()))
       )
     }
 
@@ -152,7 +151,7 @@ class ResourcesSpec
 
       "create a new resource validated against empty schema (resource schema) with a payload only containing @id" in new Base {
         val genId  = genString()
-        val genRes = Id(projectRef, url"$base$genId".value)
+        val genRes = Id(projectRef, url"$base$genId")
         val json =
           Json.obj("@id" -> Json.fromString(genId))
         val expected = json deepMerge defaultCtx
@@ -290,18 +289,18 @@ class ResourcesSpec
     }
 
     "performing links operations" should {
-      val self       = url"http://127.0.0.1:8080/v1/resources/myorg/myproject/_/id".value
-      val projectUri = url"http://127.0.0.1:8080/v1/projects/myorg/myproject/".value
-      val author     = url"http://127.0.0.1:8080/v1/realms/myrealm/users/me".value
-      val id1        = url"http://example.com/id".value
-      val id2        = url"http://example.com/id2".value
-      val property   = url"http://example.com/friend".value
+      val self       = url"http://127.0.0.1:8080/v1/resources/myorg/myproject/_/id"
+      val projectUri = url"http://127.0.0.1:8080/v1/projects/myorg/myproject/"
+      val author     = url"http://127.0.0.1:8080/v1/realms/myrealm/users/me"
+      val id1        = url"http://example.com/id"
+      val id2        = url"http://example.com/id2"
+      val property   = url"http://example.com/friend"
       val paths      = List(property)
 
       val binding1 = Map(
         "s"              -> Binding("uri", id1.asString),
         "paths"          -> Binding("literal", property.asString),
-        "_rev"           -> Binding("literal", "1", datatype = Some(xsd.long.value.asString)),
+        "_rev"           -> Binding("literal", "1", datatype = Some(xsd.long.asString)),
         "_self"          -> Binding("uri", self.asString),
         "_project"       -> Binding("uri", projectUri.asString),
         "types"          -> Binding("literal", s"${nxv.Resolver.asString} ${nxv.Schema.asString}"),
@@ -309,14 +308,14 @@ class ResourcesSpec
         "_createdBy"     -> Binding("uri", author.asString),
         "_updatedBy"     -> Binding("uri", author.asString),
         "_createdAy"     -> Binding("uri", author.asString),
-        "_createdAt"     -> Binding("literal", clock.instant().toString, datatype = Some(xsd.dateTime.value.asString)),
-        "_updatedAt"     -> Binding("literal", clock.instant().toString, datatype = Some(xsd.dateTime.value.asString)),
-        "_deprecated"    -> Binding("literal", "false", datatype = Some(xsd.boolean.value.asString))
+        "_createdAt"     -> Binding("literal", clock.instant().toString, datatype = Some(xsd.dateTime.asString)),
+        "_updatedAt"     -> Binding("literal", clock.instant().toString, datatype = Some(xsd.dateTime.asString)),
+        "_deprecated"    -> Binding("literal", "false", datatype = Some(xsd.boolean.asString))
       )
 
       val binding2 = Map("s" -> Binding("uri", id2.asString), "paths" -> Binding("literal", property.asString))
 
-      val binding3 = Map("total" -> Binding("literal", "10", datatype = Some(xsd.long.value.asString)))
+      val binding3 = Map("total" -> Binding("literal", "10", datatype = Some(xsd.long.asString)))
 
       val expected: Set[UnscoredQueryResult[SparqlLink]] = Set(
         // format: off
