@@ -196,7 +196,7 @@ object ResourceF {
     */
   def removeMetadata(graph: Graph): Graph =
     graph.filter {
-      case (_, p, _) => !metaIris.contains(p)
+      case (s, p, _) => !(metaIris.contains(p) && s == graph.root)
     }
 
   /**
