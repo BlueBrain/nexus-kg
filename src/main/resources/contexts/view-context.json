@@ -32,6 +32,7 @@
     "CrossProjectEventStream": "nxv:CrossProjectEventStream",
     "RemoteProjectEventStream": "nxv:RemoteProjectEventStream",
     "CompositeView": "nxv:CompositeView",
+    "Beta": "nxv:Beta",
     "AggregateElasticSearchView": "nxv:AggregateElasticSearchView",
     "AggregateSparqlView": "nxv:AggregateSparqlView",
     "_uuid": "nxv:uuid",

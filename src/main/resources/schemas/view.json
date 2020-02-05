@@ -46,6 +46,15 @@
           }
         },
         {
+          "path": "rdf:type",
+          "name": "RDF type CompositeView",
+          "description": "The Beta RDF type.",
+          "nodeKind": "sh:IRI",
+          "sh:hasValue": {
+            "@id": "nxv:Beta"
+          }
+        },
+        {
           "path": "nxv:uuid",
           "name": "UUID",
           "description": "The underlying uuid generated for this view.",

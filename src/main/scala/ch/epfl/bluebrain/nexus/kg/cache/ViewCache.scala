@@ -14,7 +14,8 @@ import ch.epfl.bluebrain.nexus.kg.indexing.View
 import ch.epfl.bluebrain.nexus.kg.indexing.View.{CompositeView, ElasticSearchView, SparqlView}
 import ch.epfl.bluebrain.nexus.kg.resources.ProjectIdentifier.ProjectRef
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
-import shapeless.{TypeCase, Typeable}
+
+import scala.reflect.ClassTag
 
 class ViewCache[F[_]: Effect: Timer] private (projectToCache: ConcurrentHashMap[UUID, ViewProjectCache[F]])(
     implicit as: ActorSystem,
@@ -50,7 +51,7 @@ class ViewCache[F[_]: Effect: Timer] private (projectToCache: ConcurrentHashMap[
     *
     * @param ref the project unique reference
     */
-  def getBy[T <: View: Typeable](ref: ProjectRef): F[Set[T]] =
+  def getBy[T <: View: ClassTag](ref: ProjectRef): F[Set[T]] =
     getOrCreate(ref).getBy[T]
 
   /**
@@ -60,7 +61,7 @@ class ViewCache[F[_]: Effect: Timer] private (projectToCache: ConcurrentHashMap[
     * @param id  the view unique id in the provided project
     * @tparam T the type of view to be returned
     */
-  def getBy[T <: View: Typeable](ref: ProjectRef, id: AbsoluteIri): F[Option[T]] =
+  def getBy[T <: View: ClassTag](ref: ProjectRef, id: AbsoluteIri): F[Option[T]] =
     getOrCreate(ref).getBy[T](id)
 
   /**
@@ -71,19 +72,17 @@ class ViewCache[F[_]: Effect: Timer] private (projectToCache: ConcurrentHashMap[
     * @param projectionId the id of the projection
     * @tparam T the type of view to be returned
     */
-  def getProjectionBy[T <: View: Typeable](
+  def getProjectionBy[T <: View](
       ref: ProjectRef,
       viewId: AbsoluteIri,
       projectionId: AbsoluteIri
-  ): F[Option[T]] = {
-    val T = TypeCase[T]
+  )(implicit T: ClassTag[T]): F[Option[T]] =
     getBy[CompositeView](ref, viewId).map { viewOpt =>
       viewOpt.flatMap { view =>
         val projections = view.projections.map(_.view)
         projections.collectFirst { case T(v) if v.id == projectionId => v }
       }
     }
-  }
 
   /**
     * Adds/updates or deprecates a view on the provided project.
@@ -116,18 +115,15 @@ private class ViewProjectCache[F[_]: Monad] private (store: KeyValueStore[F, Abs
 
   def get: F[Set[View]] = store.values
 
-  def getBy[T <: View: Typeable]: F[Set[T]] = {
-    val tpe = TypeCase[T]
-    get.map(_.collect { case tpe(v) => v })
-  }
+  def getBy[T <: View](implicit T: ClassTag[T]): F[Set[T]] =
+    get.map(_.collect { case T(v) => v })
 
-  def getBy[T <: View: Typeable](id: AbsoluteIri): F[Option[T]] = {
-    val tpe = TypeCase[T]
-    get(id).map(_.collectFirst { case tpe(v) => v })
-  }
+  def getBy[T <: View](id: AbsoluteIri)(implicit T: ClassTag[T]): F[Option[T]] =
+    get(id).map(_.collectFirst { case T(v) => v })
 
   def put(view: View): F[Unit] =
-    if (view.deprecated) store.remove(view.id) else store.put(view.id, view)
+    if (view.deprecated) store.remove(view.id)
+    else store.put(view.id, view)
 
 }
 
