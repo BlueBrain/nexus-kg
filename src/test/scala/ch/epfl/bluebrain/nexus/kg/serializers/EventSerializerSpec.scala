@@ -22,7 +22,8 @@ import ch.epfl.bluebrain.nexus.kg.resources.{Id, OrganizationRef, Ref, ResId}
 import ch.epfl.bluebrain.nexus.kg.resources.ProjectIdentifier.ProjectRef
 import ch.epfl.bluebrain.nexus.kg.serializers.Serializer.EventSerializer
 import ch.epfl.bluebrain.nexus.kg.storage.Storage.DiskStorage
-import ch.epfl.bluebrain.nexus.rdf.syntax.node.unsafe._
+import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
+import ch.epfl.bluebrain.nexus.rdf.implicits._
 import ch.epfl.bluebrain.nexus.sourcing.RetryStrategyConfig
 import ch.epfl.bluebrain.nexus.storage.client.types.{FileAttributes => StorageFileAttributes}
 import ch.epfl.bluebrain.nexus.storage.client.types.FileAttributes.{Digest => StorageFileDigest}
@@ -68,14 +69,15 @@ class EventSerializerSpec
     val key: ResId =
       Id(
         ProjectRef(UUID.fromString("4947db1e-33d8-462b-9754-3e8ae74fcd4e")),
-        url"https://bbp.epfl.ch/nexus/data/resourceName".value
+        url"https://bbp.epfl.ch/nexus/data/resourceName"
       )
 
     val orgRef = OrganizationRef(UUID.fromString("17a62c6a-4dc4-4eaa-b418-42d0634695a1"))
 
-    val schema: Ref = Ref(url"https://bbp.epfl.ch/nexus/data/schemaName".value)
+    val schema: Ref = Ref(url"https://bbp.epfl.ch/nexus/data/schemaName")
 
-    val types   = Set(url"https://bbp.epfl.ch/nexus/types/type1".value, url"https://bbp.epfl.ch/nexus/types/type2".value)
+    val types = Set[AbsoluteIri](url"https://bbp.epfl.ch/nexus/types/type1", url"https://bbp.epfl.ch/nexus/types/type2")
+
     val instant = Clock.systemUTC.instant()
     val subject = User("sub:1234", "realm")
 
@@ -126,7 +128,7 @@ class EventSerializerSpec
         FileUpdated(
           key,
           orgRef,
-          S3StorageReference(url"https://bbp.epfl.ch/nexus/storages/org/proj/s3".value, 2L),
+          S3StorageReference(url"https://bbp.epfl.ch/nexus/storages/org/proj/s3", 2L),
           2L,
           s3fileAttr,
           instant,
@@ -136,7 +138,7 @@ class EventSerializerSpec
           key,
           orgRef,
           RemoteDiskStorageReference(
-            url"https://bbp.epfl.ch/nexus/storages/org/proj/remote".value,
+            url"https://bbp.epfl.ch/nexus/storages/org/proj/remote",
             1L
           ),
           2L,

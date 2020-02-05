@@ -5,13 +5,13 @@ import ch.epfl.bluebrain.nexus.kg.config.AppConfig.HttpConfig
 import ch.epfl.bluebrain.nexus.kg.config.Schemas._
 import ch.epfl.bluebrain.nexus.kg.urlEncode
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
-import ch.epfl.bluebrain.nexus.rdf.syntax._
+import ch.epfl.bluebrain.nexus.rdf.implicits._
 import ch.epfl.bluebrain.nexus.kg.directives.ProjectDirectives._
 import ch.epfl.bluebrain.nexus.commons.test.Randomness._
 
 object AccessId {
 
-  private val randBase: AbsoluteIri = url"http://notused.com/${genString()}".value
+  private val randBase: AbsoluteIri = url"http://notused.com/${genString()}"
 
   /**
     * Build an access id (the Uri from where to fetch the resource from the API)
@@ -29,7 +29,7 @@ object AccessId {
   ): AbsoluteIri = {
 
     def prefix(resource: String): AbsoluteIri =
-      url"${http.publicUri}".value + http.prefix + resource + project.organizationLabel + project.label
+      url"${http.publicUri}" + http.prefix + resource + project.organizationLabel + project.label
 
     def removeBase(iri: AbsoluteIri): Option[String] =
       if (iri.asString.startsWith(project.base.asString) && iri != project.base)

@@ -14,7 +14,7 @@ import ch.epfl.bluebrain.nexus.kg.config.AppConfig
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig.HttpConfig
 import ch.epfl.bluebrain.nexus.kg.search.QueryResultEncoder._
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
-import ch.epfl.bluebrain.nexus.rdf.syntax._
+import ch.epfl.bluebrain.nexus.rdf.implicits._
 import io.circe.Json
 import io.circe.syntax._
 import org.scalatest.matchers.should.Matchers
@@ -49,9 +49,9 @@ class QueryResultEncoderSpec extends AnyWordSpecLike with Matchers with Resource
         3,
         0.3f,
         List(
-          ScoredQueryResult(0.3f, json(url"http://nexus.com/result1".value, before)),
-          ScoredQueryResult(0.2f, json(url"http://nexus.com/result2".value, before)),
-          ScoredQueryResult(0.1f, json(url"http://nexus.com/result3".value, now))
+          ScoredQueryResult(0.3f, json(url"http://nexus.com/result1", before)),
+          ScoredQueryResult(0.2f, json(url"http://nexus.com/result2", before)),
+          ScoredQueryResult(0.1f, json(url"http://nexus.com/result3", now))
         ),
         sort(now)
       )
@@ -72,9 +72,9 @@ class QueryResultEncoderSpec extends AnyWordSpecLike with Matchers with Resource
       val results: QueryResults[Json] = UnscoredQueryResults[Json](
         3,
         List(
-          UnscoredQueryResult(json(url"http://nexus.com/result1".value, before)),
-          UnscoredQueryResult(json(url"http://nexus.com/result2".value, before)),
-          UnscoredQueryResult(json(url"http://nexus.com/result3".value, now))
+          UnscoredQueryResult(json(url"http://nexus.com/result1", before)),
+          UnscoredQueryResult(json(url"http://nexus.com/result2", before)),
+          UnscoredQueryResult(json(url"http://nexus.com/result3", now))
         ),
         sort(now)
       )

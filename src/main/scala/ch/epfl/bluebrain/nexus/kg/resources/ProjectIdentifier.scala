@@ -11,12 +11,11 @@ import ch.epfl.bluebrain.nexus.kg.cache.ProjectCache
 import ch.epfl.bluebrain.nexus.kg.resources.ProjectIdentifier.{ProjectLabel, ProjectRef}
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection.{InvalidIdentity, ProjectLabelNotFound, ProjectRefNotFound}
 import ch.epfl.bluebrain.nexus.kg.resources.syntax._
-import ch.epfl.bluebrain.nexus.rdf.encoder.NodeEncoder
-import ch.epfl.bluebrain.nexus.rdf.encoder.NodeEncoderError.IllegalConversion
+import ch.epfl.bluebrain.nexus.rdf.{GraphDecoder, GraphEncoder}
 import io.circe.syntax._
 import io.circe.{Decoder, Encoder}
 
-import scala.util.{Success, Try}
+import scala.util.Try
 
 /**
   * Enumeration of project identifier types
@@ -98,13 +97,16 @@ object ProjectIdentifier {
       }
     }
 
-    implicit val projectLabelNodeEncoder: NodeEncoder[ProjectLabel] = node =>
-      NodeEncoder.stringEncoder(node).flatMap { value =>
-        value.trim.split("/") match {
+    implicit final val projectLabelGraphDecoder: GraphDecoder[ProjectLabel] =
+      GraphDecoder.graphDecodeString.emap { str =>
+        str.trim.split("/") match {
           case Array(organization, project) => Right(ProjectLabel(organization, project))
-          case _                            => Left(IllegalConversion("Expected a ProjectLabel, but found otherwise"))
+          case _                            => Left(s"Unable to decode ProjectLabel from string '$str'")
         }
       }
+
+    implicit final val projectLabelGraphEncoder: GraphEncoder[ProjectLabel] =
+      GraphEncoder.graphEncodeString.contramap(_.show)
   }
 
   /**
@@ -128,7 +130,6 @@ object ProjectIdentifier {
       toRef
 
     def findIn(projects: Set[Project]): Option[Project] = projects.find(_.uuid == id)
-
   }
 
   object ProjectRef {
@@ -140,13 +141,11 @@ object ProjectIdentifier {
     implicit val projectRefDecoder: Decoder[ProjectRef] =
       Decoder.decodeString.emapTry(uuid => Try(UUID.fromString(uuid)).map(ProjectRef.apply))
 
-    implicit val projectRefNodeEncoder: NodeEncoder[ProjectRef] = node =>
-      NodeEncoder.stringEncoder(node).flatMap { value =>
-        Try(UUID.fromString(value)) match {
-          case Success(uuid) => Right(ProjectRef(uuid))
-          case _             => Left(IllegalConversion("Expected a ProjectRef, but found otherwise"))
-        }
-      }
+    implicit final val projectRefGraphDecoder: GraphDecoder[ProjectRef] =
+      GraphDecoder.graphDecodeUUID.map(uuid => ProjectRef(uuid))
+
+    implicit final val projectRefGraphEncoder: GraphEncoder[ProjectRef] =
+      GraphEncoder.graphEncodeUUID.contramap(_.id)
   }
 
   implicit val projectIdentifierEncoder: Encoder[ProjectIdentifier] =
@@ -163,11 +162,14 @@ object ProjectIdentifier {
       }
     }
 
-  implicit val projectIdentifierNodeEncoder: NodeEncoder[ProjectIdentifier] = node =>
-    ProjectRef.projectRefNodeEncoder(node) match {
-      case Left(_) => ProjectLabel.projectLabelNodeEncoder(node)
-      case other   => other
-    }
+  implicit final val projectIdentifierGraphDecoder: GraphDecoder[ProjectIdentifier] =
+    ProjectLabel.projectLabelGraphDecoder.asInstanceOf[GraphDecoder[ProjectIdentifier]] or
+      ProjectRef.projectRefGraphDecoder.asInstanceOf[GraphDecoder[ProjectIdentifier]]
+
+  implicit final val projectIdentifierGraphEncoder: GraphEncoder[ProjectIdentifier] = GraphEncoder.instance {
+    case label: ProjectLabel => label.asGraph
+    case ref: ProjectRef     => ref.asGraph
+  }
 
   implicit val projectIdentifierShow: Show[ProjectIdentifier] =
     Show.show {

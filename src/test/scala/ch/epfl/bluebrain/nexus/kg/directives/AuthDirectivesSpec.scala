@@ -19,7 +19,7 @@ import ch.epfl.bluebrain.nexus.kg.marshallers.instances._
 import ch.epfl.bluebrain.nexus.kg.routes.Routes
 import ch.epfl.bluebrain.nexus.rdf.Iri
 import ch.epfl.bluebrain.nexus.rdf.Iri.Path
-import ch.epfl.bluebrain.nexus.rdf.syntax.node.unsafe._
+import ch.epfl.bluebrain.nexus.rdf.implicits._
 import monix.eval.Task
 import org.mockito.matchers.MacroBasedMatchers
 import org.mockito.{IdiomaticMockito, Mockito}
@@ -90,7 +90,7 @@ class AuthDirectivesSpec
     "pass when required permissions exist" in {
       implicit val acls: AccessControlLists = AccessControlLists(
         Path./ -> ResourceAccessControlList(
-          url"http://localhost/".value,
+          url"http://localhost/",
           1L,
           Set.empty,
           Instant.EPOCH,

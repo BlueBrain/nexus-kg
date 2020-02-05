@@ -38,9 +38,8 @@ import ch.epfl.bluebrain.nexus.kg.routes.Clients
 import ch.epfl.bluebrain.nexus.kg.{KgError, TestHelper}
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import ch.epfl.bluebrain.nexus.rdf.Iri.Path._
-import ch.epfl.bluebrain.nexus.rdf.instances._
-import ch.epfl.bluebrain.nexus.rdf.syntax._
-import ch.epfl.bluebrain.nexus.rdf.{Iri, RootedGraph}
+import ch.epfl.bluebrain.nexus.rdf.implicits._
+import ch.epfl.bluebrain.nexus.rdf.{Graph, Iri}
 import ch.epfl.bluebrain.nexus.storage.client.StorageClient
 import io.circe.Json
 import io.circe.parser.parse
@@ -116,10 +115,10 @@ class ViewsSpec
   trait Base {
 
     viewCache.get(project1.ref) shouldReturn IO.pure(
-      Set[View](ElasticSearchView.default(project1.ref).copy(id = url"http://example.com/id2".value))
+      Set[View](ElasticSearchView.default(project1.ref).copy(id = url"http://example.com/id2"))
     )
     viewCache.get(project2.ref) shouldReturn IO.pure(
-      Set[View](ElasticSearchView.default(project2.ref).copy(id = url"http://example.com/id3".value))
+      Set[View](ElasticSearchView.default(project2.ref).copy(id = url"http://example.com/id3"))
     )
 
     implicit val caller = Caller(Anonymous, Set(Anonymous, Authenticated("realm")))
@@ -165,13 +164,13 @@ class ViewsSpec
     def resourceV(json: Json, rev: Long = 1L): ResourceV = {
       val graph = (json deepMerge Json.obj("@id" -> Json.fromString(id.asString)))
         .replaceContext(viewCtx)
-        .asGraph(resId.value)
+        .toGraph(resId.value)
         .rightValue
 
       val resourceV =
         ResourceF.simpleV(resId, Value(json, viewCtx.contextValue, graph), rev, schema = viewRef, types = types)
       resourceV.copy(
-        value = resourceV.value.copy(graph = RootedGraph(resId.value, graph.triples ++ resourceV.metadata()))
+        value = resourceV.value.copy(graph = Graph(resId.value, graph.triples ++ resourceV.metadata()))
       )
     }
 
@@ -218,8 +217,8 @@ class ViewsSpec
       "create default Elasticsearch view using payloads' uuid" in new EsView {
         val view: View = ElasticSearchView.default(projectRef)
         val defaultId  = Id(projectRef, nxv.defaultElasticSearchIndex)
-        val json = view
-          .as[Json](viewCtx.appendContextOf(resourceCtx))
+        val json = view.asGraph
+          .toJson(viewCtx.appendContextOf(resourceCtx))
           .rightValue
           .removeKeys(nxv.rev.prefix, nxv.deprecated.prefix)
           .replaceContext(viewCtxUri)

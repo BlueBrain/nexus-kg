@@ -34,8 +34,7 @@ import ch.epfl.bluebrain.nexus.kg.storage.AkkaSource
 import ch.epfl.bluebrain.nexus.rdf.Graph.Triple
 import ch.epfl.bluebrain.nexus.rdf.Iri.Path
 import ch.epfl.bluebrain.nexus.rdf.Iri.Path._
-import ch.epfl.bluebrain.nexus.rdf.Node.IriNode
-import ch.epfl.bluebrain.nexus.rdf.RootedGraph
+import ch.epfl.bluebrain.nexus.rdf.Graph
 import ch.epfl.bluebrain.nexus.storage.client.StorageClient
 import com.typesafe.config.{Config, ConfigFactory}
 import io.circe.Json
@@ -129,7 +128,7 @@ class ArchiveRoutesSpec
       ResourceF.simpleF(id, json, created = user, updated = user, schema = archiveRef)
 
     val resourceV =
-      ResourceF.simpleV(id, Value(Json.obj(), Json.obj(), RootedGraph(IriNode(genIri), Set.empty[Triple])))
+      ResourceF.simpleV(id, Value(Json.obj(), Json.obj(), Graph(id.value, Set.empty[Triple])))
 
     def response(): Json =
       response(archiveRef) deepMerge Json.obj(
@@ -206,11 +205,14 @@ class ArchiveRoutesSpec
     }
 
     "fetch an archives' source" in new Context {
-      archives.fetch(id) shouldReturn EitherT.rightT[Task, Rejection](resourceV)
+      archives.fetch(any[ResId]) shouldReturn EitherT.rightT[Task, Rejection](resourceV)
       forAll(metadataRanges) { accept =>
         Get(s"/v1/archives/$organization/$project/$urlEncodedId") ~> addCredentials(oauthToken) ~> accept ~> routes ~> check {
           status shouldEqual StatusCodes.OK
-          responseAs[Json] shouldEqual Json.obj("@context" -> Json.fromString(resourceCtxUri.asString))
+          responseAs[Json] shouldEqual Json.obj(
+            "@context" -> Json.fromString(resourceCtxUri.asString),
+            "@id"      -> Json.fromString(resourceV.id.value.asUri)
+          )
         }
       }
     }

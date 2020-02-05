@@ -27,7 +27,7 @@ import ch.epfl.bluebrain.nexus.kg.indexing.Indexing
 import ch.epfl.bluebrain.nexus.kg.resolve.{Materializer, ProjectResolution}
 import ch.epfl.bluebrain.nexus.kg.resources._
 import ch.epfl.bluebrain.nexus.kg.routes.{Clients, Routes}
-import ch.epfl.bluebrain.nexus.rdf.syntax._
+import ch.epfl.bluebrain.nexus.rdf.implicits._
 import ch.epfl.bluebrain.nexus.sourcing.projections.Projections
 import ch.epfl.bluebrain.nexus.storage.client.StorageClient
 import ch.epfl.bluebrain.nexus.storage.client.config.StorageClientConfig
@@ -102,7 +102,7 @@ object Main {
       implicit val adminClient   = AdminClient[Task](appConfig.admin)
       implicit val iamClient     = IamClient[Task]
       implicit val sparqlClient  = sparql
-      implicit val storageConfig = StorageClientConfig(url"${appConfig.storage.remoteDisk.defaultEndpoint}".value)
+      implicit val storageConfig = StorageClientConfig(url"${appConfig.storage.remoteDisk.defaultEndpoint}")
       implicit val storageClient = StorageClient[Task]
       Clients()
     }

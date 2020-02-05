@@ -7,7 +7,6 @@ import java.util.regex.Pattern.quote
 import akka.actor.ActorSystem
 import akka.testkit.TestKit
 import cats.effect.IO
-import cats.implicits._
 import ch.epfl.bluebrain.nexus.commons.search.FromPagination
 import ch.epfl.bluebrain.nexus.commons.search.QueryResult.UnscoredQueryResult
 import ch.epfl.bluebrain.nexus.commons.search.QueryResults.UnscoredQueryResults
@@ -28,9 +27,10 @@ import ch.epfl.bluebrain.nexus.kg.indexing.View.Filter
 import ch.epfl.bluebrain.nexus.kg.indexing.ViewEncoder._
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection.InvalidResourceFormat
 import ch.epfl.bluebrain.nexus.kg.resources.Id
+import ch.epfl.bluebrain.nexus.kg.resources.syntax._
 import ch.epfl.bluebrain.nexus.kg.resources.ProjectIdentifier.{ProjectLabel, ProjectRef}
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
-import ch.epfl.bluebrain.nexus.rdf.syntax._
+import ch.epfl.bluebrain.nexus.rdf.implicits._
 import io.circe.Json
 import org.mockito.{ArgumentMatchersSugar, IdiomaticMockito}
 import org.mockito.Mockito.when
@@ -62,10 +62,10 @@ class ViewSpec
   "A View" when {
 
     def compositeview(
-        id1: AbsoluteIri = url"http://example.com/es".value,
-        id2: AbsoluteIri = url"http://example.com/sparql".value,
-        source1Id: AbsoluteIri = url"http://example.com/source1".value,
-        source2Id: AbsoluteIri = url"http://example.com/source2".value
+        id1: AbsoluteIri = url"http://example.com/es",
+        id2: AbsoluteIri = url"http://example.com/sparql",
+        source1Id: AbsoluteIri = url"http://example.com/source1",
+        source2Id: AbsoluteIri = url"http://example.com/source2"
     ) =
       jsonContentOf(
         "/view/composite-view.json",
@@ -78,9 +78,9 @@ class ViewSpec
       ).appendContextOf(viewCtx)
 
     val mapping              = jsonContentOf("/elasticsearch/mapping.json")
-    val iri                  = url"http://example.com/id".value
-    val elasticSearchIri     = url"http://example.com/es".value
-    val sparqlIri            = url"http://example.com/sparql".value
+    val iri                  = url"http://example.com/id"
+    val elasticSearchIri     = url"http://example.com/es"
+    val sparqlIri            = url"http://example.com/sparql"
     val projectRef           = ProjectRef(genUUID)
     val id                   = Id(projectRef, iri)
     val sparqlview           = jsonContentOf("/view/sparqlview.json").appendContextOf(viewCtx)
@@ -96,18 +96,18 @@ class ViewSpec
     )
     val sourceFilter = Filter(Set(nxv.Resource, nxv.Schema), Set(tpe1, tpe2), Some("one"))
     val localS = ProjectEventStream(
-      url"http://example.com/source1".value,
+      url"http://example.com/source1",
       UUID.fromString("247d223b-1d38-4c6e-8fed-f9a8c2ccb4a3"),
       sourceFilter,
       includeMetadata = true
     )
     val crossS = CrossProjectEventStream(
-      url"http://example.com/source2".value,
+      url"http://example.com/source2",
       UUID.fromString("247d223b-1d38-4c6e-8fed-f9a8c2ccb4a6"),
       Filter(),
       includeMetadata = false,
       ProjectLabel("account1", "project1"),
-      List(Anonymous)
+      Set(Anonymous)
     )
 
     val source: Set[Source] = Set(localS, crossS)
@@ -205,8 +205,8 @@ class ViewSpec
         val resource =
           simpleV(id, aggElasticSearchView, types = Set(nxv.View, nxv.AggregateElasticSearchView))
         val views = Set(
-          ViewRef(ProjectLabel("account1", "project1"), url"http://example.com/id2".value),
-          ViewRef(ProjectLabel("account1", "project2"), url"http://example.com/id3".value)
+          ViewRef(ProjectLabel("account1", "project1"), url"http://example.com/id2"),
+          ViewRef(ProjectLabel("account1", "project2"), url"http://example.com/id3")
         )
         View(resource).rightValue shouldEqual AggregateElasticSearchView(
           views,
@@ -222,8 +222,8 @@ class ViewSpec
         val resource =
           simpleV(id, aggSparqlView, types = Set(nxv.View, nxv.AggregateSparqlView))
         val views = Set(
-          ViewRef(ProjectLabel("account1", "project1"), url"http://example.com/id2".value),
-          ViewRef(ProjectLabel("account1", "project2"), url"http://example.com/id3".value)
+          ViewRef(ProjectLabel("account1", "project1"), url"http://example.com/id2"),
+          ViewRef(ProjectLabel("account1", "project2"), url"http://example.com/id3")
         )
         View(resource).rightValue shouldEqual AggregateSparqlView(
           views,
@@ -243,11 +243,11 @@ class ViewSpec
         val views = Set(
           ViewRef(
             ProjectRef(UUID.fromString("64b202b4-1060-42b5-9b4f-8d6a9d0d9113")),
-            url"http://example.com/id2".value
+            url"http://example.com/id2"
           ),
           ViewRef(
             ProjectRef(UUID.fromString("d23d9578-255b-4e46-9e65-5c254bc9ad0a")),
-            url"http://example.com/id3".value
+            url"http://example.com/id3"
           )
         )
         View(resource).rightValue shouldEqual AggregateElasticSearchView(
@@ -269,7 +269,7 @@ class ViewSpec
             Map(quote("{id}") -> "http://example.com/id", quote("{size}") -> "100", quote("{offset}") -> "0")
           )
         client.queryRaw(query, any[Throwable => Boolean]) shouldReturn IO(SparqlResults.empty)
-        view.incoming[IO](url"http://example.com/id".value, FromPagination(0, 100)).ioValue shouldEqual
+        view.incoming[IO](url"http://example.com/id", FromPagination(0, 100)).ioValue shouldEqual
           UnscoredQueryResults(0, List.empty[UnscoredQueryResult[SparqlLink]])
       }
 
@@ -288,7 +288,7 @@ class ViewSpec
           )
         client.queryRaw(query, any[Throwable => Boolean]) shouldReturn IO(SparqlResults.empty)
         view
-          .outgoing[IO](url"http://example.com/id2".value, FromPagination(10, 100), includeExternalLinks = true)
+          .outgoing[IO](url"http://example.com/id2", FromPagination(10, 100), includeExternalLinks = true)
           .ioValue shouldEqual
           UnscoredQueryResults(0, List.empty[UnscoredQueryResult[SparqlLink]])
       }
@@ -308,7 +308,7 @@ class ViewSpec
           )
         client.queryRaw(query, any[Throwable => Boolean]) shouldReturn IO(SparqlResults.empty)
         view
-          .outgoing[IO](url"http://example.com/id2".value, FromPagination(10, 100), includeExternalLinks = false)
+          .outgoing[IO](url"http://example.com/id2", FromPagination(10, 100), includeExternalLinks = false)
           .ioValue shouldEqual
           UnscoredQueryResults(0, List.empty[UnscoredQueryResult[SparqlLink]])
       }
@@ -385,8 +385,8 @@ class ViewSpec
 
     "converting into json (from Graph)" should {
       val views = Set(
-        ViewRef(ProjectLabel("account1", "project1"), url"http://example.com/id2".value),
-        ViewRef(ProjectLabel("account1", "project2"), url"http://example.com/id3".value)
+        ViewRef(ProjectLabel("account1", "project1"), url"http://example.com/id2"),
+        ViewRef(ProjectLabel("account1", "project2"), url"http://example.com/id3")
       )
 
       "return the json representation" in {
@@ -411,7 +411,7 @@ class ViewSpec
 
         forAll(results) {
           case (view, expectedJson) =>
-            val json = view.as[Json](viewCtx.appendContextOf(resourceCtx)).rightValue.removeNestedKeys("@context")
+            val json = view.asGraph.toJson(viewCtx.appendContextOf(resourceCtx)).rightValue.removeNestedKeys("@context")
             json should equalIgnoreArrayOrder(expectedJson.removeNestedKeys("@context"))
 
         }

@@ -24,7 +24,7 @@ class MultiProjectResolution[F[_]](
     repo: Repo[F],
     projects: List[ProjectRef],
     types: Set[Iri.AbsoluteIri],
-    identities: List[Identity],
+    identities: Set[Identity],
     projectCache: ProjectCache[F],
     acls: AccessControlLists
 )(implicit F: Monad[F])
@@ -51,7 +51,7 @@ class MultiProjectResolution[F[_]](
   private def hasPermission(projectRef: ProjectRef): F[Boolean] =
     projectCache.getLabel(projectRef).map {
       case None        => false
-      case Some(label) => acls.exists(identities.toSet, label, read)
+      case Some(label) => acls.exists(identities, label, read)
     }
 }
 
@@ -64,7 +64,7 @@ object MultiProjectResolution {
       repo: Repo[F],
       projects: List[ProjectRef],
       types: Set[Iri.AbsoluteIri],
-      identities: List[Identity],
+      identities: Set[Identity],
       projectCache: ProjectCache[F],
       acls: AccessControlLists
   ): MultiProjectResolution[F] =

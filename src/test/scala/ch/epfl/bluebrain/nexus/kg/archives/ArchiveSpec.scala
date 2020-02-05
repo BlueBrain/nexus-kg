@@ -19,10 +19,9 @@ import ch.epfl.bluebrain.nexus.kg.resources.Rejection.{InvalidResourceFormat, Pr
 import ch.epfl.bluebrain.nexus.kg.resources.syntax._
 import ch.epfl.bluebrain.nexus.kg.resources.Id
 import ch.epfl.bluebrain.nexus.kg.resources.ProjectIdentifier.ProjectLabel
+import ch.epfl.bluebrain.nexus.rdf.Graph
 import ch.epfl.bluebrain.nexus.rdf.Iri.{AbsoluteIri, Path}
-import ch.epfl.bluebrain.nexus.rdf.RootedGraph
-import ch.epfl.bluebrain.nexus.rdf.instances._
-import ch.epfl.bluebrain.nexus.rdf.syntax._
+import ch.epfl.bluebrain.nexus.rdf.implicits._
 import io.circe.syntax._
 import io.circe.{Encoder, Json}
 import org.mockito.{IdiomaticMockito, Mockito}
@@ -105,7 +104,7 @@ class ArchiveSpec
         addField("originalSource" -> originalSource) deepMerge
         addField("path"           -> path) deepMerge addField("project" -> project)
 
-    def graph(jsons: Json*): RootedGraph = {
+    def graph(jsons: Json*): Graph = {
       val json =
         Json
           .obj(
@@ -114,7 +113,7 @@ class ArchiveSpec
             "@type"     -> nxv.Archive.prefix.asJson
           )
           .appendContextOf(archiveCtx)
-      json.asGraph(id.value).rightValue
+      json.toGraph(id.value).rightValue
     }
 
     def error(field: String) = s"'$field' field does not have the right format."

@@ -9,7 +9,7 @@ import ch.epfl.bluebrain.nexus.kg.TestHelper
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig._
 import ch.epfl.bluebrain.nexus.kg.config.Settings
 import ch.epfl.bluebrain.nexus.rdf.Iri.Path._
-import ch.epfl.bluebrain.nexus.rdf.syntax.node.unsafe._
+import ch.epfl.bluebrain.nexus.rdf.implicits._
 import monix.eval.Task
 import monix.execution.Scheduler.Implicits.global
 import org.mockito.IdiomaticMockito
@@ -31,7 +31,7 @@ class AclCacheSpec
 
   private val client: IamClient[Task] = mock[IamClient[Task]]
   private implicit val iamConfig: IamConfig =
-    IamConfig(url"http://base.com".value, url"http://base.com".value, "v1", None, 1.second)
+    IamConfig(url"http://base.com", url"http://base.com", "v1", None, 1.second)
   private implicit val appConfig = Settings(system).appConfig.copy(iam = iamConfig)
 
   override val write = Permission.unsafe("resources/write")

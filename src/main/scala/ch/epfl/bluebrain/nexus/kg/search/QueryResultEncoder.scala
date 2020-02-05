@@ -10,7 +10,7 @@ import ch.epfl.bluebrain.nexus.kg.config.Contexts.{resourceCtxUri, searchCtxUri}
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary.nxv
 import ch.epfl.bluebrain.nexus.kg.directives.QueryDirectives.{after, from, size}
 import ch.epfl.bluebrain.nexus.kg.indexing.SparqlLink
-import ch.epfl.bluebrain.nexus.rdf.syntax._
+import ch.epfl.bluebrain.nexus.rdf.implicits._
 import io.circe.syntax._
 import io.circe.{Encoder, Json}
 trait LowPriorityQueryResultsEncoder {

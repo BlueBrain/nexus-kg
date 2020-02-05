@@ -44,8 +44,7 @@ import ch.epfl.bluebrain.nexus.kg.resources._
 import ch.epfl.bluebrain.nexus.kg.{urlEncode, Error, KgError, TestHelper}
 import ch.epfl.bluebrain.nexus.rdf.Iri.Path._
 import ch.epfl.bluebrain.nexus.rdf.Iri.{AbsoluteIri, Path}
-import ch.epfl.bluebrain.nexus.rdf.instances._
-import ch.epfl.bluebrain.nexus.rdf.syntax._
+import ch.epfl.bluebrain.nexus.rdf.implicits._
 import ch.epfl.bluebrain.nexus.storage.client.StorageClient
 import ch.epfl.bluebrain.nexus.sourcing.projections.syntax._
 import com.datastax.driver.core.utils.UUIDs
@@ -153,7 +152,7 @@ class ViewRoutesSpec
       ResourceF.simpleF(id, view, created = user, updated = user, schema = viewRef, types = types)
 
     // format: off
-    val resourceValue = Value(view, viewCtx.contextValue, view.replaceContext(viewCtx).deepMerge(Json.obj("@id" -> Json.fromString(id.value.asString))).asGraph(id.value).rightValue)
+    val resourceValue = Value(view, viewCtx.contextValue, view.replaceContext(viewCtx).deepMerge(Json.obj("@id" -> Json.fromString(id.value.asString))).toGraph(id.value).rightValue)
     // format: on
 
     val resourceV =
@@ -252,7 +251,7 @@ class ViewRoutesSpec
 
     "fetch latest revision of a view" in new Context {
       views.fetch(id) shouldReturn EitherT.rightT[Task, Rejection](resourceV)
-      val expected = mappingToJson(resourceValue.graph.as[Json](viewCtx).rightValue.removeNestedKeys("@context"))
+      val expected = mappingToJson(resourceValue.graph.toJson(viewCtx).rightValue.removeNestedKeys("@context"))
       forAll(endpoints()) { endpoint =>
         Get(endpoint) ~> addCredentials(oauthToken) ~> Accept(MediaRanges.`*/*`) ~> routes ~> check {
           status shouldEqual StatusCodes.OK
@@ -263,7 +262,7 @@ class ViewRoutesSpec
 
     "fetch specific revision of a view" in new Context {
       views.fetch(id, 1L) shouldReturn EitherT.rightT[Task, Rejection](resourceV)
-      val expected = mappingToJson(resourceValue.graph.as[Json](viewCtx).rightValue.removeNestedKeys("@context"))
+      val expected = mappingToJson(resourceValue.graph.toJson(viewCtx).rightValue.removeNestedKeys("@context"))
       forAll(endpoints(rev = Some(1L))) { endpoint =>
         Get(endpoint) ~> addCredentials(oauthToken) ~> Accept(MediaRanges.`*/*`) ~> routes ~> check {
           status shouldEqual StatusCodes.OK
@@ -274,7 +273,7 @@ class ViewRoutesSpec
 
     "fetch specific tag of a view" in new Context {
       views.fetch(id, "some") shouldReturn EitherT.rightT[Task, Rejection](resourceV)
-      val expected = mappingToJson(resourceValue.graph.as[Json](viewCtx).rightValue.removeNestedKeys("@context"))
+      val expected = mappingToJson(resourceValue.graph.toJson(viewCtx).rightValue.removeNestedKeys("@context"))
       forAll(endpoints(tag = Some("some"))) { endpoint =>
         Get(endpoint) ~> addCredentials(oauthToken) ~> Accept(MediaRanges.`*/*`) ~> routes ~> check {
           status shouldEqual StatusCodes.OK

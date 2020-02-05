@@ -5,18 +5,15 @@ import java.util.UUID
 import cats.data.{EitherT, OptionT}
 import cats.effect.Effect
 import cats.implicits._
-import cats.{Id => CId}
 import ch.epfl.bluebrain.nexus.admin.client.types.Project
 import ch.epfl.bluebrain.nexus.commons.es.client.ElasticSearchFailure.ElasticSearchClientError
 import ch.epfl.bluebrain.nexus.commons.http.HttpClient
-import ch.epfl.bluebrain.nexus.commons.rdf.syntax._
 import ch.epfl.bluebrain.nexus.commons.search.{FromPagination, Pagination}
-import ch.epfl.bluebrain.nexus.commons.shacl.ShaclEngine
+import ch.epfl.bluebrain.nexus.iam.client.config.IamClientConfig
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity.Subject
 import ch.epfl.bluebrain.nexus.iam.client.types.{AccessControlLists, Caller}
 import ch.epfl.bluebrain.nexus.kg.cache.{ProjectCache, ViewCache}
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig
-import ch.epfl.bluebrain.nexus.kg.config.AppConfig._
 import ch.epfl.bluebrain.nexus.kg.config.Contexts._
 import ch.epfl.bluebrain.nexus.kg.config.Schemas._
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary._
@@ -36,14 +33,13 @@ import ch.epfl.bluebrain.nexus.kg.routes.{Clients, SearchParams}
 import ch.epfl.bluebrain.nexus.kg.uuid
 import ch.epfl.bluebrain.nexus.rdf.Graph.Triple
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
-import ch.epfl.bluebrain.nexus.rdf.RootedGraph
+import ch.epfl.bluebrain.nexus.rdf.Graph
 import ch.epfl.bluebrain.nexus.rdf.Vocabulary.rdf
-import ch.epfl.bluebrain.nexus.rdf.instances._
-import ch.epfl.bluebrain.nexus.rdf.syntax._
+import ch.epfl.bluebrain.nexus.rdf.implicits._
+import ch.epfl.bluebrain.nexus.rdf.shacl.ShaclEngine
 import io.circe.parser.parse
 import io.circe.syntax._
 import io.circe.{Encoder, Json}
-import org.apache.jena.rdf.model.Model
 
 class Views[F[_]](repo: Repo[F])(
     implicit F: Effect[F],
@@ -53,6 +49,8 @@ class Views[F[_]](repo: Repo[F])(
     viewCache: ViewCache[F],
     clients: Clients[F]
 ) {
+
+  private implicit val iamClientConfig: IamClientConfig = config.iam.iamClient
 
   /**
     * Creates a new view attempting to extract the id from the source. If a primary node of the resulting graph
@@ -108,7 +106,7 @@ class Views[F[_]](repo: Repo[F])(
       curr     <- repo.get(id, Some(viewRef)).toRight(notFound(id.ref, schema = Some(viewRef)))
       matValue <- materializer(transformSave(source, extractUuidFrom(curr.value)), id.value)
       typedGraph = addViewType(id.value, matValue.graph)
-      types      = typedGraph.rootTypes.map(_.value)
+      types      = typedGraph.rootTypes
       _       <- validateShacl(typedGraph)
       view    <- viewValidation(id, typedGraph, 1L, types)
       json    <- jsonForRepo(view.encrypt)
@@ -265,16 +263,16 @@ class Views[F[_]](repo: Repo[F])(
       .withMeta(resource)
       .map { resourceV =>
         val graph = resourceV.value.graph
-        resourceV.map(_.copy(graph = RootedGraph(graph.rootNode, graph.remove(p = nxv.token))))
+        resourceV.map(_.copy(graph = graph.filter { case (_, p, _) => p.value != nxv.token.value }))
       }
       .flatMap(outputResource)
 
   private def create(
       id: ResId,
-      graph: RootedGraph
+      graph: Graph
   )(implicit acls: AccessControlLists, project: Project, caller: Caller): RejOrResource[F] = {
     val typedGraph = addViewType(id.value, graph)
-    val types      = typedGraph.rootTypes.map(_.value)
+    val types      = typedGraph.rootTypes
 
     for {
       _       <- validateShacl(typedGraph)
@@ -285,15 +283,13 @@ class Views[F[_]](repo: Repo[F])(
     } yield created
   }
 
-  private def addViewType(id: AbsoluteIri, graph: RootedGraph): RootedGraph =
-    RootedGraph(id, graph.triples + ((id.value, rdf.tpe, nxv.View): Triple))
+  private def addViewType(id: AbsoluteIri, graph: Graph): Graph =
+    Graph(id, graph.triples + ((id, rdf.tpe, nxv.View): Triple))
 
-  private def validateShacl(data: RootedGraph): EitherT[F, Rejection, Unit] = {
-    val model: CId[Model] = data.as[Model]()
-    toEitherT(viewRef, ShaclEngine(model, viewSchemaModel, validateShapes = false, reportDetails = true))
-  }
+  private def validateShacl(data: Graph): EitherT[F, Rejection, Unit] =
+    toEitherT(viewRef, ShaclEngine(data.asJena, viewSchemaModel, validateShapes = false, reportDetails = true))
 
-  private def viewValidation(resId: ResId, graph: RootedGraph, rev: Long, types: Set[AbsoluteIri])(
+  private def viewValidation(resId: ResId, graph: Graph, rev: Long, types: Set[AbsoluteIri])(
       implicit acls: AccessControlLists,
       caller: Caller
   ): EitherT[F, Rejection, View] = {
@@ -322,9 +318,9 @@ class Views[F[_]](repo: Repo[F])(
     })
 
   private def jsonForRepo(view: View): EitherT[F, Rejection, Json] = {
-    val graph                = view.asGraph[CId].removeMetadata
-    val jsonOrMarshallingErr = graph.as[Json](viewCtx).map(_.replaceContext(viewCtxUri))
-    EitherT.fromEither[F](jsonOrMarshallingErr).leftSemiflatMap(fromMarshallingErr(view.id, _)(F))
+    val graph     = view.asGraph.removeMetadata
+    val errOrJson = graph.toJson(viewCtx).map(_.replaceContext(viewCtxUri)).leftMap(err => InvalidJsonLD(err))
+    EitherT.fromEither[F](errOrJson)
   }
 
   private def transformSave(source: Json, uuidField: String = uuid())(implicit project: Project): Json = {
@@ -374,8 +370,8 @@ class Views[F[_]](repo: Repo[F])(
   )(implicit project: Project): EitherT[F, Rejection, ResourceV] = {
 
     def toGraph(v: View): EitherT[F, Rejection, ResourceF[Value]] = {
-      val graph  = v.asGraph[CId]
-      val rooted = RootedGraph(graph.rootNode, graph.triples ++ originalResource.metadata())
+      val graph  = v.asGraph
+      val rooted = Graph(graph.root, graph.triples ++ originalResource.metadata())
       EitherT.rightT(originalResource.copy(value = Value(originalResource.value.source, viewCtx.contextValue, rooted)))
     }
     View(originalResource).map(_.labeled[F].flatMap(toGraph)).getOrElse(EitherT.rightT(originalResource))

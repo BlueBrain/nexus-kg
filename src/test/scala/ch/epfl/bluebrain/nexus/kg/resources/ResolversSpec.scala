@@ -27,9 +27,8 @@ import ch.epfl.bluebrain.nexus.kg.resources.syntax._
 import ch.epfl.bluebrain.nexus.rdf.Graph.Triple
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import ch.epfl.bluebrain.nexus.rdf.Iri.Path./
-import ch.epfl.bluebrain.nexus.rdf.instances._
-import ch.epfl.bluebrain.nexus.rdf.syntax._
-import ch.epfl.bluebrain.nexus.rdf.{Iri, RootedGraph}
+import ch.epfl.bluebrain.nexus.rdf.implicits._
+import ch.epfl.bluebrain.nexus.rdf.{Graph, Iri}
 import com.github.ghik.silencer.silent
 import io.circe.Json
 import org.mockito.{IdiomaticMockito, Mockito}
@@ -76,7 +75,7 @@ class ResolversSpec
   private val resolvers: Resolvers[IO] = Resolvers[IO]
 
   private val user: Identity = User("dmontero", "ldap")
-  private val identities     = List(Group("bbp-ou-neuroinformatics", "ldap2"), user)
+  private val identities     = Set(Group("bbp-ou-neuroinformatics", "ldap2"), user)
 
   // format: off
   val project1 = Project(genIri, genString(), genString(), None, genIri, genIri, Map.empty, genUUID, genUUID, 1L, deprecated = false, Instant.EPOCH, genIri, Instant.EPOCH, genIri)
@@ -107,7 +106,7 @@ class ResolversSpec
     val voc        = Iri.absolute(s"http://example.com/voc/").rightValue
     // format: off
     implicit val project = Project(resId.value, "proj", "org", None, base, voc, Map.empty, projectRef.id, genUUID, 1L, deprecated = false, Instant.EPOCH, caller.subject.id, Instant.EPOCH, caller.subject.id)
-    val crossResolver = CrossProjectResolver(Set(nxv.Schema), List(project1.ref, project2.ref), identities, projectRef, url"http://example.com/id".value, 1L, false, 20)
+    val crossResolver = CrossProjectResolver(Set(nxv.Schema), List(project1.ref, project2.ref), identities, projectRef, url"http://example.com/id", 1L, false, 20)
     // format: on
     resolverCache.get(projectRef) shouldReturn IO(List(InProjectResolver.default(projectRef), crossResolver))
 
@@ -131,26 +130,23 @@ class ResolversSpec
     def resourceV(json: Json, rev: Long = 1L): ResourceV = {
       val graph = (json deepMerge Json.obj("@id" -> Json.fromString(id.asString)))
         .replaceContext(resolverCtx)
-        .asGraph(resId.value)
+        .toGraph(resId.value)
         .rightValue
 
       val resourceV =
         ResourceF.simpleV(resId, Value(json, resolverCtx.contextValue, graph), rev, schema = resolverRef, types = types)
       resourceV.copy(
-        value = resourceV.value.copy(graph = RootedGraph(resId.value, graph.triples ++ resourceV.metadata()))
+        value = resourceV.value.copy(graph = Graph(resId.value, graph.triples ++ resourceV.metadata()))
       )
     }
   }
-
-  private implicit val ordering: Ordering[Identity] = (x: Identity, y: Identity) =>
-    x.id.asString compareTo y.id.asString
 
   @silent // the definition is not recognized as used
   private implicit val eqCrossProject: Equality[CrossProjectResolver] =
     (a: CrossProjectResolver, b: Any) => {
       Try {
         val that = b.asInstanceOf[CrossProjectResolver]
-        that.copy(identities = identities.sorted) == a.copy(identities = identities.sorted)
+        that == a
       }.getOrElse(false)
     }
 
@@ -252,7 +248,7 @@ class ResolversSpec
         val result = resolvers.fetch(resId).value.accepted
         resolvers.fetchSource(resId).value.accepted should equalIgnoreArrayOrder(resolverSource())
         val expected = resourceV(resolverForGraph(resId.value))
-        val json     = removeMetadata(result.value.graph).as[Json](fullCtx).rightValue.removeNestedKeys("@context")
+        val json     = removeMetadata(result.value.graph).toJson(fullCtx).rightValue.removeNestedKeys("@context")
         json should equalIgnoreArrayOrder(resolverForGraph(resId.value))
         result.value.ctx shouldEqual expected.value.ctx
         result shouldEqual expected.copy(value = result.value)
@@ -269,7 +265,7 @@ class ResolversSpec
         val resultLatest   = resolvers.fetch(resId, 2L).value.accepted
         val expectedLatest = resourceV(resolverUpdatedForGraph, 2L)
         resultLatest.value.ctx shouldEqual expectedLatest.value.ctx
-        val json1 = removeMetadata(resultLatest.value.graph).as[Json](fullCtx).rightValue.removeNestedKeys("@context")
+        val json1 = removeMetadata(resultLatest.value.graph).toJson(fullCtx).rightValue.removeNestedKeys("@context")
         json1 should equalIgnoreArrayOrder(resolverUpdatedForGraph)
         resultLatest shouldEqual expectedLatest.copy(value = resultLatest.value)
 
@@ -278,7 +274,7 @@ class ResolversSpec
         val result   = resolvers.fetch(resId, 1L).value.accepted
         val expected = resourceV(resolverForGraph(resId.value))
         result.value.ctx shouldEqual expected.value.ctx
-        val json2 = removeMetadata(result.value.graph).as[Json](fullCtx).rightValue.removeNestedKeys("@context")
+        val json2 = removeMetadata(result.value.graph).toJson(fullCtx).rightValue.removeNestedKeys("@context")
         json2 should equalIgnoreArrayOrder(resolverForGraph(resId.value))
         result shouldEqual expected.copy(value = result.value)
       }
@@ -306,7 +302,7 @@ class ResolversSpec
         val json = Json.obj("key" -> Json.fromString("value")) deepMerge defaultCtx
         repo.create(Id(project1.ref, resourceId), orgRef, shaclRef, Set(nxv.Schema), json).value.accepted
         val resource = repo.get(Id(project1.ref, resourceId), None).value.some
-        val graph = RootedGraph(
+        val graph = Graph(
           resourceId,
           resource.metadata()(appConfig, project1) + ((resourceId, url"${project1.vocab.asString}key", "value"): Triple)
         )

@@ -22,9 +22,9 @@ import ch.epfl.bluebrain.nexus.kg.resolve.ResolverEncoder._
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection.ResourceAlreadyExists
 import ch.epfl.bluebrain.nexus.kg.resources.syntax._
 import ch.epfl.bluebrain.nexus.kg.storage.Storage
-import ch.epfl.bluebrain.nexus.kg.storage.Storage.DiskStorage
 import ch.epfl.bluebrain.nexus.kg.storage.StorageEncoder._
-import ch.epfl.bluebrain.nexus.rdf.syntax._
+import ch.epfl.bluebrain.nexus.kg.storage.Storage.DiskStorage
+import ch.epfl.bluebrain.nexus.rdf.implicits._
 import io.circe.Json
 import com.typesafe.scalalogging.Logger
 import retry.CatsEffect._
@@ -76,27 +76,27 @@ class ProjectInitializer[F[_]: Timer](
   }
 
   private def asJson(view: View): F[Json] =
-    view.as[Json](viewCtx.appendContextOf(resourceCtx)) match {
+    view.asGraph.toJson(viewCtx.appendContextOf(resourceCtx)) match {
       case Left(err) =>
-        log.error(s"Could not convert view with id '${view.id}' from Graph back to json. Reason: '${err.message}'")
+        log.error(s"Could not convert view with id '${view.id}' from Graph back to json. Reason: '$err'")
         F.raiseError(InternalError("Could not decode default view from graph to Json"))
       case Right(json) =>
         F.pure(json.removeKeys(revK, deprecatedK).replaceContext(viewCtxUri).addContext(resourceCtxUri))
     }
 
   private def asJson(storage: Storage): F[Json] =
-    storage.as[Json](storageCtx.appendContextOf(resourceCtx)) match {
+    storage.asGraph.toJson(storageCtx.appendContextOf(resourceCtx)) match {
       case Left(err) =>
-        log.error(s"Could not convert storage '${storage.id}' from Graph to json. Reason: '${err.message}'")
+        log.error(s"Could not convert storage '${storage.id}' from Graph to json. Reason: '$err'")
         F.raiseError(InternalError("Could not decode default storage from graph to Json"))
       case Right(json) =>
         F.pure(json.removeKeys(revK, deprecatedK, algorithmK).replaceContext(storageCtxUri).addContext(resourceCtxUri))
     }
 
   private def asJson(resolver: Resolver): F[Json] =
-    resolver.as[Json](resolverCtx.appendContextOf(resourceCtx)) match {
+    resolver.asGraph.toJson(resolverCtx.appendContextOf(resourceCtx)) match {
       case Left(err) =>
-        log.error(s"Could not convert resolver '${resolver.id}' from Graph to json. Reason: '${err.message}'")
+        log.error(s"Could not convert resolver '${resolver.id}' from Graph to json. Reason: '$err'")
         F.raiseError(InternalError("Could not decode default in project resolver from graph to Json"))
       case Right(json) =>
         F.pure(json.removeKeys(revK, deprecatedK, algorithmK).replaceContext(resolverCtxUri).addContext(resourceCtxUri))

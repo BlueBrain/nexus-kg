@@ -63,7 +63,7 @@ class MultiProjectResolutionSpec
   private val projects              = List(proj1Id, proj2Id, proj3Id).map(ProjectRef(_)) // we want to ensure traversal order
   private val types                 = Set(nxv.Schema.value, nxv.Resource.value)
   private val group                 = Group("bbp-ou-neuroinformatics", "ldap2")
-  private val identities            = List[Identity](group, User("dmontero", "ldap"))
+  private val identities            = Set[Identity](group, User("dmontero", "ldap"))
   implicit val timeout              = Timeout(1.second)
   implicit val ec                   = system.dispatcher
   implicit val timer: Timer[IO]     = IO.timer(system.dispatcher)

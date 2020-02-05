@@ -2,19 +2,17 @@ package ch.epfl.bluebrain.nexus.kg.resources
 
 import cats.data.EitherT
 import cats.effect.Effect
-import cats.{Id => CId}
 import ch.epfl.bluebrain.nexus.admin.client.types.Project
 import ch.epfl.bluebrain.nexus.commons.es.client.ElasticSearchClient
 import ch.epfl.bluebrain.nexus.commons.http.HttpClient
-import ch.epfl.bluebrain.nexus.commons.rdf.syntax._
 import ch.epfl.bluebrain.nexus.commons.search.{FromPagination, Pagination}
-import ch.epfl.bluebrain.nexus.commons.shacl.ShaclEngine
 import ch.epfl.bluebrain.nexus.commons.sparql.client.BlazegraphClient
-import ch.epfl.bluebrain.nexus.iam.client.types.Identity.Subject
+import ch.epfl.bluebrain.nexus.iam.client.config.IamClientConfig
 import ch.epfl.bluebrain.nexus.iam.client.types.Caller
+import ch.epfl.bluebrain.nexus.iam.client.types.Identity.Subject
+import ch.epfl.bluebrain.nexus.kg.KgError
 import ch.epfl.bluebrain.nexus.kg.cache.{ProjectCache, ResolverCache}
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig
-import ch.epfl.bluebrain.nexus.kg.config.AppConfig._
 import ch.epfl.bluebrain.nexus.kg.config.Contexts._
 import ch.epfl.bluebrain.nexus.kg.config.Schemas._
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary._
@@ -27,14 +25,12 @@ import ch.epfl.bluebrain.nexus.kg.resources.Rejection._
 import ch.epfl.bluebrain.nexus.kg.resources.ResourceF.Value
 import ch.epfl.bluebrain.nexus.kg.resources.syntax._
 import ch.epfl.bluebrain.nexus.kg.routes.SearchParams
-import ch.epfl.bluebrain.nexus.rdf.Graph.Triple
+import ch.epfl.bluebrain.nexus.rdf.Graph
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
-import ch.epfl.bluebrain.nexus.rdf.RootedGraph
 import ch.epfl.bluebrain.nexus.rdf.Vocabulary.rdf
-import ch.epfl.bluebrain.nexus.rdf.instances._
-import ch.epfl.bluebrain.nexus.rdf.syntax._
+import ch.epfl.bluebrain.nexus.rdf.implicits._
+import ch.epfl.bluebrain.nexus.rdf.shacl.ShaclEngine
 import io.circe.Json
-import org.apache.jena.rdf.model.Model
 
 class Resolvers[F[_]](repo: Repo[F])(
     implicit F: Effect[F],
@@ -43,6 +39,8 @@ class Resolvers[F[_]](repo: Repo[F])(
     projectCache: ProjectCache[F],
     resolverCache: ResolverCache[F]
 ) {
+
+  private implicit val iamClientConfig: IamClientConfig = config.iam.iamClient
 
   /**
     * Creates a new resolver attempting to extract the id from the source. If a primary node of the resulting graph
@@ -83,8 +81,8 @@ class Resolvers[F[_]](repo: Repo[F])(
   def update(id: ResId, rev: Long, source: Json)(implicit caller: Caller, project: Project): RejOrResource[F] =
     for {
       matValue <- materializer(source.addContext(resolverCtxUri), id.value)
-      typedGraph = addResolverType(id.value, matValue.graph)
-      types      = typedGraph.rootTypes.map(_.value)
+      typedGraph = addResolverType(matValue.graph)
+      types      = typedGraph.cursor.downSet(rdf.tpe).as[Set[AbsoluteIri]].getOrElse(Set.empty)
       _        <- validateShacl(typedGraph)
       resolver <- resolverValidation(id, typedGraph, 1L, types)
       json     <- jsonForRepo(resolver)
@@ -291,9 +289,9 @@ class Resolvers[F[_]](repo: Repo[F])(
   private def fetch(resource: Resource)(implicit project: Project): RejOrResourceV[F] =
     materializer.withMeta(resource).flatMap(outputResource)
 
-  private def create(id: ResId, graph: RootedGraph)(implicit caller: Caller, project: Project): RejOrResource[F] = {
-    val typedGraph = addResolverType(id.value, graph)
-    val types      = typedGraph.rootTypes.map(_.value)
+  private def create(id: ResId, graph: Graph)(implicit caller: Caller, project: Project): RejOrResource[F] = {
+    val typedGraph = addResolverType(graph)
+    val types      = typedGraph.rootTypes
     for {
       _        <- validateShacl(typedGraph)
       resolver <- resolverValidation(id, typedGraph, 1L, types)
@@ -304,15 +302,13 @@ class Resolvers[F[_]](repo: Repo[F])(
     } yield created
   }
 
-  private def addResolverType(id: AbsoluteIri, graph: RootedGraph): RootedGraph =
-    RootedGraph(id, graph.triples + ((id.value, rdf.tpe, nxv.Resolver): Triple))
+  private def addResolverType(graph: Graph): Graph =
+    graph.append(rdf.tpe, nxv.Resolver)
 
-  private def validateShacl(data: RootedGraph): EitherT[F, Rejection, Unit] = {
-    val model: CId[Model] = data.as[Model]()
-    toEitherT(resolverRef, ShaclEngine(model, resolverSchemaModel, validateShapes = false, reportDetails = true))
-  }
+  private def validateShacl(data: Graph): EitherT[F, Rejection, Unit] =
+    toEitherT(resolverRef, ShaclEngine(data.asJena, resolverSchemaModel, validateShapes = false, reportDetails = true))
 
-  private def resolverValidation(resId: ResId, graph: RootedGraph, rev: Long, types: Set[AbsoluteIri])(
+  private def resolverValidation(resId: ResId, graph: Graph, rev: Long, types: Set[AbsoluteIri])(
       implicit caller: Caller
   ): EitherT[F, Rejection, Resolver] = {
 
@@ -320,28 +316,36 @@ class Resolvers[F[_]](repo: Repo[F])(
       ResourceF.simpleV(resId, Value(Json.obj(), Json.obj(), graph), rev = rev, types = types, schema = resolverRef)
 
     EitherT.fromEither[F](Resolver(resource)).flatMap {
-      case r: CrossProjectResolver if r.identities.foundInCaller => r.referenced[F]
-      case _: CrossProjectResolver                               => EitherT.leftT[F, Resolver](InvalidIdentity())
-      case r: InProjectResolver                                  => EitherT.rightT(r)
+      case r: CrossProjectResolver if r.identities.forall(caller.identities.contains) => r.referenced[F]
+      case _: CrossProjectResolver                                                    => EitherT.leftT[F, Resolver](InvalidIdentity())
+      case r: InProjectResolver                                                       => EitherT.rightT(r)
     }
   }
 
   private def jsonForRepo(resolver: Resolver): EitherT[F, Rejection, Json] = {
-    val graph                = resolver.asGraph[CId].removeMetadata
-    val jsonOrMarshallingErr = graph.as[Json](resolverCtx).map(_.replaceContext(resolverCtxUri))
-    EitherT.fromEither[F](jsonOrMarshallingErr).leftSemiflatMap(fromMarshallingErr(resolver.id, _)(F))
+    val graph                = resolver.asGraph.removeMetadata
+    val jsonOrMarshallingErr = graph.toJson(resolverCtx).map(_.replaceContext(resolverCtxUri))
+    jsonOrMarshallingErr match {
+      case Left(err) =>
+        EitherT(
+          F.raiseError[Either[Rejection, Json]](
+            KgError.InternalError(s"Unexpected MarshallingError with message '$err'")
+          )
+        )
+      case Right(value) => EitherT.rightT(value)
+    }
   }
 
   private def outputResource(originalResource: ResourceV)(implicit project: Project): EitherT[F, Rejection, ResourceV] =
     Resolver(originalResource) match {
       case Right(resolver) =>
         resolver.labeled.flatMap { labeledResolver =>
-          val graph = labeledResolver.asGraph[CId]
+          val graph = labeledResolver.asGraph
           val value =
             Value(
               originalResource.value.source,
               resolverCtx.contextValue,
-              RootedGraph(graph.rootNode, graph.triples ++ originalResource.metadata())
+              graph ++ originalResource.metadata()
             )
           EitherT.rightT(originalResource.copy(value = value))
         }

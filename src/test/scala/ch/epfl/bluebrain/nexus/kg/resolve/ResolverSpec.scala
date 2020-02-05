@@ -20,7 +20,7 @@ import ch.epfl.bluebrain.nexus.kg.resources.ProjectIdentifier.{ProjectLabel, Pro
 import ch.epfl.bluebrain.nexus.kg.resources.syntax._
 import ch.epfl.bluebrain.nexus.kg.resources._
 import ch.epfl.bluebrain.nexus.rdf.Iri
-import ch.epfl.bluebrain.nexus.rdf.syntax._
+import ch.epfl.bluebrain.nexus.rdf.implicits._
 import io.circe.Json
 import org.mockito.{IdiomaticMockito, Mockito}
 import org.scalatest.{BeforeAndAfter, Inspectors, OptionValues, TryValues}
@@ -47,7 +47,7 @@ class ResolverSpec
   private implicit val projectCache = mock[ProjectCache[CId]]
 
   private implicit val iamClientConfig =
-    IamClientConfig(url"http://example.com".value, url"http://example.com".value, "iam", 1.second)
+    IamClientConfig(url"http://example.com", url"http://example.com", "iam", 1.second)
 
   before {
     Mockito.reset(projectCache)
@@ -98,7 +98,7 @@ class ResolverSpec
           CrossProjectResolver(
             Set(nxv.Schema.value),
             List(ProjectLabel("account1", "project1"), ProjectLabel("account1", "project2")),
-            List(Anonymous),
+            Set(Anonymous),
             projectRef1,
             iri,
             resource.rev,
@@ -143,7 +143,7 @@ class ResolverSpec
         val resolver: Resolver = CrossProjectResolver(
           Set(nxv.Schema.value),
           List(ProjectLabel("account1", "project1"), ProjectLabel("account1", "project2")),
-          List(Anonymous),
+          Set(Anonymous),
           projectRef1,
           iri,
           1L,
@@ -161,7 +161,8 @@ class ResolverSpec
             )
           )
         )
-        val json = resolver.as[Json](resolverCtx.appendContextOf(resourceCtx)).rightValue.removeNestedKeys("@context")
+        val json =
+          resolver.asGraph.toJson(resolverCtx.appendContextOf(resourceCtx)).rightValue.removeNestedKeys("@context")
         json should equalIgnoreArrayOrder(crossProjectAnon.removeNestedKeys("@context") deepMerge metadata)
       }
     }

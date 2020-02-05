@@ -1,11 +1,12 @@
 package ch.epfl.bluebrain.nexus.kg.resources
 
+import cats.implicits._
 import ch.epfl.bluebrain.nexus.kg.config.Contexts._
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary.nxv
-import ch.epfl.bluebrain.nexus.kg.resources.Rejection._
+import ch.epfl.bluebrain.nexus.kg.resources.Rejection.InvalidResourceFormat
 import ch.epfl.bluebrain.nexus.kg.resources.syntax._
-import ch.epfl.bluebrain.nexus.rdf.instances._
-import ch.epfl.bluebrain.nexus.rdf.syntax._
+import ch.epfl.bluebrain.nexus.rdf.implicits._
+import ch.epfl.bluebrain.nexus.rdf.{GraphDecoder, NonEmptyString}
 import io.circe.{Encoder, Json}
 
 /**
@@ -24,17 +25,24 @@ object Tag {
     * @param json  the payload
     * @return Right(tag) when successful and Left(rejection) when failed
     */
-  final def apply(resId: ResId, json: Json): Either[Rejection, Tag] =
-    // format: off
+  final def apply(resId: ResId, json: Json): Either[Rejection, Tag] = {
+    val completeJson = (json deepMerge tagCtx).id(resId.value)
     for {
-      graph   <- (json deepMerge tagCtx).id(resId.value).asGraph(resId.value).left.map(_ => InvalidResourceFormat(resId.ref, "Empty or wrong Json-LD."))
-      cursor   = graph.cursor()
-      rev     <- cursor.downField(nxv.rev).focus.as[Long].onError(resId.ref, "rev")
-      tag     <- cursor.downField(nxv.tag).focus.as[String].flatMap(nonEmpty).onError(resId.ref, "tag")
-    } yield Tag(rev, tag)
+      g <- completeJson.toGraph(resId.value).leftMap(_ => InvalidResourceFormat(resId.ref, "Empty or wrong Json-LD."))
+      t <- tagGraphDecoder(g.cursor).leftRejectionFor(resId.ref)
+    } yield t
+  }
+
   // format: on
 
-  implicit val tagEncoder: Encoder[Tag] = Encoder.instance {
+  implicit final val tagEncoder: Encoder[Tag] = Encoder.instance {
     case Tag(rev, tag) => Json.obj(nxv.tag.prefix -> Json.fromString(tag), "rev" -> Json.fromLong(rev))
+  }
+
+  implicit final val tagGraphDecoder: GraphDecoder[Tag] = GraphDecoder.instance { c =>
+    for {
+      rev <- c.down(nxv.rev).as[Long]
+      tag <- c.down(nxv.tag).as[NonEmptyString].map(_.asString)
+    } yield Tag(rev, tag)
   }
 }

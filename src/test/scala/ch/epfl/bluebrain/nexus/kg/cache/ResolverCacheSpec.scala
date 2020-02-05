@@ -39,9 +39,9 @@ class ResolverCacheSpec
 
   val resolver: InProjectResolver = InProjectResolver(ref1, genIri, 1L, false, 10)
   val crossRefs: CrossProjectResolver =
-    CrossProjectResolver(Set(genIri), List(ref1, ref2), List(Anonymous), ref1, genIri, 0L, false, 1)
+    CrossProjectResolver(Set(genIri), List(ref1, ref2), Set(Anonymous), ref1, genIri, 0L, false, 1)
   val crossLabels: CrossProjectResolver =
-    CrossProjectResolver(Set(genIri), List(label1, label2), List(Anonymous), ref1, genIri, 0L, false, 1)
+    CrossProjectResolver(Set(genIri), List(label1, label2), Set(Anonymous), ref1, genIri, 0L, false, 1)
 
   val resolverProj1: Set[InProjectResolver] = List.fill(5)(resolver.copy(id = genIri)).toSet
   val resolverProj2: Set[InProjectResolver] = List.fill(5)(resolver.copy(id = genIri, ref = ref2)).toSet

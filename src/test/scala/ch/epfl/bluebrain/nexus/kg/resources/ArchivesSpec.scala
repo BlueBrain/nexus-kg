@@ -27,9 +27,8 @@ import ch.epfl.bluebrain.nexus.kg.resources.ResourceF.Value
 import ch.epfl.bluebrain.nexus.kg.resources.syntax._
 import ch.epfl.bluebrain.nexus.kg.{urlEncode, TestHelper}
 import ch.epfl.bluebrain.nexus.rdf.Iri.{AbsoluteIri, Path}
-import ch.epfl.bluebrain.nexus.rdf.instances._
-import ch.epfl.bluebrain.nexus.rdf.syntax._
-import ch.epfl.bluebrain.nexus.rdf.{Iri, RootedGraph}
+import ch.epfl.bluebrain.nexus.rdf.implicits._
+import ch.epfl.bluebrain.nexus.rdf.{Graph, Iri}
 import io.circe.Json
 import org.mockito.{ArgumentMatchersSugar, IdiomaticMockito, Mockito}
 import org.scalatest.{BeforeAndAfter, Inspectors, OptionValues}
@@ -104,9 +103,9 @@ class ArchivesSpec
       clock.instant,
       subject,
       Set[ResourceDescription](
-        Archive.Resource(url"https://example.com/v1/gandalf".value, project, Some(1L), None, false, None),
+        Archive.Resource(url"https://example.com/v1/gandalf", project, Some(1L), None, false, None),
         Archive.File(
-          url"https://example.com/v1/epfl".value,
+          url"https://example.com/v1/epfl",
           project2,
           None,
           None,
@@ -119,13 +118,13 @@ class ArchivesSpec
       val ctx = archiveCtx.appendContextOf(resourceCtx)
       val graph = (json deepMerge Json.obj("@id" -> Json.fromString(id.asString)))
         .replaceContext(ctx)
-        .asGraph(resId.value)
+        .toGraph(resId.value)
         .rightValue
 
       val resourceV =
         ResourceF.simpleV(resId, Value(json, ctx.contextValue, graph), rev, schema = archiveRef, types = types)
       resourceV.copy(
-        value = resourceV.value.copy(graph = RootedGraph(resId.value, graph.triples ++ resourceV.metadata()))
+        value = resourceV.value.copy(graph = Graph(resId.value, graph.triples ++ resourceV.metadata()))
       )
     }
   }
@@ -172,7 +171,7 @@ class ArchivesSpec
           Map(quote("{id}") -> id.toString(), quote("{encodedId}") -> urlEncode(id.toString()))
         )
         val jsonResult =
-          result.value.graph.as[Json](archiveCtx.appendContextOf(resourceCtx)).rightValue
+          result.value.graph.toJson(archiveCtx.appendContextOf(resourceCtx)).rightValue
         jsonResult.removeKeys("@context", "_updatedAt", "_createdAt") should equalIgnoreArrayOrder(expectedJson)
       }
 

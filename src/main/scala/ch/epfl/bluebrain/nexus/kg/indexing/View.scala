@@ -33,17 +33,11 @@ import ch.epfl.bluebrain.nexus.kg.resources.syntax._
 import ch.epfl.bluebrain.nexus.kg.routes.Clients
 import ch.epfl.bluebrain.nexus.kg.{identities, KgError}
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
-import ch.epfl.bluebrain.nexus.rdf.Node.IriNode
 import ch.epfl.bluebrain.nexus.rdf.Vocabulary.rdf
-import ch.epfl.bluebrain.nexus.rdf.cursor.GraphCursor
-import ch.epfl.bluebrain.nexus.rdf.decoder.GraphDecoder.DecoderResult
-import ch.epfl.bluebrain.nexus.rdf.encoder.NodeEncoder
-import ch.epfl.bluebrain.nexus.rdf.encoder.NodeEncoderError.IllegalConversion
-import ch.epfl.bluebrain.nexus.rdf.instances._
-import ch.epfl.bluebrain.nexus.rdf.syntax._
-import ch.epfl.bluebrain.nexus.rdf.{Graph, RootedGraph}
+import ch.epfl.bluebrain.nexus.rdf.implicits._
+import ch.epfl.bluebrain.nexus.rdf.{Cursor, Graph, GraphDecoder, NonEmptyString}
 import com.typesafe.scalalogging.Logger
-import io.circe.{parser, Json}
+import io.circe.Json
 import org.apache.jena.query.QueryFactory
 import shapeless.Typeable.ValueTypeable
 import shapeless.{TypeCase, Typeable}
@@ -123,7 +117,7 @@ sealed trait View extends Product with Serializable { self =>
       case v: CompositeView =>
         val labeledSources: EitherT[F, Rejection, List[Source]] = v.sources.toList.traverse {
           case source: CrossProjectEventStream =>
-            source.project.toRef[F](read, source.identities.toSet).map(label => source.copy(project = label))
+            source.project.toRef[F](read, source.identities).map(label => source.copy(project = label))
           case source => EitherT.rightT(source)
         }
         labeledSources.map(sources => v.copy(sources = sources.toSet))
@@ -176,6 +170,21 @@ object View {
       resourceTag: Option[String] = None,
       includeDeprecated: Boolean = true
   )
+
+  object Filter {
+    implicit final val filterGraphDecoder: GraphDecoder[Filter] = GraphDecoder.instance { c =>
+      for {
+        schemas    <- c.downSet(nxv.resourceSchemas).as[Set[AbsoluteIri]]
+        types      <- c.downSet(nxv.resourceTypes).as[Set[AbsoluteIri]]
+        tag        <- c.down(nxv.resourceTag).option[NonEmptyString].map(_.map(_.asString))
+        includeDep <- c.down(nxv.includeDeprecated).withDefault(true)
+      } yield Filter(schemas, types, tag, includeDep)
+    }
+    final def apply(res: ResourceV): Either[Rejection, Filter] =
+      apply(res, res.value.graph.cursor)
+    final def apply(res: ResourceF[_], cursor: Cursor): Either[Rejection, Filter] =
+      filterGraphDecoder(cursor).leftRejectionFor(res.id.ref)
+  }
 
   sealed trait FilteredView extends View {
 
@@ -303,8 +312,6 @@ object View {
     def deleteResource[F[_]: Monad](resId: ResId)(implicit clients: Clients[F], config: AppConfig): F[Unit]
 
   }
-  private def parse(string: String): NodeEncoder.EncoderResult[Json] =
-    parser.parse(string).left.map(_ => IllegalConversion(""))
 
   /**
     * Attempts to transform the resource into a [[ch.epfl.bluebrain.nexus.kg.indexing.View]].
@@ -313,44 +320,9 @@ object View {
     * @return Right(view) if the resource is compatible with a View, Left(rejection) otherwise
     */
   final def apply(res: ResourceV)(implicit config: CompositeViewConfig): Either[Rejection, View] = {
-    val c = res.value.graph.cursor()
-
-    def filter(c: GraphCursor): Either[Rejection, Filter] =
-      // format: off
-      for {
-        schemas     <- c.downField(nxv.resourceSchemas).values.asListOf[AbsoluteIri].withDefault(List.empty).map(_.toSet).onError(res.id.ref, nxv.resourceSchemas.prefix)
-        types       <- c.downField(nxv.resourceTypes).values.asListOf[AbsoluteIri].withDefault(List.empty).map(_.toSet).onError(res.id.ref, nxv.resourceTypes.prefix)
-        tag         <- c.downField(nxv.resourceTag).focus.asOption[String].flatMap(nonEmpty).onError(res.id.ref, nxv.resourceTag.prefix)
-        includeDep  <- c.downField(nxv.includeDeprecated).focus.as[Boolean].withDefault(true).onError(res.id.ref, nxv.includeDeprecated.prefix)
-      } yield Filter(schemas, types, tag, includeDep)
-    // format: on
-
-    def elasticSearch(c: GraphCursor = c): Either[Rejection, ElasticSearchView] =
-      // format: off
-      for {
-        uuid          <- c.downField(nxv.uuid).focus.as[UUID].onError(res.id.ref, nxv.uuid.prefix)
-        mapping       <- c.downField(nxv.mapping).focus.as[String].flatMap(parse).onError(res.id.ref, nxv.mapping.prefix)
-        f             <- filter(c)
-        includeMeta   <- c.downField(nxv.includeMetadata).focus.as[Boolean].withDefault(false).onError(res.id.ref, nxv.includeMetadata.prefix)
-        sourceAsText  <- c.downField(nxv.sourceAsText).focus.as[Boolean].withDefault(false).onError(res.id.ref, nxv.sourceAsText.prefix)
-      } yield
-        ElasticSearchView(mapping, f, includeMeta, sourceAsText, res.id.parent, res.id.value, uuid, res.rev, res.deprecated)
-      // format: on
+    val c = res.value.graph.cursor
 
     def composite(): Either[Rejection, View] = {
-
-      def validateSparqlQuery(id: AbsoluteIri, q: String): Either[Rejection, Unit] =
-        Try(QueryFactory.create(q.replaceAll(quote(idTemplating), s"<${res.id.value.asString}>"))) match {
-          case Success(_) if !q.contains(idTemplating) =>
-            val err = s"The provided SparQL does not target an id. The templating '$idTemplating' should be present."
-            Left(InvalidResourceFormat(id.ref, err))
-          case Success(query) if query.isConstructType =>
-            Right(())
-          case Success(_) =>
-            Left(InvalidResourceFormat(id.ref, "The provided SparQL query is not a CONSTRUCT query"))
-          case Failure(err) =>
-            Left(InvalidResourceFormat(id.ref, s"The provided SparQL query is invalid: Reason: '${err.getMessage}'"))
-        }
 
       def validateRebuild(rebuildInterval: Option[FiniteDuration]): Either[Rejection, Unit] =
         if (rebuildInterval.forall(_ >= config.minIntervalRebuild))
@@ -360,149 +332,98 @@ object View {
             InvalidResourceFormat(res.id.ref, s"Rebuild interval cannot be smaller than '${config.minIntervalRebuild}'")
           )
 
-      def elasticSearchProjection(c: GraphCursor): Either[Rejection, Projection] =
-        for {
-          id      <- c.focus.as[AbsoluteIri].onError(res.id.ref, "@id")
-          query   <- c.downField(nxv.query).focus.as[String].onError(res.id.ref, nxv.query.prefix)
-          _       <- validateSparqlQuery(id, query)
-          view    <- elasticSearch(c)
-          context <- c.downField(nxv.context).focus.as[String].flatMap(parse).onError(res.id.ref, nxv.context.prefix)
-        } yield ElasticSearchProjection(query, view.copy(id = id), context)
-
-      def checkNotAllowedSparql(id: AbsoluteIri): Either[Rejection, Unit] =
-        if (id == nxv.defaultSparqlIndex.value)
-          Left(InvalidResourceFormat(res.id.ref, s"'$id' cannot be '${nxv.defaultSparqlIndex}'."): Rejection)
-        else
-          Right(())
-
-      def sparqlProjection(c: GraphCursor): Either[Rejection, Projection] =
-        for {
-          id    <- c.focus.as[AbsoluteIri].onError(res.id.ref, "@id")
-          _     <- checkNotAllowedSparql(id)
-          query <- c.downField(nxv.query).focus.as[String].onError(res.id.ref, nxv.query.prefix)
-          _     <- validateSparqlQuery(id, query)
-          view  <- sparql(c)
-        } yield SparqlProjection(query, view.copy(id = id))
-
-      def projections(iter: Iterable[GraphCursor]): Either[Rejection, Set[Projection]] =
-        if (iter.size > config.maxProjections)
+      def projections(cursors: Set[Cursor]): Either[Rejection, Set[Projection]] =
+        if (cursors.size > config.maxProjections)
           Left(InvalidResourceFormat(res.id.ref, s"The number of projections cannot exceed ${config.maxProjections}"))
-        else
-          iter.toList
-            .foldM(List.empty[Projection]) { (acc, innerCursor) =>
-              innerCursor.downField(rdf.tpe).focus.as[AbsoluteIri].onError(res.id.ref, "@type").flatMap {
-                case tpe if tpe == nxv.ElasticSearch.value => elasticSearchProjection(innerCursor).map(_ :: acc)
-                case tpe if tpe == nxv.Sparql.value        => sparqlProjection(innerCursor).map(_ :: acc)
+        else {
+          import alleycats.std.set._
+          cursors.foldM(Set.empty[Projection]) {
+            case (acc, cursor) =>
+              cursor.down(rdf.tpe).as[AbsoluteIri].leftRejectionFor(res.id.ref).flatMap {
+                case tpe if tpe == nxv.ElasticSearch.value => ElasticSearchProjection(res, cursor).map(p => acc + p)
+                case tpe if tpe == nxv.Sparql.value        => SparqlProjection(res, cursor).map(p => acc + p)
                 case tpe =>
                   val err = s"projection @type with value '$tpe' is not supported."
                   Left(InvalidResourceFormat(res.id.ref, err): Rejection)
               }
-            }
-            .map(_.toSet): Either[Rejection, Set[Projection]]
+          }
+        }
 
-      def currentProjectSource(c: GraphCursor): Either[Rejection, Source] =
-        // format: off
+      def currentProjectSource(c: Cursor): Either[Rejection, Source] =
         for {
-          id          <- c.focus.as[AbsoluteIri].onError(res.id.ref, "@id")
-          filter      <- filter(c)
-          uuid        <- c.downField(nxv.uuid).focus.as[UUID].onError(id.ref, nxv.uuid.prefix)
-          includeMeta <- c.downField(nxv.includeMetadata).focus.as[Boolean].withDefault(false).onError(id.ref, nxv.includeMetadata.prefix)
+          id          <- c.as[AbsoluteIri].onError(res.id.ref, "@id")
+          filter      <- Filter(res, c)
+          uuid        <- c.down(nxv.uuid).as[UUID].onError(id.ref, nxv.uuid.prefix)
+          includeMeta <- c.down(nxv.includeMetadata).withDefault(false).onError(id.ref, nxv.includeMetadata.prefix)
         } yield ProjectEventStream(id, uuid, filter, includeMeta)
-      // format: on
 
       // format: off
-      def crossProjectSource(c: GraphCursor): Either[Rejection, Source] =
+      def crossProjectSource(c: Cursor): Either[Rejection, Source] =
         for {
-          id                  <- c.focus.as[AbsoluteIri].onError(res.id.ref, "@id")
-          filter              <- filter(c)
-          uuid                <- c.downField(nxv.uuid).focus.as[UUID].onError(id.ref, nxv.uuid.prefix)
-          includeMeta         <- c.downField(nxv.includeMetadata).focus.as[Boolean].withDefault(false).onError(id.ref, nxv.includeMetadata.prefix)
-          projectIdentifier   <- c.downField(nxv.project).focus.as[ProjectIdentifier].onError(id.ref, "project")
-          ids                 <- identities(res.id, c.downField(nxv.identities).downSet)
+          id                  <- c.as[AbsoluteIri].onError(res.id.ref, "@id")
+          filter              <- Filter(res, c)
+          uuid                <- c.down(nxv.uuid).as[UUID].onError(id.ref, nxv.uuid.prefix)
+          includeMeta         <- c.down(nxv.includeMetadata).withDefault(false).onError(id.ref, nxv.includeMetadata.prefix)
+          projectIdentifier   <- c.down(nxv.project).as[ProjectIdentifier].onError(id.ref, "project")
+          idCursors            = c.downSet(nxv.identities).cursors.getOrElse(Set.empty)
+          ids                 <- identities(res.id, idCursors)
         } yield CrossProjectEventStream(id, uuid, filter, includeMeta, projectIdentifier, ids)
       // format: on
 
       // format: off
-      def remoteProjectSource(c: GraphCursor): Either[Rejection, Source] =
+      def remoteProjectSource(c: Cursor): Either[Rejection, Source] =
         for {
-          id            <- c.focus.as[AbsoluteIri].onError(res.id.ref, "@id")
-          filter        <- filter(c)
-          uuid          <- c.downField(nxv.uuid).focus.as[UUID].onError(id.ref, nxv.uuid.prefix)
-          includeMeta   <- c.downField(nxv.includeMetadata).focus.as[Boolean].withDefault(false).onError(id.ref, nxv.includeMetadata.prefix)
+          id            <- c.as[AbsoluteIri].onError(res.id.ref, "@id")
+          filter        <- Filter(res, c)
+          uuid          <- c.down(nxv.uuid).as[UUID].onError(id.ref, nxv.uuid.prefix)
+          includeMeta   <- c.down(nxv.includeMetadata).withDefault(false).onError(id.ref, nxv.includeMetadata.prefix)
           // TODO: There should be some validation against the admin endpoint that this project actually exists.
           // This will also validate that the token is correct and has the right permissions
-          projectLabel  <- c.downField(nxv.project).focus.as[ProjectLabel].onError(id.ref, "project")
-          endpoint      <- c.downField(nxv.endpoint).focus.as[AbsoluteIri].onError(id.ref, nxv.endpoint.prefix)
-          token         <- c.downField(nxv.token).focus.asOption[String].onError(id.ref, nxv.token.prefix)
+          projectLabel  <- c.down(nxv.project).as[ProjectLabel].onError(id.ref, "project")
+          endpoint      <- c.down(nxv.endpoint).as[AbsoluteIri].onError(id.ref, nxv.endpoint.prefix)
+          token         <- c.down(nxv.token).as[Option[String]].onError(id.ref, nxv.token.prefix)
         } yield RemoteProjectEventStream(id, uuid, filter, includeMeta, projectLabel, endpoint, token.map(AuthToken.apply))
       // format: on
 
-      def sources(iter: Iterable[GraphCursor]): Either[Rejection, Set[Source]] =
-        if (iter.size > config.maxSources)
+      def sources(cursors: Set[Cursor]): Either[Rejection, Set[Source]] =
+        if (cursors.size > config.maxSources)
           Left(InvalidResourceFormat(res.id.ref, s"The number of sources cannot exceed ${config.maxSources}"))
-        else
-          iter.toList
-            .foldM(List.empty[Source]) { (acc, innerCursor) =>
-              innerCursor.downField(rdf.tpe).focus.as[AbsoluteIri].onError(res.id.ref, "@type").flatMap {
-                case tpe if tpe == nxv.ProjectEventStream.value       => currentProjectSource(innerCursor).map(_ :: acc)
-                case tpe if tpe == nxv.CrossProjectEventStream.value  => crossProjectSource(innerCursor).map(_ :: acc)
-                case tpe if tpe == nxv.RemoteProjectEventStream.value => remoteProjectSource(innerCursor).map(_ :: acc)
-                case tpe =>
-                  val err = s"sources @type with value '$tpe' is not supported."
-                  Left(InvalidResourceFormat(res.id.ref, err): Rejection)
-              }
+        else {
+          import alleycats.std.set._
+          cursors.foldM(Set.empty[Source]) { (acc, cursor) =>
+            cursor.down(rdf.tpe).as[AbsoluteIri].onError(res.id.ref, "@type").flatMap {
+              case tpe if tpe == nxv.ProjectEventStream.value       => currentProjectSource(cursor).map(s => acc + s)
+              case tpe if tpe == nxv.CrossProjectEventStream.value  => crossProjectSource(cursor).map(s => acc + s)
+              case tpe if tpe == nxv.RemoteProjectEventStream.value => remoteProjectSource(cursor).map(s => acc + s)
+              case tpe =>
+                val err = s"sources @type with value '$tpe' is not supported."
+                Left(InvalidResourceFormat(res.id.ref, err): Rejection)
             }
-            .map(_.toSet): Either[Rejection, Set[Source]]
+          }
+        }
 
       // format: off
       for {
-        uuid          <- c.downField(nxv.uuid).focus.as[UUID].onError(res.id.ref, nxv.uuid.prefix)
-        projections   <- projections(c.downField(nxv.projections).downSet)
-        sources       <- sources(c.downField(nxv.sources).downSet)
-        rebuildCursor  = c.downField(nxv.rebuildStrategy)
-        rebuildTpe    <- rebuildCursor.downField(rdf.tpe).focus.asOption[AbsoluteIri].onError(res.id.ref, "@type")
+        uuid          <- c.down(nxv.uuid).as[UUID].onError(res.id.ref, nxv.uuid.prefix)
+        pCursors       = c.downSet(nxv.projections).cursors.getOrElse(Set.empty)
+        projections   <- projections(pCursors)
+        sCursors       = c.downSet(nxv.sources).cursors.getOrElse(Set.empty)
+        sources       <- sources(sCursors)
+        rebuildCursor  = c.down(nxv.rebuildStrategy)
+        rebuildTpe    <- rebuildCursor.down(rdf.tpe).as[Option[AbsoluteIri]].onError(res.id.ref, "@type")
         _             <- if(rebuildTpe.contains(nxv.Interval.value) || rebuildTpe.isEmpty)  Right(()) else Left(InvalidResourceFormat(res.id.ref, s"${nxv.rebuildStrategy.prefix} @type with value '$rebuildTpe' is not supported."))
-        interval      <- rebuildCursor.downField(nxv.value).focus.asOption[FiniteDuration].onError(res.id.ref, "value")
+        interval      <- rebuildCursor.down(nxv.value).as[Option[FiniteDuration]].onError(res.id.ref, "value")
         _             <- validateRebuild(interval)
       } yield CompositeView (sources, projections, interval.map(Interval), res.id.parent, res.id.value, uuid, res.rev, res.deprecated)
       // format: on
     }
 
-    def sparql(c: GraphCursor = c): Either[Rejection, SparqlView] =
-      // format: off
-      for {
-        uuid          <- c.downField(nxv.uuid).focus.as[UUID].onError(res.id.ref, nxv.uuid.prefix)
-        f             <- filter(c)
-        includeMeta   <- c.downField(nxv.includeMetadata).focus.as[Boolean].withDefault(false).onError(res.id.ref, nxv.includeMetadata.prefix)
-      } yield
-        SparqlView(f, includeMeta, res.id.parent, res.id.value, uuid, res.rev, res.deprecated)
-    // format: on
-
-    def viewRefs(cursor: List[GraphCursor]): Either[Rejection, Set[ViewRef]] =
-      cursor.foldM(Set.empty[ViewRef]) { (acc, blankC) =>
-        for {
-          project <- blankC.downField(nxv.project).focus.as[ProjectIdentifier].onError(res.id.ref, nxv.project.prefix)
-          id      <- blankC.downField(nxv.viewId).focus.as[AbsoluteIri].onError(res.id.ref, nxv.viewId.prefix)
-        } yield acc + ViewRef(project, id)
-      }
-
-    def aggregatedEsView(): Either[Rejection, View] =
-      for {
-        uuid     <- c.downField(nxv.uuid).focus.as[UUID].onError(res.id.ref, nxv.uuid.prefix)
-        viewRefs <- viewRefs(c.downField(nxv.views).downSet.toList)
-      } yield AggregateElasticSearchView(viewRefs, res.id.parent, uuid, res.id.value, res.rev, res.deprecated)
-
-    def aggregatedSparqlView(): Either[Rejection, View] =
-      for {
-        uuid     <- c.downField(nxv.uuid).focus.as[UUID].onError(res.id.ref, nxv.uuid.prefix)
-        viewRefs <- viewRefs(c.downField(nxv.views).downSet.toList)
-      } yield AggregateSparqlView(viewRefs, res.id.parent, uuid, res.id.value, res.rev, res.deprecated)
-
-    if (Set(nxv.View.value, nxv.ElasticSearchView.value).subsetOf(res.types)) elasticSearch()
-    else if (Set(nxv.View.value, nxv.SparqlView.value).subsetOf(res.types)) sparql()
+    if (Set(nxv.View.value, nxv.ElasticSearchView.value).subsetOf(res.types)) ElasticSearchView(res)
+    else if (Set(nxv.View.value, nxv.SparqlView.value).subsetOf(res.types)) SparqlView(res)
     else if (Set(nxv.View.value, nxv.CompositeView.value).subsetOf(res.types)) composite()
-    else if (Set(nxv.View.value, nxv.AggregateElasticSearchView.value).subsetOf(res.types)) aggregatedEsView()
-    else if (Set(nxv.View.value, nxv.AggregateSparqlView.value).subsetOf(res.types)) aggregatedSparqlView()
+    else if (Set(nxv.View.value, nxv.AggregateElasticSearchView.value).subsetOf(res.types))
+      AggregateElasticSearchView(res)
+    else if (Set(nxv.View.value, nxv.AggregateSparqlView.value).subsetOf(res.types)) AggregateSparqlView(res)
     else Left(InvalidResourceFormat(res.id.ref, "The provided @type do not match any of the view types"))
   }
 
@@ -565,28 +486,25 @@ object View {
     def toDocument(
         res: ResourceV
     )(implicit metadataOpts: MetadataOptions, logger: Logger, config: AppConfig, project: Project): Option[Json] = {
-      val rootNode = IriNode(res.id.value)
-
-      val metaGraph    = if (includeMetadata) Graph(res.metadata(metadataOpts)) else Graph()
+      val id           = res.id.value
       val keysToRemove = if (includeMetadata) Seq.empty[String] else metaKeys
 
-      def asJson(g: Graph): DecoderResult[Json] = RootedGraph(rootNode, g).as[Json](ctx)
-      val transformed: DecoderResult[Json] =
+      val metaGraph = if (includeMetadata) Graph(id) ++ res.metadata(metadataOpts) else Graph(id)
+      val transformed =
         if (sourceAsText)
-          asJson(metaGraph.add(rootNode, nxv.original_source, res.value.source.removeKeys(metaKeys: _*).noSpaces))
+          metaGraph.append(nxv.original_source, res.value.source.removeKeys(metaKeys: _*).noSpaces).toJson(ctx)
         else
-          asJson(metaGraph).map(metaJson => res.value.source.removeKeys(keysToRemove: _*) deepMerge metaJson)
+          metaGraph.toJson(ctx).map(metaJson => res.value.source.removeKeys(keysToRemove: _*) deepMerge metaJson)
 
       transformed match {
         case Left(err) =>
           logger.error(
-            s"Could not convert resource with id '${res.id}' and value '${res.value}' from Graph back to json. Reason: '${err.message}'"
+            s"Could not convert resource with id '${res.id}' and value '${res.value}' from Graph back to json. Reason: '$err'"
           )
           None
         case Right(value) => Some(value.removeNestedKeys("@context"))
       }
     }
-
   }
 
   object ElasticSearchView {
@@ -606,6 +524,25 @@ object View {
       ElasticSearchView(mapping, Filter(), includeMetadata = true, sourceAsText = true, ref, nxv.defaultElasticSearchIndex.value, defaultViewId, 1L, deprecated = false)
       // format: on
     }
+
+    private final val partialElasticSearchViewGraphDecoder: GraphDecoder[ResourceF[_] => ElasticSearchView] =
+      GraphDecoder.instance { c =>
+        for {
+          uuid         <- c.down(nxv.uuid).as[UUID]
+          mapping      <- c.down(nxv.mapping).as[Json]
+          f            <- Filter.filterGraphDecoder(c)
+          includeMeta  <- c.down(nxv.includeMetadata).withDefault(false)
+          sourceAsText <- c.down(nxv.sourceAsText).withDefault(false)
+        } yield (r: ResourceF[_]) =>
+          ElasticSearchView(mapping, f, includeMeta, sourceAsText, r.id.parent, r.id.value, uuid, r.rev, r.deprecated)
+      }
+
+    final def apply(res: ResourceV): Either[Rejection, ElasticSearchView] =
+      apply(res, res.value.graph.cursor)
+
+    final def apply(res: ResourceF[_], cursor: Cursor): Either[Rejection, ElasticSearchView] =
+      partialElasticSearchViewGraphDecoder(cursor).map(_.apply(res)).leftRejectionFor(res.id.ref)
+
   }
 
   /**
@@ -742,6 +679,21 @@ object View {
     private val incomingQuery: String             = contentOf("/blazegraph/incoming.txt")
     private val outgoingWithExternalQuery: String = contentOf("/blazegraph/outgoing_include_external.txt")
     private val outgoingScopedQuery: String       = contentOf("/blazegraph/outgoing_scoped.txt")
+
+    private final val partialSparqlViewGraphDecoder: GraphDecoder[ResourceF[_] => SparqlView] =
+      GraphDecoder.instance { c =>
+        for {
+          uuid        <- c.down(nxv.uuid).as[UUID]
+          f           <- Filter.filterGraphDecoder(c)
+          includeMeta <- c.down(nxv.includeMetadata).withDefault(false)
+        } yield (r: ResourceF[_]) => SparqlView(f, includeMeta, r.id.parent, r.id.value, uuid, r.rev, r.deprecated)
+      }
+
+    final def apply(res: ResourceV): Either[Rejection, SparqlView] =
+      apply(res, res.value.graph.cursor)
+
+    final def apply(res: ResourceF[_], cursor: Cursor): Either[Rejection, SparqlView] =
+      partialSparqlViewGraphDecoder(cursor).map(_.apply(res)).leftRejectionFor(res.id.ref)
   }
 
   /**
@@ -839,7 +791,7 @@ object View {
           filter: Filter,
           includeMetadata: Boolean,
           project: ProjectIdentifier,
-          identities: List[Identity]
+          identities: Set[Identity]
       ) extends Source
 
       final case class RemoteProjectEventStream(
@@ -899,15 +851,14 @@ object View {
             logger: Logger,
             project: Project
         ): F[Option[Unit]] = {
-          val rootNode   = IriNode(res.id.value)
           val contextObj = Json.obj("@context" -> context)
           val finalCtx   = if (view.includeMetadata) view.ctx.appendContextOf(contextObj) else contextObj
-          val metaGraph  = if (view.includeMetadata) Graph(graph.triples ++ res.metadata(metadataOpts)) else graph
           val client     = clients.elasticSearch.withRetryPolicy(config.elasticSearch.indexing.retry)
-          RootedGraph(rootNode, metaGraph).as[Json](finalCtx) match {
+          val finalGraph = if (view.includeMetadata) graph ++ res.metadata(metadataOpts) else graph
+          finalGraph.withRoot(res.id.value).toJson(finalCtx) match {
             case Left(err) =>
               val msg =
-                s"Could not convert resource with id '${res.id}' and graph '${graph.show}' from Graph back to json. Reason: '${err.message}'"
+                s"Could not convert resource with id '${res.id}' and graph '${graph.ntriples}' from Graph back to json. Reason: '${err}'"
               logger.error(msg)
               F.pure(None)
             case Right(value) =>
@@ -916,6 +867,22 @@ object View {
               )
           }
         }
+      }
+
+      object ElasticSearchProjection {
+        final def apply(res: ResourceF[_], cursor: Cursor): Either[Rejection, ElasticSearchProjection] =
+          ElasticSearchView(res, cursor).flatMap { view =>
+            val extra = for {
+              id      <- cursor.as[AbsoluteIri]
+              query   <- cursor.down(nxv.query).as[String]
+              context <- cursor.down(nxv.context).as[Json]
+            } yield (id, query, context)
+
+            extra.leftRejectionFor(res.id.ref).flatMap {
+              case (id, query, context) =>
+                validSparqlQuery(res, id, query).map(_ => ElasticSearchProjection(query, view.copy(id = id), context))
+            }
+          }
       }
 
       final case class SparqlProjection(query: String, view: SparqlView) extends Projection {
@@ -942,7 +909,43 @@ object View {
           client.replace(res.id.toGraphUri, graph) >> F.pure(Some(()))
         }
       }
+
+      object SparqlProjection {
+        final def apply(res: ResourceF[_], cursor: Cursor): Either[Rejection, SparqlProjection] =
+          SparqlView(res, cursor).flatMap { view =>
+            val extra = for {
+              id    <- cursor.as[AbsoluteIri]
+              query <- cursor.down(nxv.query).as[String]
+            } yield (id, query)
+
+            extra.leftRejectionFor(res.id.ref).flatMap {
+              case (id, query) =>
+                checkNotAllowedSparql(res, id).flatMap { _ =>
+                  validSparqlQuery(res, id, query).map(_ => SparqlProjection(query, view.copy(id = id)))
+                }
+            }
+          }
+        private def checkNotAllowedSparql(res: ResourceF[_], id: AbsoluteIri): Either[Rejection, Unit] =
+          if (id == nxv.defaultSparqlIndex.value)
+            Left(InvalidResourceFormat(res.id.ref, s"'$id' cannot be '${nxv.defaultSparqlIndex}'."): Rejection)
+          else
+            Right(())
+      }
     }
+
+    private def validSparqlQuery(res: ResourceF[_], id: AbsoluteIri, q: String): Either[Rejection, Unit] =
+      Try(QueryFactory.create(q.replaceAll(quote(idTemplating), s"<${res.id.value.asString}>"))) match {
+        case Success(_) if !q.contains(idTemplating) =>
+          val err = s"The provided SparQL does not target an id. The templating '$idTemplating' should be present."
+          Left(InvalidResourceFormat(id.ref, err))
+        case Success(query) if query.isConstructType =>
+          Right(())
+        case Success(_) =>
+          Left(InvalidResourceFormat(id.ref, "The provided SparQL query is not a CONSTRUCT query"))
+        case Failure(err) =>
+          Left(InvalidResourceFormat(id.ref, s"The provided SparQL query is invalid: Reason: '${err.getMessage}'"))
+      }
+
   }
 
   /**
@@ -964,6 +967,21 @@ object View {
       deprecated: Boolean
   ) extends AggregateView
 
+  object AggregateElasticSearchView {
+    private final val partialGraphDecoder: GraphDecoder[ResourceF[_] => AggregateElasticSearchView] =
+      GraphDecoder.instance { c =>
+        for {
+          uuid     <- c.down(nxv.uuid).as[UUID]
+          viewRefs <- c.downSet(nxv.views).as[Set[ViewRef]]
+        } yield (res: ResourceF[_]) =>
+          AggregateElasticSearchView(viewRefs, res.id.parent, uuid, res.id.value, res.rev, res.deprecated)
+      }
+    final def apply(res: ResourceV): Either[Rejection, AggregateElasticSearchView] =
+      apply(res, res.value.graph.cursor)
+    final def apply(res: ResourceF[_], cursor: Cursor): Either[Rejection, AggregateElasticSearchView] =
+      partialGraphDecoder(cursor).map(_.apply(res)).leftRejectionFor(res.id.ref)
+  }
+
   /**
     * Aggregation of [[SparqlView]].
     *
@@ -983,10 +1001,34 @@ object View {
       deprecated: Boolean
   ) extends AggregateView
 
+  object AggregateSparqlView {
+    private final val partialGraphDecoder: GraphDecoder[ResourceF[_] => AggregateSparqlView] =
+      GraphDecoder.instance { c =>
+        for {
+          uuid     <- c.down(nxv.uuid).as[UUID]
+          viewRefs <- c.downSet(nxv.views).as[Set[ViewRef]]
+        } yield (res: ResourceF[_]) =>
+          AggregateSparqlView(viewRefs, res.id.parent, uuid, res.id.value, res.rev, res.deprecated)
+      }
+    final def apply(res: ResourceV): Either[Rejection, AggregateSparqlView] =
+      apply(res, res.value.graph.cursor)
+    final def apply(res: ResourceF[_], cursor: Cursor): Either[Rejection, AggregateSparqlView] =
+      partialGraphDecoder(cursor).map(_.apply(res)).leftRejectionFor(res.id.ref)
+  }
+
   /**
     * A view reference is a unique way to identify a view
     * @param project the project reference
     * @param id the view id
     */
   final case class ViewRef(project: ProjectIdentifier, id: AbsoluteIri)
+
+  object ViewRef {
+    implicit final val viewRefGraphDecoder: GraphDecoder[ViewRef] = GraphDecoder.instance { c =>
+      for {
+        project <- c.down(nxv.project).as[ProjectIdentifier]
+        id      <- c.down(nxv.viewId).as[AbsoluteIri]
+      } yield ViewRef(project, id)
+    }
+  }
 }

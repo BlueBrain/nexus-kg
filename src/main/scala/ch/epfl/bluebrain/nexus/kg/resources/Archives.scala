@@ -5,10 +5,7 @@ import java.time.{Clock, Duration, Instant}
 import akka.actor.ActorSystem
 import cats.data.EitherT
 import cats.effect.Effect
-import cats.{Id => CId}
 import ch.epfl.bluebrain.nexus.admin.client.types.Project
-import ch.epfl.bluebrain.nexus.commons.rdf.syntax._
-import ch.epfl.bluebrain.nexus.commons.shacl.ShaclEngine
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity.Subject
 import ch.epfl.bluebrain.nexus.iam.client.types.{AccessControlLists, Caller}
 import ch.epfl.bluebrain.nexus.kg.archives.ArchiveEncoder._
@@ -24,13 +21,11 @@ import ch.epfl.bluebrain.nexus.kg.resources.Rejection._
 import ch.epfl.bluebrain.nexus.kg.resources.ResourceF.Value
 import ch.epfl.bluebrain.nexus.kg.resources.syntax._
 import ch.epfl.bluebrain.nexus.rdf.Graph.Triple
-import ch.epfl.bluebrain.nexus.rdf.RootedGraph
+import ch.epfl.bluebrain.nexus.rdf.Graph
 import ch.epfl.bluebrain.nexus.rdf.Vocabulary.rdf
-import ch.epfl.bluebrain.nexus.rdf.encoder.GraphEncoder.EncoderResult
-import ch.epfl.bluebrain.nexus.rdf.instances._
-import ch.epfl.bluebrain.nexus.rdf.syntax._
+import ch.epfl.bluebrain.nexus.rdf.implicits._
+import ch.epfl.bluebrain.nexus.rdf.shacl.ShaclEngine
 import io.circe.Json
-import org.apache.jena.rdf.model.Model
 
 class Archives[F[_]](
     implicit cache: ArchiveCache[F],
@@ -67,12 +62,12 @@ class Archives[F[_]](
       case Value(_, _, graph) => create(id, graph, source)
     }
 
-  private def create(id: ResId, graph: RootedGraph, source: Json)(
+  private def create(id: ResId, graph: Graph, source: Json)(
       implicit project: Project,
       subject: Subject
   ): RejOrResource[F] = {
-    val typedGraph = RootedGraph(id.value, graph.triples + ((id.value, rdf.tpe, nxv.Archive): Triple))
-    val types      = typedGraph.rootTypes.map(_.value)
+    val typedGraph = graph.append(rdf.tpe, nxv.Archive)
+    val types      = typedGraph.rootTypes
     for {
       _       <- validateShacl(typedGraph)
       archive <- Archive(id.value, typedGraph)
@@ -83,10 +78,8 @@ class Archives[F[_]](
     // format: on
   }
 
-  private def validateShacl(data: RootedGraph): EitherT[F, Rejection, Unit] = {
-    val model: CId[Model] = data.as[Model]()
-    toEitherT(archiveRef, ShaclEngine(model, archiveSchemaModel, validateShapes = false, reportDetails = true))
-  }
+  private def validateShacl(data: Graph): EitherT[F, Rejection, Unit] =
+    toEitherT(archiveRef, ShaclEngine(data.asJena, archiveSchemaModel, validateShapes = false, reportDetails = true))
 
   private def fetchArchive(id: ResId): RejOrArchive[F] =
     cache.get(id).toRight(notFound(id.ref, schema = Some(archiveRef)))
@@ -113,22 +106,27 @@ class Archives[F[_]](
     * @return either a rejection or the resourceV in the F context
     */
   def fetch(id: ResId)(implicit project: Project): RejOrResourceV[F] =
-    fetchArchive(id).flatMap {
+    fetchArchive(id).map {
       case a @ Archive(resId, created, createdBy, _) =>
         val source = Json.obj().addContext(archiveCtxUri).addContext(resourceCtxUri)
         val ctx    = archiveCtx.contextValue deepMerge resourceCtx.contextValue
-        val eitherValue: EitherT[F, Rejection, ResourceF.Value] =
-          EitherT
-            .fromEither[F](a.asGraph[EncoderResult](resId.value).map(Value(source, ctx, _)))
-            .leftSemiflatMap(e => Rejection.fromMarshallingErr[F](resId.value, e))
-        eitherValue.map { value =>
-          // format: off
-          val resource = ResourceF(resId, 1L, Set(nxv.Archive), false, Map.empty, None, created, created, createdBy, createdBy, archiveRef, value)
-          // format: on
-          val graph =
-            RootedGraph(value.graph.rootNode, value.graph.triples ++ resource.metadata() + expireMetadata(id, created))
-          resource.copy(value = value.copy(graph = graph))
-        }
+        val value  = Value(source, ctx, a.asGraph)
+        val resource = ResourceF(
+          resId,
+          1L,
+          Set(nxv.Archive),
+          false,
+          Map.empty,
+          None,
+          created,
+          created,
+          createdBy,
+          createdBy,
+          archiveRef,
+          value
+        )
+        val graph = Graph(value.graph.root, value.graph.triples ++ resource.metadata() + expireMetadata(id, created))
+        resource.copy(value = value.copy(graph = graph))
     }
 
   private def expireMetadata(id: ResId, created: Instant): Triple = {

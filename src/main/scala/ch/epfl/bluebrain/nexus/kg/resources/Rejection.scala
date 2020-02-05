@@ -2,19 +2,13 @@ package ch.epfl.bluebrain.nexus.kg.resources
 
 import akka.http.scaladsl.model.StatusCodes
 import akka.http.scaladsl.server.{Rejection => AkkaRejection}
-import cats.MonadError
 import cats.syntax.show._
 import ch.epfl.bluebrain.nexus.commons.http.directives.StatusFrom
-import ch.epfl.bluebrain.nexus.commons.shacl.ValidationReport
-import ch.epfl.bluebrain.nexus.kg.KgError
 import ch.epfl.bluebrain.nexus.kg.config.Contexts.errorCtxUri
 import ch.epfl.bluebrain.nexus.kg.resources.ProjectIdentifier.{ProjectLabel, ProjectRef}
-import ch.epfl.bluebrain.nexus.kg.resources.syntax._
-import ch.epfl.bluebrain.nexus.rdf.instances._
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
-import ch.epfl.bluebrain.nexus.rdf.MarshallingError
-import ch.epfl.bluebrain.nexus.rdf.MarshallingError.{ConversionError, RootNodeNotFound}
-import ch.epfl.bluebrain.nexus.rdf.syntax._
+import ch.epfl.bluebrain.nexus.rdf.implicits._
+import ch.epfl.bluebrain.nexus.rdf.shacl.ValidationReport
 import com.github.ghik.silencer.silent
 import io.circe.generic.extras.Configuration
 import io.circe.generic.extras.semiauto.deriveConfiguredEncoder
@@ -221,22 +215,6 @@ object Rejection {
     */
   final case class InvalidIdentity(reason: String = "The caller doesn't have some of the provided identities")
       extends Rejection(reason)
-
-  /**
-    * Constructs a Rejection from a [[ch.epfl.bluebrain.nexus.rdf.jena.JenaModel.JenaModelErr]].
-    *
-    * @param id the error to be transformed
-    * @param error the error to be transformed
-    */
-  final def fromMarshallingErr[F[_]](id: AbsoluteIri, error: MarshallingError)(
-      implicit F: MonadError[F, Throwable]
-  ): F[Rejection] =
-    error match {
-      case ConversionError(message, _) => F.pure(InvalidJsonLD(message))
-      case _: RootNodeNotFound         => F.pure(IncorrectId(id.ref))
-      case MarshallingError.Unexpected(message) =>
-        F.raiseError(KgError.InternalError(s"Unexpected MarshallingError with message '$message'"))
-    }
 
   @silent // private implicits in automatic derivation are not recognized as used
   implicit val rejectionEncoder: Encoder[Rejection] = {

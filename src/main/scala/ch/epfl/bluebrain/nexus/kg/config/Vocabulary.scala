@@ -5,7 +5,7 @@ import cats.syntax.show._
 import ch.epfl.bluebrain.nexus.rdf.Iri
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import ch.epfl.bluebrain.nexus.rdf.Node.IriNode
-import ch.epfl.bluebrain.nexus.rdf.syntax.node.unsafe._
+import ch.epfl.bluebrain.nexus.rdf.implicits._
 
 /**
   * Constant vocabulary values
@@ -17,7 +17,7 @@ object Vocabulary {
     */
   object nxva {
     private[Vocabulary] implicit val uri: Iri.AbsoluteIri =
-      url"https://bluebrain.github.io/nexus/vocabulary/archive/".value
+      url"https://bluebrain.github.io/nexus/vocabulary/archive/"
 
     // Archive vocabulary
     val rev     = PrefixMapping.prefix("rev")
@@ -29,7 +29,7 @@ object Vocabulary {
     * Nexus vocabulary.
     */
   object nxv {
-    val base: Iri.AbsoluteIri                             = url"https://bluebrain.github.io/nexus/vocabulary/".value
+    val base: Iri.AbsoluteIri                             = url"https://bluebrain.github.io/nexus/vocabulary/"
     private[Vocabulary] implicit val uri: Iri.AbsoluteIri = base
 
     /**
@@ -204,7 +204,7 @@ object Vocabulary {
       * @param lastSegment the last segment to append to the ''base'' to build the metadata vocabulary term
       */
     def metadata(lastSegment: String)(implicit base: AbsoluteIri): PrefixMapping =
-      PrefixMapping("_" + lastSegment, url"${base.show + lastSegment}".value)
+      PrefixMapping("_" + lastSegment, url"${base.show + lastSegment}")
 
     /**
       * Constructs a [[PrefixMapping]] vocabulary term from the given ''base'' and the provided ''lastSegment''.

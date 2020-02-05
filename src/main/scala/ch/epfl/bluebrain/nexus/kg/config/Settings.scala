@@ -5,7 +5,7 @@ import java.nio.file.{Path, Paths}
 import akka.actor.{ExtendedActorSystem, Extension, ExtensionId, ExtensionIdProvider}
 import akka.http.scaladsl.model.Uri
 import ch.epfl.bluebrain.nexus.iam.client.types.{AuthToken, Permission}
-import ch.epfl.bluebrain.nexus.rdf.syntax.node.unsafe._
+import ch.epfl.bluebrain.nexus.rdf.implicits._
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import com.github.ghik.silencer.silent
 import com.typesafe.config.Config
@@ -36,7 +36,7 @@ class Settings(config: Config) extends Extension {
     ConfigConvert.viaString[Path](catchReadError(s => Paths.get(s)), _.toString)
 
   private implicit val absoluteIriConverter: ConfigConvert[AbsoluteIri] =
-    ConfigConvert.viaString[AbsoluteIri](catchReadError(s => url"$s".value), _.toString)
+    ConfigConvert.viaString[AbsoluteIri](catchReadError(s => url"$s"), _.toString)
 
   val appConfig: AppConfig = ConfigSource.fromConfig(config).at("app").loadOrThrow[AppConfig]
 

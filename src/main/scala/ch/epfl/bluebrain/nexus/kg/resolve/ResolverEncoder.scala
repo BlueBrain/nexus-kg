@@ -1,40 +1,29 @@
 package ch.epfl.bluebrain.nexus.kg.resolve
 
-import cats.Id
-import cats.syntax.show._
 import ch.epfl.bluebrain.nexus.iam.client.config.IamClientConfig
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity._
-import ch.epfl.bluebrain.nexus.kg.config.Vocabulary._
+import ch.epfl.bluebrain.nexus.kg.config.Vocabulary.nxv
 import ch.epfl.bluebrain.nexus.kg.resolve.Resolver._
+import ch.epfl.bluebrain.nexus.kg.resources.ProjectIdentifier
 import ch.epfl.bluebrain.nexus.rdf.Graph.Triple
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
 import ch.epfl.bluebrain.nexus.rdf.Node._
-import ch.epfl.bluebrain.nexus.rdf.{Graph, RootedGraph}
-import ch.epfl.bluebrain.nexus.rdf.Node.literal
 import ch.epfl.bluebrain.nexus.rdf.Vocabulary._
-import ch.epfl.bluebrain.nexus.rdf.encoder.GraphEncoder.EncoderResult
-import ch.epfl.bluebrain.nexus.rdf.encoder.{GraphEncoder, RootNode}
-import ch.epfl.bluebrain.nexus.rdf.instances._
+import ch.epfl.bluebrain.nexus.rdf.{Graph, GraphEncoder}
 
 /**
   * Encoders for [[Resolver]]
   */
 object ResolverEncoder {
 
-  implicit val resolverRootNode: RootNode[Resolver] = r => IriNode(r.id)
-
-  implicit def resolverGraphEncoder(implicit config: IamClientConfig): GraphEncoder[Id, Resolver] =
+  implicit def resolverGraphEncoder(implicit config: IamClientConfig): GraphEncoder[Resolver] =
     GraphEncoder {
-      case (rootNode, r: InProjectResolver) => RootedGraph(rootNode, r.mainTriples(nxv.InProject))
-      case (rootNode, r @ CrossProjectResolver(resTypes, projects, identities, _, _, _, _, _)) =>
+      case r: InProjectResolver => Graph(r.id, r.mainTriples(nxv.InProject))
+      case r @ CrossProjectResolver(resTypes, projects, identities, _, _, _, _, _) =>
         val triples = r.mainTriples(nxv.CrossProject) ++ r.triplesFor(identities) ++ r.triplesFor(resTypes)
-        val graph   = Graph(triples).add(rootNode, nxv.projects, projects.map(_.show).map(literal))
-        RootedGraph(rootNode, graph)
+        Graph(r.id, triples).append(nxv.projects, GraphEncoder[List[ProjectIdentifier]].apply(projects))
     }
-
-  implicit def resolverGraphEncoderEither(implicit config: IamClientConfig): GraphEncoder[EncoderResult, Resolver] =
-    resolverGraphEncoder.toEither
 
   private implicit class ResolverSyntax(resolver: Resolver) {
     private val s = IriNode(resolver.id)
@@ -48,7 +37,7 @@ object ResolverEncoder {
         (s, nxv.rev, resolver.rev)
       )
 
-    def triplesFor(identities: List[Identity])(implicit config: IamClientConfig): Set[Triple] =
+    def triplesFor(identities: Set[Identity])(implicit config: IamClientConfig): Set[Triple] =
       identities.foldLeft(Set.empty[Triple]) { (acc, identity) =>
         val (identityId, triples) = triplesFor(identity)
         acc + ((s, nxv.identities, identityId)) ++ triples

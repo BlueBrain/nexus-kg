@@ -19,7 +19,7 @@ import ch.epfl.bluebrain.nexus.kg.resources.Id
 import ch.epfl.bluebrain.nexus.kg.resources.ProjectIdentifier.ProjectRef
 
 import ch.epfl.bluebrain.nexus.kg.storage.Storage.{S3Credentials, S3Settings, S3Storage}
-import ch.epfl.bluebrain.nexus.rdf.syntax._
+import ch.epfl.bluebrain.nexus.rdf.implicits._
 import com.amazonaws.auth.{AWSStaticCredentialsProvider, AnonymousAWSCredentials}
 import com.amazonaws.client.builder.AwsClientBuilder.EndpointConfiguration
 import com.amazonaws.services.s3.{AmazonS3, AmazonS3ClientBuilder}
@@ -84,7 +84,7 @@ class S3StorageOperationsSpec
     "save and fetch files" in {
       keys.foreach(System.clearProperty)
 
-      val base       = url"https://nexus.example.com/".value
+      val base       = url"https://nexus.example.com/"
       val projectId  = base + "org" + "proj"
       val projectRef = ProjectRef(UUID.randomUUID)
       val storage =
@@ -139,7 +139,7 @@ class S3StorageOperationsSpec
       keys.foreach(System.clearProperty)
       client.putObject(bucket, "some/key/my s3.json", contentOf("/storage/s3.json"))
 
-      val base       = url"https://nexus.example.com/".value
+      val base       = url"https://nexus.example.com/"
       val projectId  = base + "org" + "proj"
       val projectRef = ProjectRef(UUID.randomUUID)
       val storage =
@@ -185,7 +185,7 @@ class S3StorageOperationsSpec
     "fail if the bucket doesn't exist" in {
       keys.foreach(System.clearProperty)
 
-      val base       = url"https://nexus.example.com/".value
+      val base       = url"https://nexus.example.com/"
       val projectId  = base + "org" + "proj"
       val projectRef = ProjectRef(UUID.randomUUID)
       val storage =
@@ -228,7 +228,7 @@ class S3StorageOperationsSpec
     "verify storage with no region" in {
       keys.foreach(System.clearProperty)
 
-      val base       = url"https://nexus.example.com/".value
+      val base       = url"https://nexus.example.com/"
       val projectId  = base + "org" + "proj"
       val projectRef = ProjectRef(UUID.randomUUID)
       val storage =
@@ -256,7 +256,7 @@ class S3StorageOperationsSpec
       val ak = "encryptedAccessKey"
       val sk = "encryptedSecretKey"
 
-      val base       = url"https://nexus.example.com/".value
+      val base       = url"https://nexus.example.com/"
       val projectId  = base + "org" + "proj"
       val projectRef = ProjectRef(UUID.randomUUID)
       val storage =

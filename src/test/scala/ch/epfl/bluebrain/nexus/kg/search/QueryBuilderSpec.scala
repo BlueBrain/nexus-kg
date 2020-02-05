@@ -4,14 +4,14 @@ import ch.epfl.bluebrain.nexus.commons.test.Resources
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary._
 import ch.epfl.bluebrain.nexus.kg.routes.SearchParams
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
-import ch.epfl.bluebrain.nexus.rdf.syntax.node.unsafe._
+import ch.epfl.bluebrain.nexus.rdf.implicits._
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AnyWordSpecLike
 
 class QueryBuilderSpec extends AnyWordSpecLike with Matchers with Resources {
 
   "QueryBuilder" should {
-    val schema: AbsoluteIri = url"http://nexus.example.com/testSchema".value
+    val schema: AbsoluteIri = url"http://nexus.example.com/testSchema"
 
     "build query with deprecation" in {
       val expected = jsonContentOf("/search/query-deprecation.json")
@@ -46,7 +46,7 @@ class QueryBuilderSpec extends AnyWordSpecLike with Matchers with Resources {
         SearchParams(
           schema = Some(schema),
           rev = Some(1),
-          createdBy = Some(url"http://nexus.example.com/user".value),
+          createdBy = Some(url"http://nexus.example.com/user"),
           q = Some("some text")
         )
       QueryBuilder.queryFor(params) shouldEqual expected

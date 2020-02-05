@@ -12,7 +12,6 @@ import akka.http.scaladsl.model.headers.Accept
 import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.{MalformedQueryParamRejection, Route}
 import akka.http.scaladsl.testkit.ScalatestRouteTest
-import cats.instances.either._
 import ch.epfl.bluebrain.nexus.admin.client.types.Project
 import ch.epfl.bluebrain.nexus.commons.http.RdfMediaTypes._
 import ch.epfl.bluebrain.nexus.commons.search.Sort.OrderType._
@@ -34,8 +33,7 @@ import ch.epfl.bluebrain.nexus.kg.storage.Storage
 import ch.epfl.bluebrain.nexus.kg.storage.Storage.DiskStorage
 import ch.epfl.bluebrain.nexus.kg.storage.StorageEncoder._
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
-import ch.epfl.bluebrain.nexus.rdf.syntax._
-import ch.epfl.bluebrain.nexus.rdf.instances._
+import ch.epfl.bluebrain.nexus.rdf.implicits._
 import ch.epfl.bluebrain.nexus.sourcing.RetryStrategyConfig
 import io.circe.Json
 import io.circe.generic.auto._
@@ -89,7 +87,7 @@ class QueryDirectivesSpec
 
     // format: off
     def genProject() =
-      Project(genIri, "project", "organization", None, url"${nxv.projects.value.asString}/".value, url"${genIri}/".value, Map("nxv" -> nxv.base), genUUID, genUUID, 1L, false, Instant.EPOCH, genIri, Instant.EPOCH, genIri)
+      Project(genIri, "project", "organization", None, url"${nxv.projects.value.asString}/", url"${genIri}/", Map("nxv" -> nxv.base), genUUID, genUUID, 1L, false, Instant.EPOCH, genIri, Instant.EPOCH, genIri)
     // format: on
 
     def routePagination(): Route =
@@ -106,7 +104,7 @@ class QueryDirectivesSpec
       handleExceptions(exceptionHandler) {
         handleRejections(rejectionHandler) {
           (get & storage) { st =>
-            complete(StatusCodes.OK -> st.as[Json]().rightValue)
+            complete(StatusCodes.OK -> st.asGraph.toJson().rightValue)
           }
         }
       }
@@ -223,7 +221,7 @@ class QueryDirectivesSpec
         val storage: Storage = DiskStorage.default(project.ref)
         when(storageCache.get(project.ref, nxv.withSuffix("mystorage").value)).thenReturn(Task(Some(storage)))
         Get("/some?storage=nxv:mystorage") ~> routeStorage ~> check {
-          responseAs[Json] shouldEqual storage.as[Json]().rightValue
+          responseAs[Json] shouldEqual storage.asGraph.toJson().rightValue
         }
       }
 
@@ -232,7 +230,7 @@ class QueryDirectivesSpec
         val storage: Storage = DiskStorage.default(project.ref)
         when(storageCache.getDefault(project.ref)).thenReturn(Task(Some(storage)))
         Get("/some") ~> routeStorage ~> check {
-          responseAs[Json] shouldEqual storage.as[Json]().rightValue
+          responseAs[Json] shouldEqual storage.asGraph.toJson().rightValue
         }
       }
 

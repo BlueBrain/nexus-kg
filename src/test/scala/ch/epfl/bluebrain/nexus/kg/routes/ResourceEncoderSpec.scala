@@ -13,6 +13,7 @@ import ch.epfl.bluebrain.nexus.kg.resources.ResourceF.Value
 import ch.epfl.bluebrain.nexus.kg.resources.{Id, ResourceF}
 import ch.epfl.bluebrain.nexus.kg.resources.ProjectIdentifier.ProjectRef
 import ch.epfl.bluebrain.nexus.kg.routes.OutputFormat.{Compacted, Expanded}
+import ch.epfl.bluebrain.nexus.rdf.Graph.Triple
 import ch.epfl.bluebrain.nexus.rdf.Node.IriNode
 import ch.epfl.bluebrain.nexus.rdf._
 import io.circe.Json
@@ -85,8 +86,8 @@ class ResourceEncoderSpec
 
     "encode resource value in compacted form" in {
       implicit val output: JsonLDOutputFormat = Compacted
-      val triples                             = (Node.iri(base + "foobar"), Node.iri(voc + "foo"), Node.literal("bar"))
-      val resourceV                           = resource.map(_ => Value(json, context, RootedGraph(IriNode(base + "foobar"), triples)))
+      val triples                             = Set[Triple]((base + "foobar", voc + "foo", "bar"))
+      val resourceV                           = resource.map(_ => Value(json, context, Graph(IriNode(base + "foobar"), triples)))
       val expected =
         """
           |{
@@ -100,8 +101,8 @@ class ResourceEncoderSpec
 
     "encode resource value in expanded form" in {
       implicit val output: JsonLDOutputFormat = Expanded
-      val triples                             = (Node.iri(base + "foobar"), Node.iri(voc + "foo"), Node.literal("bar"))
-      val resourceV                           = resource.map(_ => Value(json, context, RootedGraph(IriNode(base + "foobar"), triples)))
+      val triples                             = Set[Triple]((base + "foobar", voc + "foo", "bar"))
+      val resourceV                           = resource.map(_ => Value(json, context, Graph(IriNode(base + "foobar"), triples)))
       val expected =
         """
           |{
