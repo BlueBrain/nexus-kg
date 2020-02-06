@@ -39,11 +39,10 @@ import ch.epfl.bluebrain.nexus.rdf.{Cursor, Graph, GraphDecoder, NonEmptyString}
 import com.typesafe.scalalogging.Logger
 import io.circe.Json
 import org.apache.jena.query.QueryFactory
-import shapeless.Typeable.ValueTypeable
-import shapeless.{TypeCase, Typeable}
 
 import scala.concurrent.duration.FiniteDuration
 import scala.jdk.CollectionConverters._
+import scala.reflect.ClassTag
 import scala.util.{Failure, Success, Try}
 
 /**
@@ -267,7 +266,7 @@ object View {
       * Return the views with ''views/query'' permissions that are not deprecated from the provided ''viewRefs''
       *
       */
-    def queryableViews[F[_], T <: View: Typeable](
+    def queryableViews[F[_], T <: View: ClassTag](
         implicit projectCache: ProjectCache[F],
         F: Monad[F],
         viewCache: ViewCache[F],
@@ -351,11 +350,10 @@ object View {
 
       def currentProjectSource(c: Cursor): Either[Rejection, Source] =
         for {
-          id          <- c.as[AbsoluteIri].onError(res.id.ref, "@id")
-          filter      <- Filter(res, c)
-          uuid        <- c.down(nxv.uuid).as[UUID].onError(id.ref, nxv.uuid.prefix)
-          includeMeta <- c.down(nxv.includeMetadata).withDefault(false).onError(id.ref, nxv.includeMetadata.prefix)
-        } yield ProjectEventStream(id, uuid, filter, includeMeta)
+          id     <- c.as[AbsoluteIri].onError(res.id.ref, "@id")
+          filter <- Filter(res, c)
+          uuid   <- c.down(nxv.uuid).as[UUID].onError(id.ref, nxv.uuid.prefix)
+        } yield ProjectEventStream(id, uuid, filter)
 
       // format: off
       def crossProjectSource(c: Cursor): Either[Rejection, Source] =
@@ -363,11 +361,10 @@ object View {
           id                  <- c.as[AbsoluteIri].onError(res.id.ref, "@id")
           filter              <- Filter(res, c)
           uuid                <- c.down(nxv.uuid).as[UUID].onError(id.ref, nxv.uuid.prefix)
-          includeMeta         <- c.down(nxv.includeMetadata).withDefault(false).onError(id.ref, nxv.includeMetadata.prefix)
           projectIdentifier   <- c.down(nxv.project).as[ProjectIdentifier].onError(id.ref, "project")
           idCursors            = c.downSet(nxv.identities).cursors.getOrElse(Set.empty)
           ids                 <- identities(res.id, idCursors)
-        } yield CrossProjectEventStream(id, uuid, filter, includeMeta, projectIdentifier, ids)
+        } yield CrossProjectEventStream(id, uuid, filter, projectIdentifier, ids)
       // format: on
 
       // format: off
@@ -376,13 +373,12 @@ object View {
           id            <- c.as[AbsoluteIri].onError(res.id.ref, "@id")
           filter        <- Filter(res, c)
           uuid          <- c.down(nxv.uuid).as[UUID].onError(id.ref, nxv.uuid.prefix)
-          includeMeta   <- c.down(nxv.includeMetadata).withDefault(false).onError(id.ref, nxv.includeMetadata.prefix)
           // TODO: There should be some validation against the admin endpoint that this project actually exists.
           // This will also validate that the token is correct and has the right permissions
           projectLabel  <- c.down(nxv.project).as[ProjectLabel].onError(id.ref, "project")
           endpoint      <- c.down(nxv.endpoint).as[AbsoluteIri].onError(id.ref, nxv.endpoint.prefix)
           token         <- c.down(nxv.token).as[Option[String]].onError(id.ref, nxv.token.prefix)
-        } yield RemoteProjectEventStream(id, uuid, filter, includeMeta, projectLabel, endpoint, token.map(AuthToken.apply))
+        } yield RemoteProjectEventStream(id, uuid, filter, projectLabel, endpoint, token.map(AuthToken.apply))
       // format: on
 
       def sources(cursors: Set[Cursor]): Either[Rejection, Set[Source]] =
@@ -420,7 +416,7 @@ object View {
 
     if (Set(nxv.View.value, nxv.ElasticSearchView.value).subsetOf(res.types)) ElasticSearchView(res)
     else if (Set(nxv.View.value, nxv.SparqlView.value).subsetOf(res.types)) SparqlView(res)
-    else if (Set(nxv.View.value, nxv.CompositeView.value).subsetOf(res.types)) composite()
+    else if (Set(nxv.View.value, nxv.CompositeView.value, nxv.Beta.value).subsetOf(res.types)) composite()
     else if (Set(nxv.View.value, nxv.AggregateElasticSearchView.value).subsetOf(res.types))
       AggregateElasticSearchView(res)
     else if (Set(nxv.View.value, nxv.AggregateSparqlView.value).subsetOf(res.types)) AggregateSparqlView(res)
@@ -508,9 +504,7 @@ object View {
   }
 
   object ElasticSearchView {
-    val allField = "_all_fields"
-    implicit val elasticSearchTypeable: Typeable[ElasticSearchView] =
-      ValueTypeable[ElasticSearchView, ElasticSearchView](classOf[ElasticSearchView], "ElasticSearchView")
+    val allField              = "_all_fields"
     private val defaultViewId = UUID.fromString("684bd815-9273-46f4-ac1c-0383d4a98254")
 
     /**
@@ -657,8 +651,6 @@ object View {
   }
 
   object SparqlView {
-    implicit val sparqlTypeable: Typeable[SparqlView] =
-      ValueTypeable[SparqlView, SparqlView](classOf[SparqlView], "SparqlView")
     private val defaultViewId = UUID.fromString("d88b71d2-b8a4-4744-bf22-2d99ef5bd26b")
 
     /**
@@ -726,7 +718,7 @@ object View {
       SparqlView(Filter(), includeMetadata = true, ref, nxv.defaultSparqlIndex.value, uuid, rev, deprecated)
 
     def sparqlView(source: Source): SparqlView =
-      SparqlView(source.filter, source.includeMetadata, ref, nxv.defaultSparqlIndex.value, uuid, rev, deprecated)
+      SparqlView(source.filter, includeMetadata = true, ref, nxv.defaultSparqlIndex.value, uuid, rev, deprecated)
 
     def progressId(sourceId: AbsoluteIri): String = sourceId.asString
 
@@ -740,24 +732,20 @@ object View {
         case _                      => for (s <- sources; p <- projections) yield progressId(s.id, p.view.id)
       }
 
-    def projectionsBy[T <: Projection: Typeable]: Set[T] = {
-      val tpe = TypeCase[T]
-      projections.collect { case tpe(projection) => projection }
-    }
+    def projectionsBy[T <: Projection](implicit T: ClassTag[T]): Set[T] =
+      projections.collect { case T(projection) => projection }
 
-    def sourcesBy[T <: Source: Typeable]: Set[T] = {
-      val tpe = TypeCase[T]
-      sources.collect { case tpe(source) => source }
-    }
+    def sourcesBy[T <: Source](implicit T: ClassTag[T]): Set[T] =
+      sources.collect { case T(source) => source }
 
     def source(sourceId: AbsoluteIri): Option[Source] =
       sources.find(_.id == sourceId)
 
     def projectSource(sourceId: AbsoluteIri): Option[ProjectIdentifier] =
       source(sourceId).map {
-        case CrossProjectEventStream(_, _, _, _, projIdentifier, _) => projIdentifier
-        case RemoteProjectEventStream(_, _, _, _, pLabel, _, _)     => pLabel
-        case _                                                      => ref
+        case CrossProjectEventStream(_, _, _, projIdentifier, _) => projIdentifier
+        case RemoteProjectEventStream(_, _, _, pLabel, _, _)     => pLabel
+        case _                                                   => ref
       }
 
     def projectsSource: Set[ProjectIdentifier] =
@@ -776,20 +764,17 @@ object View {
 
     sealed trait Source extends Product with Serializable {
       def filter: Filter
-      def includeMetadata: Boolean
       def id: AbsoluteIri
       def uuid: UUID
     }
 
     object Source {
-      final case class ProjectEventStream(id: AbsoluteIri, uuid: UUID, filter: Filter, includeMetadata: Boolean)
-          extends Source
+      final case class ProjectEventStream(id: AbsoluteIri, uuid: UUID, filter: Filter) extends Source
 
       final case class CrossProjectEventStream(
           id: AbsoluteIri,
           uuid: UUID,
           filter: Filter,
-          includeMetadata: Boolean,
           project: ProjectIdentifier,
           identities: Set[Identity]
       ) extends Source
@@ -798,7 +783,6 @@ object View {
           id: AbsoluteIri,
           uuid: UUID,
           filter: Filter,
-          includeMetadata: Boolean,
           project: ProjectLabel,
           endpoint: AbsoluteIri,
           token: Option[AuthToken]
@@ -858,7 +842,7 @@ object View {
           finalGraph.withRoot(res.id.value).toJson(finalCtx) match {
             case Left(err) =>
               val msg =
-                s"Could not convert resource with id '${res.id}' and graph '${graph.ntriples}' from Graph back to json. Reason: '${err}'"
+                s"Could not convert resource with id '${res.id}' and graph '${graph.ntriples}' from Graph back to json. Reason: '$err'"
               logger.error(msg)
               F.pure(None)
             case Right(value) =>

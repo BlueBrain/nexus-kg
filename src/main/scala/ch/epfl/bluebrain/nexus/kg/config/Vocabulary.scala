@@ -170,6 +170,7 @@ object Vocabulary {
     val Storage                    = PrefixMapping.prefix("Storage")
     val RemoteDiskStorage          = PrefixMapping.prefix("RemoteDiskStorage")
     val DiskStorage                = PrefixMapping.prefix("DiskStorage")
+    val Beta                       = PrefixMapping.prefix("Beta")
     val S3Storage                  = PrefixMapping.prefix("S3Storage")
     val View                       = PrefixMapping.prefix("View")
     val ElasticSearchView          = PrefixMapping.prefix("ElasticSearchView")

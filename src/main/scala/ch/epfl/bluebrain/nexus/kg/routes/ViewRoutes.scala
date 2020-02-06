@@ -157,7 +157,12 @@ class ViewRoutes private[routes] (
       sparqlRoutes(
         s"/${config.http.prefix}/views/{org}/{project}/{id}/sparql",
         id,
-        viewCache.getBy[View](project.ref, id)
+        viewCache
+          .getBy[View](project.ref, id)
+          .map(_.map {
+            case v: CompositeView => v.defaultSparqlView
+            case v                => v
+          })
       ),
       // Create or update a view (depending on rev query parameter)
       (put & pathEndOrSingleSlash) {

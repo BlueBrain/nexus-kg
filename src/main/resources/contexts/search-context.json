@@ -1,14 +1,13 @@
 {
   "@context": {
+    "@vocab": "https://bluebrain.github.io/nexus/vocabulary/",
     "nxv": "https://bluebrain.github.io/nexus/vocabulary/",
     "_total": "nxv:total",
     "_results": {
       "@id": "nxv:results",
       "@container": "@list"
     },
-    "resultId": "nxv:resultId",
     "paths": {
-      "@id": "nxv:paths",
       "@type": "@id",
       "@container": "@list"
     },

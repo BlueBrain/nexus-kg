@@ -17,6 +17,7 @@
     "Archive": "nxv:Archive",
     "SparqlView":  "nxv:SparqlView",
     "CompositeView":  "nxv:CompositeView",
+    "Beta":  "nxv:Beta",
     "_deprecated": "nxv:deprecated",
     "_createdAt": "nxv:createdAt",
     "_updatedAt": "nxv:updatedAt",

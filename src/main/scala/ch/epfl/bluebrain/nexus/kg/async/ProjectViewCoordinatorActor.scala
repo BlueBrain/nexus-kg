@@ -39,11 +39,12 @@ import com.typesafe.scalalogging.Logger
 import monix.eval.Task
 import monix.execution.CancelableFuture
 import monix.execution.Scheduler.Implicits.global
-import shapeless.{TypeCase, Typeable}
+import shapeless.TypeCase
 
 import scala.collection.immutable.Set
 import scala.collection.mutable
 import scala.concurrent.Future
+import scala.reflect.ClassTag
 
 /**
   * Coordinator backed by akka actor which runs the views' streams inside the provided project
@@ -147,9 +148,9 @@ private abstract class ProjectViewCoordinatorActor(viewCache: ViewCache[Task])(
 
   private def startProjectStreamSource(source: CompositeSource)(current: ProjectRef): Unit =
     source match {
-      case CrossProjectEventStream(_, _, _, _, ref: ProjectRef, _) => startProjectStreamFromDB(ref)
-      case s: RemoteProjectEventStream                             => startProjectStreamFromSSE(s)
-      case _                                                       => startProjectStreamFromDB(current)
+      case CrossProjectEventStream(_, _, _, ref: ProjectRef, _) => startProjectStreamFromDB(ref)
+      case s: RemoteProjectEventStream                          => startProjectStreamFromSSE(s)
+      case _                                                    => startProjectStreamFromDB(current)
     }
 
   private def startProjectStreamFromSSE(remoteSource: RemoteProjectEventStream): Unit = {
@@ -378,10 +379,8 @@ object ProjectViewCoordinatorActor {
   )
 
   private[async] implicit class IndexedViewSyntax[B](private val map: mutable.Map[IndexedView, B]) extends AnyVal {
-    def findBy[T <: IndexedView: Typeable](id: AbsoluteIri): Option[(T, B)] = {
-      val tpe = TypeCase[T]
-      map.collectFirst { case (tpe(view), value) if view.id == id => view -> value }
-    }
+    def findBy[T <: IndexedView](id: AbsoluteIri)(implicit T: ClassTag[T]): Option[(T, B)] =
+      map.collectFirst { case (T(view), value) if view.id == id => view -> value }
   }
 
   private[async] sealed trait Msg {

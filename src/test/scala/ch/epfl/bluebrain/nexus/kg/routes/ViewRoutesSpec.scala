@@ -61,9 +61,9 @@ import org.scalatest.{BeforeAndAfter, Inspectors, OptionValues}
 import org.scalatest.concurrent.{Eventually, ScalaFutures}
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.wordspec.AnyWordSpecLike
-import shapeless.Typeable
 
 import scala.concurrent.duration._
+import scala.reflect.ClassTag
 
 //noinspection TypeAnnotation
 class ViewRoutesSpec
@@ -403,7 +403,7 @@ class ViewRoutesSpec
       val query      = Json.obj("query" -> Json.obj("match_all" -> Json.obj()))
       val esResponse = jsonContentOf("/view/search-response.json")
 
-      when(viewCache.getBy[View](Eq(projectRef), Eq(nxv.defaultElasticSearchIndex.value))(any[Typeable[View]]))
+      when(viewCache.getBy[View](Eq(projectRef), Eq(nxv.defaultElasticSearchIndex.value))(any[ClassTag[View]]))
         .thenReturn(Task.pure(Some(defaultEsView)))
 
       when(
@@ -434,7 +434,7 @@ class ViewRoutesSpec
 
       when(
         viewCache.getProjectionBy[View](Eq(projectRef), Eq(compositeView.id), Eq(nxv.defaultElasticSearchIndex.value))(
-          any[Typeable[View]]
+          any[ClassTag[View]]
         )
       ).thenReturn(Task.pure(Some(defaultEsView)))
 
@@ -470,7 +470,7 @@ class ViewRoutesSpec
 
       when(
         viewCache.getProjectionBy[View](Eq(projectRef), Eq(compositeView.id), Eq(nxv.defaultSparqlIndex.value))(
-          any[Typeable[View]]
+          any[ClassTag[View]]
         )
       ).thenReturn(Task.pure(Some(defaultSparqlView)))
 
@@ -501,18 +501,18 @@ class ViewRoutesSpec
       val query      = Json.obj("query" -> Json.obj("match_all" -> Json.obj()))
       val esResponse = jsonContentOf("/view/search-response.json")
 
-      when(viewCache.getBy[View](Eq(projectRef), Eq(nxv.withSuffix("agg").value))(any[Typeable[View]]))
+      when(viewCache.getBy[View](Eq(projectRef), Eq(nxv.withSuffix("agg").value))(any[ClassTag[View]]))
         .thenReturn(Task.pure(Some(aggEsView)))
 
       when(
         viewCache.getBy[ElasticSearchView](Eq(projectRef), Eq(nxv.withSuffix("otherEs").value))(
-          any[Typeable[ElasticSearchView]]
+          any[ClassTag[ElasticSearchView]]
         )
       ).thenReturn(Task.pure(Some(otherEsView)))
 
       when(
         viewCache.getBy[ElasticSearchView](Eq(projectRef), Eq(nxv.defaultElasticSearchIndex.value))(
-          any[Typeable[ElasticSearchView]]
+          any[ClassTag[ElasticSearchView]]
         )
       ).thenReturn(Task.pure(Some(defaultEsView)))
 
@@ -544,7 +544,7 @@ class ViewRoutesSpec
       val esResponse = jsonContentOf("/view/search-error-response.json")
       val qp         = Uri.Query(Map("other" -> "value"))
 
-      when(viewCache.getBy[View](Eq(projectRef), Eq(nxv.defaultElasticSearchIndex.value))(any[Typeable[View]]))
+      when(viewCache.getBy[View](Eq(projectRef), Eq(nxv.defaultElasticSearchIndex.value))(any[ClassTag[View]]))
         .thenReturn(Task.pure(Some(defaultEsView)))
 
       when(
@@ -571,7 +571,7 @@ class ViewRoutesSpec
       val esResponse = "some error response"
       val qp         = Uri.Query(Map("other" -> "value"))
 
-      when(viewCache.getBy[View](Eq(projectRef), Eq(nxv.defaultElasticSearchIndex.value))(any[Typeable[View]]))
+      when(viewCache.getBy[View](Eq(projectRef), Eq(nxv.defaultElasticSearchIndex.value))(any[ClassTag[View]]))
         .thenReturn(Task.pure(Some(defaultEsView)))
 
       when(
@@ -597,7 +597,7 @@ class ViewRoutesSpec
       val esResponse = "some error response"
       val qp         = Uri.Query(Map("other" -> "value"))
 
-      when(viewCache.getBy[View](Eq(projectRef), Eq(nxv.defaultElasticSearchIndex.value))(any[Typeable[View]]))
+      when(viewCache.getBy[View](Eq(projectRef), Eq(nxv.defaultElasticSearchIndex.value))(any[ClassTag[View]]))
         .thenReturn(Task.pure(Some(defaultEsView)))
 
       when(
@@ -616,7 +616,7 @@ class ViewRoutesSpec
       val query  = "SELECT ?s where {?s ?p ?o} LIMIT 10"
       val result = jsonContentOf("/search/sparql-query-result.json")
 
-      when(viewCache.getBy[View](Eq(projectRef), Eq(nxv.defaultSparqlIndex.value))(any[Typeable[View]]))
+      when(viewCache.getBy[View](Eq(projectRef), Eq(nxv.defaultSparqlIndex.value))(any[ClassTag[View]]))
         .thenReturn(Task.pure(Some(defaultSQLView)))
 
       when(sparql.copy(namespace = s"kg_${defaultSQLView.name}")).thenReturn(sparql)
@@ -645,7 +645,7 @@ class ViewRoutesSpec
     "return sparql error when sparql search has a client error" in new Context {
       val query = "SELECT ?s where {?s ?p ?o} LIMIT 10"
 
-      when(viewCache.getBy[View](Eq(projectRef), Eq(nxv.defaultSparqlIndex.value))(any[Typeable[View]]))
+      when(viewCache.getBy[View](Eq(projectRef), Eq(nxv.defaultSparqlIndex.value))(any[ClassTag[View]]))
         .thenReturn(Task.pure(Some(defaultSQLView)))
 
       when(sparql.copy(namespace = s"kg_${defaultSQLView.name}")).thenReturn(sparql)
@@ -678,17 +678,17 @@ class ViewRoutesSpec
       val sparql1 = mock[BlazegraphClient[Task]]
       val sparql2 = mock[BlazegraphClient[Task]]
 
-      when(viewCache.getBy[View](Eq(projectRef), Eq(nxv.defaultSparqlIndex.value))(any[Typeable[View]]))
+      when(viewCache.getBy[View](Eq(projectRef), Eq(nxv.defaultSparqlIndex.value))(any[ClassTag[View]]))
         .thenReturn(Task.pure(Some(defaultSQLView)))
 
-      when(viewCache.getBy[View](Eq(projectRef), Eq(nxv.withSuffix("aggSparql").value))(any[Typeable[View]]))
+      when(viewCache.getBy[View](Eq(projectRef), Eq(nxv.withSuffix("aggSparql").value))(any[ClassTag[View]]))
         .thenReturn(Task.pure(Some(aggSparqlView)))
 
       when(
-        viewCache.getBy[SparqlView](Eq(projectRef), Eq(nxv.withSuffix("otherSparql").value))(any[Typeable[SparqlView]])
+        viewCache.getBy[SparqlView](Eq(projectRef), Eq(nxv.withSuffix("otherSparql").value))(any[ClassTag[SparqlView]])
       ).thenReturn(Task.pure(Some(otherSQLView)))
 
-      when(viewCache.getBy[SparqlView](Eq(projectRef), Eq(nxv.defaultSparqlIndex.value))(any[Typeable[SparqlView]]))
+      when(viewCache.getBy[SparqlView](Eq(projectRef), Eq(nxv.defaultSparqlIndex.value))(any[ClassTag[SparqlView]]))
         .thenReturn(Task.pure(Some(defaultSQLView)))
 
       when(sparql.copy(namespace = s"kg_${defaultSQLView.name}")).thenReturn(sparql1)
@@ -721,7 +721,7 @@ class ViewRoutesSpec
 
     "reject searching on a view that does not exists" in new Context {
 
-      when(viewCache.getBy[View](Eq(projectRef), Eq(nxv.withSuffix("some").value))(any[Typeable[View]]))
+      when(viewCache.getBy[View](Eq(projectRef), Eq(nxv.withSuffix("some").value))(any[ClassTag[View]]))
         .thenReturn(Task.pure(None))
 
       val endpoints = List(
@@ -841,7 +841,7 @@ class ViewRoutesSpec
     }
 
     "fetch all composite view projections progress" in new Context {
-      viewCache.getBy[CompositeView](eqTo(projectRef), eqTo(compositeView.id))(any[Typeable[CompositeView]]) shouldReturn
+      viewCache.getBy[CompositeView](eqTo(projectRef), eqTo(compositeView.id))(any[ClassTag[CompositeView]]) shouldReturn
         Task.pure(Some(compositeView))
 
       val viewId          = urlEncode(compositeView.id)
@@ -875,7 +875,7 @@ class ViewRoutesSpec
     }
 
     "fetch all composite view projections statistics" in new Context {
-      viewCache.getBy[CompositeView](eqTo(projectRef), eqTo(compositeView.id))(any[Typeable[CompositeView]]) shouldReturn
+      viewCache.getBy[CompositeView](eqTo(projectRef), eqTo(compositeView.id))(any[ClassTag[CompositeView]]) shouldReturn
         Task.pure(Some(compositeView))
 
       val viewId = urlEncode(compositeView.id)

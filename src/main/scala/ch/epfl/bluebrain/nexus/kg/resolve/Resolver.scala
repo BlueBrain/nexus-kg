@@ -13,7 +13,8 @@ import ch.epfl.bluebrain.nexus.kg.resources.Rejection.InvalidResourceFormat
 import ch.epfl.bluebrain.nexus.kg.resources._
 import ch.epfl.bluebrain.nexus.kg.resources.syntax._
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
-import shapeless.{TypeCase, Typeable}
+
+import scala.reflect.ClassTag
 
 /**
   * Enumeration of Resolver types.
@@ -134,9 +135,8 @@ object Resolver {
       priority: Int
   ) extends Resolver {
 
-    def projectsBy[T <: ProjectIdentifier: Typeable]: List[T] = {
-      val tpe = TypeCase[T]
-      projects.collect { case tpe(project) => project }
+    def projectsBy[T <: ProjectIdentifier](implicit T: ClassTag[T]): List[T] = {
+      projects.collect { case T(project) => project }
     }
   }
 }
