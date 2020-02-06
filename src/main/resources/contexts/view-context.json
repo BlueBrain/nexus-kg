@@ -1,72 +1,37 @@
 {
   "@context": {
+    "@vocab": "https://bluebrain.github.io/nexus/vocabulary/",
     "nxv": "https://bluebrain.github.io/nexus/vocabulary/",
-    "View": "nxv:View",
-    "ElasticSearchView": "nxv:ElasticSearchView",
-    "SparqlView": "nxv:SparqlView",
-    "ElasticSearch": "nxv:ElasticSearch",
-    "Sparql": "nxv:Sparql",
-    "Interval": "nxv:Interval",
-    "User": "nxv:User",
-    "Group": "nxv:Group",
-    "Authenticated": "nxv:Authenticated",
-    "Anonymous": "nxv:Anonymous",
     "projections": {
-      "@id": "nxv:projections",
       "@container": "@set"
     },
     "sources": {
-      "@id": "nxv:sources",
       "@container": "@set"
     },
     "endpoint": {
-      "@id": "nxv:endpoint",
       "@type": "@id"
     },
-    "token": "nxv:token",
-    "rebuildStrategy": "nxv:rebuildStrategy",
     "value": "nxv:value",
-    "context": "nxv:context",
-    "query": "nxv:query",
-    "ProjectEventStream": "nxv:ProjectEventStream",
-    "CrossProjectEventStream": "nxv:CrossProjectEventStream",
-    "RemoteProjectEventStream": "nxv:RemoteProjectEventStream",
-    "CompositeView": "nxv:CompositeView",
-    "Beta": "nxv:Beta",
-    "AggregateElasticSearchView": "nxv:AggregateElasticSearchView",
-    "AggregateSparqlView": "nxv:AggregateSparqlView",
     "_uuid": "nxv:uuid",
     "resourceSchemas": {
-      "@id": "nxv:resourceSchemas",
       "@type": "@id",
       "@container": "@set"
     },
     "resourceTypes": {
-      "@id": "nxv:resourceTypes",
       "@type": "@id",
       "@container": "@set"
     },
     "views": {
-      "@id": "nxv:views",
       "@container": "@set"
     },
     "project": "nxv:project",
     "viewId": {
-      "@id": "nxv:viewId",
       "@type": "@id"
     },
-    "resourceTag": "nxv:resourceTag",
-    "includeMetadata": "nxv:includeMetadata",
-    "includeDeprecated": "nxv:includeDeprecated",
-    "sourceAsText": "nxv:sourceAsText",
-    "mapping": "nxv:mapping",
     "identities": {
-      "@id": "nxv:identities",
       "@container": "@set"
     },
-    "realm": "nxv:realm",
-    "subject": "nxv:subject",
-    "group": "nxv:group"
+    "subject": "nxv:subject"
   },
   "@id": "https://bluebrain.github.io/nexus/contexts/view.json"
 }

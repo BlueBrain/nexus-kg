@@ -1,26 +1,11 @@
 {
   "@context": {
+    "@vocab": "https://bluebrain.github.io/nexus/vocabulary/",
     "nxv": "https://bluebrain.github.io/nexus/vocabulary/",
-    "Storage": "nxv:Storage",
-    "DiskStorage": "nxv:DiskStorage",
-    "RemoteDiskStorage": "nxv:RemoteDiskStorage",
-    "S3Storage": "nxv:S3Storage",
-    "default": "nxv:default",
-    "volume": "nxv:volume",
-    "readPermission": "nxv:readPermission",
-    "writePermission": "nxv:writePermission",
+    "xsd": "http://www.w3.org/2001/XMLSchema#",
     "maxFileSize": {
-      "@id": "nxv:maxFileSize",
-      "@type": "http://www.w3.org/2001/XMLSchema#long"
+      "@type": "xsd:long"
     },
-    "bucket": "nxv:bucket",
-    "credentials": "nxv:credentials",
-    "folder": "nxv:folder",
-    "endpoint": "nxv:endpoint",
-    "region": "nxv:region",
-    "accessKey": "nxv:accessKey",
-    "secretKey": "nxv:secretKey",
-    "path": "nxv:path",
     "location": "nxv:location",
     "filename": "nxv:filename",
     "mediaType": "nxv:mediaType",

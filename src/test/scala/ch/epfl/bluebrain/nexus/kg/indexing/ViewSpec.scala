@@ -156,7 +156,7 @@ class ViewSpec
           )
       }
 
-      "return an ElasticSearchViereturn the json representation" in {
+      "return an ElasticSearchView" in {
         val resource = simpleV(id, elasticSearchview, types = Set(nxv.View, nxv.ElasticSearchView))
         View(resource).rightValue shouldEqual ElasticSearchView(
           mapping,
