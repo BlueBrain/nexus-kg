@@ -18,7 +18,6 @@ import ch.epfl.bluebrain.nexus.commons.http.JsonLdCirceSupport._
 import ch.epfl.bluebrain.nexus.iam.client.IamClient
 import ch.epfl.bluebrain.nexus.kg.async.{ProjectAttributesCoordinator, ProjectViewCoordinator}
 import ch.epfl.bluebrain.nexus.kg.archives.ArchiveCache
-import ch.epfl.bluebrain.nexus.kg.async.ProjectAttributesCoordinator.SupervisorFactory
 import ch.epfl.bluebrain.nexus.kg.cache._
 import ch.epfl.bluebrain.nexus.kg.cache.Caches._
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig._
@@ -156,8 +155,7 @@ object Main {
         Projections[Task, String].runSyncUnsafe(10.seconds)(Scheduler.global, pm)
       implicit val projectCache: ProjectCache[Task] = cache.project
       val projectViewCoordinator                    = ProjectViewCoordinator(resources, cache)
-      val projectAttrCoordinator =
-        ProjectAttributesCoordinator(SupervisorFactory(files)).runSyncUnsafe(10.seconds)(Scheduler.global, pm)
+      val projectAttrCoordinator                    = ProjectAttributesCoordinator(files, projectCache)
       implicit val projectInitializer =
         new ProjectInitializer[Task](storages, views, resolvers, projectViewCoordinator, projectAttrCoordinator)
 
