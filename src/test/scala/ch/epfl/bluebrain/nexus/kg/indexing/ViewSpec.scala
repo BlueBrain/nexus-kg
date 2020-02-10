@@ -182,7 +182,6 @@ class ViewSpec
           resource.rev,
           resource.deprecated
         )
-
       }
 
       "return an SparqlView with tag, schema and types" in {
@@ -356,11 +355,13 @@ class ViewSpec
       }
 
       "fail on CompositeView when invalid payload" in {
-        val wrong = List.tabulate(2) { i =>
-          jsonContentOf(s"/view/composite-view-wrong-${i + 1}.json").appendContextOf(viewCtx)
-        }
+        val wrong = List
+          .tabulate(2) { i =>
+            jsonContentOf(s"/view/composite-view-wrong-${i + 1}.json").appendContextOf(viewCtx)
+          }
+          .toSet + compositeview().removeKeys("sources") + compositeview().removeKeys("projections")
         forAll(wrong) { json =>
-          val resource = simpleV(id, json, types = Set(nxv.View, nxv.CompositeView))
+          val resource = simpleV(id, json, types = Set(nxv.View, nxv.CompositeView, nxv.Beta))
           View(resource).leftValue shouldBe a[InvalidResourceFormat]
         }
       }

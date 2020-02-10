@@ -332,7 +332,9 @@ object View {
           )
 
       def projections(cursors: Set[Cursor]): Either[Rejection, Set[Projection]] =
-        if (cursors.size > config.maxProjections)
+        if (cursors.isEmpty)
+          Left(InvalidResourceFormat(res.id.ref, s"At least one projection must be present"))
+        else if (cursors.size > config.maxProjections)
           Left(InvalidResourceFormat(res.id.ref, s"The number of projections cannot exceed ${config.maxProjections}"))
         else {
           import alleycats.std.set._
@@ -383,7 +385,9 @@ object View {
       // format: on
 
       def sources(cursors: Set[Cursor]): Either[Rejection, Set[Source]] =
-        if (cursors.size > config.maxSources)
+        if (cursors.isEmpty)
+          Left(InvalidResourceFormat(res.id.ref, s"At least one source must be present"))
+        else if (cursors.size > config.maxSources)
           Left(InvalidResourceFormat(res.id.ref, s"The number of sources cannot exceed ${config.maxSources}"))
         else {
           import alleycats.std.set._
