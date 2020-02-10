@@ -53,7 +53,7 @@ class KgClientSpec
   override implicit val patienceConfig: PatienceConfig = PatienceConfig(5.seconds, 15.milliseconds)
 
   private val config =
-    KgClientConfig(url"http://example.com/", "v1")
+    KgClientConfig(url"http://example.com/v1")
 
   private val resClient: HttpClient[IO, ResourceV] = mock[HttpClient[IO, ResourceV]]
   private val accept                               = Accept(`application/json`.mediaType, `application/ld+json`)

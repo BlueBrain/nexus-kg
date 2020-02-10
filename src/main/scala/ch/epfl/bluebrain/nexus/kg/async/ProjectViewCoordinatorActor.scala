@@ -155,7 +155,7 @@ private abstract class ProjectViewCoordinatorActor(viewCache: ViewCache[Task])(
 
   private def startProjectStreamFromSSE(remoteSource: RemoteProjectEventStream): Unit = {
     val progressId = projectStreamId()
-    val clientCfg  = KgClientConfig(remoteSource.endpoint, config.http.prefix)
+    val clientCfg  = KgClientConfig(remoteSource.endpoint)
     val client     = KgClient[Task](clientCfg)
     val sourceF: Task[Source[ProjectionProgress, _]] = projections.progress(progressId).map { initial =>
       val source = client
