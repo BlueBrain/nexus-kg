@@ -46,12 +46,12 @@ object ViewEncoder {
       val sourcesTriples = sources.foldLeft(Set.empty[Triple]) { (acc, source) =>
         val sourceCommon = sourceCommons(composite.id, source)
         source match {
-          case ProjectEventStream(id, _, _) =>
+          case ProjectEventStream(id, _) =>
             acc ++ sourceCommon + ((id, rdf.tpe, nxv.ProjectEventStream))
-          case CrossProjectEventStream(id, _, _, projectIdentifier, identities) =>
+          case CrossProjectEventStream(id, _, projectIdentifier, identities) =>
             acc ++ sourceCommon ++ identitiesTriples(id, identities) + ((id, rdf.tpe, nxv.CrossProjectEventStream)) +
               ((id, nxv.project, projectIdentifier.show))
-          case RemoteProjectEventStream(id, _, _, projectLabel, endpoint, tokenOpt) =>
+          case RemoteProjectEventStream(id, _, projectLabel, endpoint, tokenOpt) =>
             acc ++ sourceCommon ++ Set[Triple](
               (id, rdf.tpe, nxv.RemoteProjectEventStream),
               (id, nxv.project, projectLabel.show),
@@ -95,8 +95,7 @@ object ViewEncoder {
   }
 
   private def sourceCommons(s: IriOrBNode, source: Source): Set[Triple] =
-    Set[Triple]((s, nxv.sources, source.id), (source.id, nxv.uuid, source.uuid.toString)) ++
-      filterTriples(source.id, source.filter)
+    Set[Triple]((s, nxv.sources, source.id)) ++ filterTriples(source.id, source.filter)
 
   private def filterTriples(s: IriOrBNode, filter: Filter): Set[Triple] =
     filter.resourceSchemas.map(r => (s, nxv.resourceSchemas, r): Triple) ++

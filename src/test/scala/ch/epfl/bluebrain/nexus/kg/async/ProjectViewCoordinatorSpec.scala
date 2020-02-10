@@ -75,8 +75,8 @@ class ProjectViewCoordinatorSpec
     val view3             = SparqlView(Filter(), true, project2.ref, genIri, genUUID, 1L, deprecated = false)
     val projection1       = ElasticSearchProjection("query", ElasticSearchView(Json.obj(), Filter(), false, false, project.ref, genIri, genUUID, 1L, false), Json.obj())
     val projection2       = SparqlProjection("query2", SparqlView(Filter(), true, project.ref, genIri, genUUID, 1L, false))
-    val localS            = ProjectEventStream(genIri, genUUID, Filter())
-    val crossProjectS     = CrossProjectEventStream(genIri, genUUID, Filter(), project2.ref, Set(Anonymous))
+    val localS            = ProjectEventStream(genIri, Filter())
+    val crossProjectS     = CrossProjectEventStream(genIri, Filter(), project2.ref, Set(Anonymous))
     val view4             = CompositeView(Set(localS, crossProjectS), Set(projection1, projection2), None, project.ref, genIri, genUUID, 1L, false)
     // format: on
 

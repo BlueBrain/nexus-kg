@@ -148,9 +148,9 @@ private abstract class ProjectViewCoordinatorActor(viewCache: ViewCache[Task])(
 
   private def startProjectStreamSource(source: CompositeSource)(current: ProjectRef): Unit =
     source match {
-      case CrossProjectEventStream(_, _, _, ref: ProjectRef, _) => startProjectStreamFromDB(ref)
-      case s: RemoteProjectEventStream                          => startProjectStreamFromSSE(s)
-      case _                                                    => startProjectStreamFromDB(current)
+      case CrossProjectEventStream(_, _, ref: ProjectRef, _) => startProjectStreamFromDB(ref)
+      case s: RemoteProjectEventStream                       => startProjectStreamFromSSE(s)
+      case _                                                 => startProjectStreamFromDB(current)
     }
 
   private def startProjectStreamFromSSE(remoteSource: RemoteProjectEventStream): Unit = {

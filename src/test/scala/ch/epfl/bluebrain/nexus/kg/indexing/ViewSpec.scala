@@ -95,14 +95,9 @@ class ViewSpec
       "@vocab" -> Json.fromString("http://example.com/vocab/")
     )
     val sourceFilter = Filter(Set(nxv.Resource, nxv.Schema), Set(tpe1, tpe2), Some("one"))
-    val localS = ProjectEventStream(
-      url"http://example.com/source1",
-      UUID.fromString("247d223b-1d38-4c6e-8fed-f9a8c2ccb4a3"),
-      sourceFilter
-    )
+    val localS       = ProjectEventStream(url"http://example.com/source1", sourceFilter)
     val crossS = CrossProjectEventStream(
       url"http://example.com/source2",
-      UUID.fromString("247d223b-1d38-4c6e-8fed-f9a8c2ccb4a6"),
       Filter(),
       ProjectLabel("account1", "project1"),
       Set(Anonymous)

@@ -8,7 +8,6 @@
   "sources": [
     {
       "@id" : "http://example.com/source2",
-      "_uuid": "247d223b-1d38-4c6e-8fed-f9a8c2ccb4a6",
       "@type": "CrossProjectEventStream",
       "includeDeprecated": true,
       "project": "account1/project1",
