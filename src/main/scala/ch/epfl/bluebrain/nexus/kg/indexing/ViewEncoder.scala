@@ -74,7 +74,7 @@ object ViewEncoder {
           val node: IriNode = view.id
           Set[Triple](
             (composite.id, nxv.projections, node),
-            (node, rdf.tpe, nxv.ElasticSearch),
+            (node, rdf.tpe, nxv.ElasticSearchProjection),
             (node, nxv.query, query),
             (node, nxv.uuid, view.uuid.toString),
             (node, nxv.context, context.noSpaces)
@@ -83,7 +83,7 @@ object ViewEncoder {
           val node: IriNode = view.id
           Set[Triple](
             (composite.id, nxv.projections, node),
-            (node, rdf.tpe, nxv.Sparql),
+            (node, rdf.tpe, nxv.SparqlProjection),
             (node, nxv.query, query),
             (node, nxv.uuid, view.uuid.toString)
           ) ++ triples(view)

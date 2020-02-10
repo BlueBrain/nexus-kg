@@ -23,7 +23,7 @@
   "projections": [
     {
       "@id" : "http://example.com/sparql",
-      "@type": "Sparql",
+      "@type": "SparqlProjection",
       "query": "CONSTRUCT {{resource_id} ?p ?o} WHERE {?ss ?pp ?oo}",
       "includeDeprecated": true,
       "includeMetadata": true,

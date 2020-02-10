@@ -339,8 +339,9 @@ object View {
           cursors.foldM(Set.empty[Projection]) {
             case (acc, cursor) =>
               cursor.down(rdf.tpe).as[AbsoluteIri].leftRejectionFor(res.id.ref).flatMap {
-                case tpe if tpe == nxv.ElasticSearch.value => ElasticSearchProjection(res, cursor).map(p => acc + p)
-                case tpe if tpe == nxv.Sparql.value        => SparqlProjection(res, cursor).map(p => acc + p)
+                case tpe if tpe == nxv.ElasticSearchProjection.value =>
+                  ElasticSearchProjection(res, cursor).map(p => acc + p)
+                case tpe if tpe == nxv.SparqlProjection.value => SparqlProjection(res, cursor).map(p => acc + p)
                 case tpe =>
                   val err = s"projection @type with value '$tpe' is not supported."
                   Left(InvalidResourceFormat(res.id.ref, err): Rejection)

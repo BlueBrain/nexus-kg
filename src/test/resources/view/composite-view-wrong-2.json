@@ -18,7 +18,7 @@
   "projections": [
     {
       "@id": "http://example/com/1",
-      "@type": "Sparql",
+      "@type": "SparqlProjection",
       "query": "CONSTRUCT {?s ?p ?o} WHERETYPO {?s ?p ?o}",
       "includeDeprecated": true,
       "includeMetadata": true
