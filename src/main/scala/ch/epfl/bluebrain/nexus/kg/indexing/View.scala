@@ -332,15 +332,18 @@ object View {
           )
 
       def projections(cursors: Set[Cursor]): Either[Rejection, Set[Projection]] =
-        if (cursors.size > config.maxProjections)
+        if (cursors.isEmpty)
+          Left(InvalidResourceFormat(res.id.ref, "At least one projection must be present"))
+        else if (cursors.size > config.maxProjections)
           Left(InvalidResourceFormat(res.id.ref, s"The number of projections cannot exceed ${config.maxProjections}"))
         else {
           import alleycats.std.set._
           cursors.foldM(Set.empty[Projection]) {
             case (acc, cursor) =>
               cursor.down(rdf.tpe).as[AbsoluteIri].leftRejectionFor(res.id.ref).flatMap {
-                case tpe if tpe == nxv.ElasticSearch.value => ElasticSearchProjection(res, cursor).map(p => acc + p)
-                case tpe if tpe == nxv.Sparql.value        => SparqlProjection(res, cursor).map(p => acc + p)
+                case tpe if tpe == nxv.ElasticSearchProjection.value =>
+                  ElasticSearchProjection(res, cursor).map(p => acc + p)
+                case tpe if tpe == nxv.SparqlProjection.value => SparqlProjection(res, cursor).map(p => acc + p)
                 case tpe =>
                   val err = s"projection @type with value '$tpe' is not supported."
                   Left(InvalidResourceFormat(res.id.ref, err): Rejection)
@@ -352,19 +355,17 @@ object View {
         for {
           id     <- c.as[AbsoluteIri].onError(res.id.ref, "@id")
           filter <- Filter(res, c)
-          uuid   <- c.down(nxv.uuid).as[UUID].onError(id.ref, nxv.uuid.prefix)
-        } yield ProjectEventStream(id, uuid, filter)
+        } yield ProjectEventStream(id, filter)
 
       // format: off
       def crossProjectSource(c: Cursor): Either[Rejection, Source] =
         for {
           id                  <- c.as[AbsoluteIri].onError(res.id.ref, "@id")
           filter              <- Filter(res, c)
-          uuid                <- c.down(nxv.uuid).as[UUID].onError(id.ref, nxv.uuid.prefix)
           projectIdentifier   <- c.down(nxv.project).as[ProjectIdentifier].onError(id.ref, "project")
           idCursors            = c.downSet(nxv.identities).cursors.getOrElse(Set.empty)
           ids                 <- identities(res.id, idCursors)
-        } yield CrossProjectEventStream(id, uuid, filter, projectIdentifier, ids)
+        } yield CrossProjectEventStream(id, filter, projectIdentifier, ids)
       // format: on
 
       // format: off
@@ -372,17 +373,18 @@ object View {
         for {
           id            <- c.as[AbsoluteIri].onError(res.id.ref, "@id")
           filter        <- Filter(res, c)
-          uuid          <- c.down(nxv.uuid).as[UUID].onError(id.ref, nxv.uuid.prefix)
           // TODO: There should be some validation against the admin endpoint that this project actually exists.
           // This will also validate that the token is correct and has the right permissions
           projectLabel  <- c.down(nxv.project).as[ProjectLabel].onError(id.ref, "project")
           endpoint      <- c.down(nxv.endpoint).as[AbsoluteIri].onError(id.ref, nxv.endpoint.prefix)
           token         <- c.down(nxv.token).as[Option[String]].onError(id.ref, nxv.token.prefix)
-        } yield RemoteProjectEventStream(id, uuid, filter, projectLabel, endpoint, token.map(AuthToken.apply))
+        } yield RemoteProjectEventStream(id, filter, projectLabel, endpoint, token.map(AuthToken.apply))
       // format: on
 
       def sources(cursors: Set[Cursor]): Either[Rejection, Set[Source]] =
-        if (cursors.size > config.maxSources)
+        if (cursors.isEmpty)
+          Left(InvalidResourceFormat(res.id.ref, "At least one source must be present"))
+        else if (cursors.size > config.maxSources)
           Left(InvalidResourceFormat(res.id.ref, s"The number of sources cannot exceed ${config.maxSources}"))
         else {
           import alleycats.std.set._
@@ -743,9 +745,9 @@ object View {
 
     def projectSource(sourceId: AbsoluteIri): Option[ProjectIdentifier] =
       source(sourceId).map {
-        case CrossProjectEventStream(_, _, _, projIdentifier, _) => projIdentifier
-        case RemoteProjectEventStream(_, _, _, pLabel, _, _)     => pLabel
-        case _                                                   => ref
+        case CrossProjectEventStream(_, _, projIdentifier, _) => projIdentifier
+        case RemoteProjectEventStream(_, _, pLabel, _, _)     => pLabel
+        case _                                                => ref
       }
 
     def projectsSource: Set[ProjectIdentifier] =
@@ -765,15 +767,13 @@ object View {
     sealed trait Source extends Product with Serializable {
       def filter: Filter
       def id: AbsoluteIri
-      def uuid: UUID
     }
 
     object Source {
-      final case class ProjectEventStream(id: AbsoluteIri, uuid: UUID, filter: Filter) extends Source
+      final case class ProjectEventStream(id: AbsoluteIri, filter: Filter) extends Source
 
       final case class CrossProjectEventStream(
           id: AbsoluteIri,
-          uuid: UUID,
           filter: Filter,
           project: ProjectIdentifier,
           identities: Set[Identity]
@@ -781,7 +781,6 @@ object View {
 
       final case class RemoteProjectEventStream(
           id: AbsoluteIri,
-          uuid: UUID,
           filter: Filter,
           project: ProjectLabel,
           endpoint: AbsoluteIri,

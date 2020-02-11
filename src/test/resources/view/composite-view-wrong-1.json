@@ -22,7 +22,7 @@
     },
     {
       "@id": "http://example/com/2",
-      "@type": "Sparql",
+      "@type": "SparqlProjection",
       "query": "CONSTRUCT {other} WHERE {...}",
       "includeDeprecated": true,
       "includeMetadata": true

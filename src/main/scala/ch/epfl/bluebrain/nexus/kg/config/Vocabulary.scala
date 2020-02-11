@@ -82,8 +82,8 @@ object Vocabulary {
     val context                  = PrefixMapping.prefix("context")
     val query                    = PrefixMapping.prefix("query")
     val token                    = PrefixMapping.prefix("token")
-    val ElasticSearch            = PrefixMapping.prefix("ElasticSearch")
-    val Sparql                   = PrefixMapping.prefix("Sparql")
+    val ElasticSearchProjection  = PrefixMapping.prefix("ElasticSearchProjection")
+    val SparqlProjection         = PrefixMapping.prefix("SparqlProjection")
     val ProjectEventStream       = PrefixMapping.prefix("ProjectEventStream")
     val CrossProjectEventStream  = PrefixMapping.prefix("CrossProjectEventStream")
     val RemoteProjectEventStream = PrefixMapping.prefix("RemoteProjectEventStream")
@@ -153,7 +153,6 @@ object Vocabulary {
     val paths = PrefixMapping.prefix("paths")
 
     //Progress offset
-    val offset       = PrefixMapping.prefix("offset")
     val projectionId = PrefixMapping.prefix("projectionId")
     val sourceId     = PrefixMapping.prefix("sourceId")
 
@@ -183,9 +182,9 @@ object Vocabulary {
     val Authenticated              = PrefixMapping.prefix("Authenticated")
     val Anonymous                  = PrefixMapping.prefix("Anonymous")
     val AccessControlList          = PrefixMapping.prefix("AccessControlList")
-    val NoProgress                 = PrefixMapping.prefix("NoProgress")
-    val Sequential                 = PrefixMapping.prefix("Sequential")
-    val TimeBased                  = PrefixMapping.prefix("TimeBased")
+    val NoOffset                   = PrefixMapping.prefix("NoOffset")
+    val SequenceBasedOffset        = PrefixMapping.prefix("SequenceBasedOffset")
+    val TimeBasedOffset            = PrefixMapping.prefix("TimeBasedOffset")
     val Interval                   = PrefixMapping.prefix("Interval")
   }
 

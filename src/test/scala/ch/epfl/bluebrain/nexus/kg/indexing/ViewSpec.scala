@@ -95,14 +95,9 @@ class ViewSpec
       "@vocab" -> Json.fromString("http://example.com/vocab/")
     )
     val sourceFilter = Filter(Set(nxv.Resource, nxv.Schema), Set(tpe1, tpe2), Some("one"))
-    val localS = ProjectEventStream(
-      url"http://example.com/source1",
-      UUID.fromString("247d223b-1d38-4c6e-8fed-f9a8c2ccb4a3"),
-      sourceFilter
-    )
+    val localS       = ProjectEventStream(url"http://example.com/source1", sourceFilter)
     val crossS = CrossProjectEventStream(
       url"http://example.com/source2",
-      UUID.fromString("247d223b-1d38-4c6e-8fed-f9a8c2ccb4a6"),
       Filter(),
       ProjectLabel("account1", "project1"),
       Set(Anonymous)
@@ -182,7 +177,6 @@ class ViewSpec
           resource.rev,
           resource.deprecated
         )
-
       }
 
       "return an SparqlView with tag, schema and types" in {
@@ -356,11 +350,13 @@ class ViewSpec
       }
 
       "fail on CompositeView when invalid payload" in {
-        val wrong = List.tabulate(2) { i =>
-          jsonContentOf(s"/view/composite-view-wrong-${i + 1}.json").appendContextOf(viewCtx)
-        }
+        val wrong = List
+          .tabulate(2) { i =>
+            jsonContentOf(s"/view/composite-view-wrong-${i + 1}.json").appendContextOf(viewCtx)
+          }
+          .toSet + compositeview().removeKeys("sources") + compositeview().removeKeys("projections")
         forAll(wrong) { json =>
-          val resource = simpleV(id, json, types = Set(nxv.View, nxv.CompositeView))
+          val resource = simpleV(id, json, types = Set(nxv.View, nxv.CompositeView, nxv.Beta))
           View(resource).leftValue shouldBe a[InvalidResourceFormat]
         }
       }

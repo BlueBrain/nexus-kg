@@ -69,7 +69,7 @@ class ViewCacheSpec
   val sparqlViewsProj2: Set[SparqlView] =
     List.fill(5)(sparqlView.copy(id = genIri + "sparql2", uuid = genUUID, ref = ref2)).toSet
   val compositeView = CompositeView(
-    Set(ProjectEventStream(genIri, genUUID, Filter())),
+    Set(ProjectEventStream(genIri, Filter())),
     Set(ElasticSearchProjection("", esViewsProj1.head, Json.obj()), SparqlProjection("", sparqlViewsProj1.head)),
     None,
     ref1,

@@ -126,14 +126,14 @@ object CompositeIndexer {
       else view.buildInsertQuery(res)
 
     def fetchRemoteProject(source: RemoteProjectEventStream): F[Option[Project]] = {
-      val clientCfg = AdminClientConfig(source.endpoint, source.endpoint, config.http.prefix)
+      val clientCfg = AdminClientConfig(source.endpoint, source.endpoint, "")
       AdminClient(clientCfg).fetchProject(source.project.organization, source.project.value)(source.token)
     }
 
     def fetchRemoteResource(
         event: Event
     )(source: RemoteProjectEventStream, filter: Filter)(implicit project: Project): F[Option[ResourceV]] = {
-      val clientCfg = KgClientConfig(source.endpoint, config.http.prefix)
+      val clientCfg = KgClientConfig(source.endpoint)
       val client    = KgClient(clientCfg)
       filter.resourceTag.filter(_.trim.nonEmpty) match {
         case Some(tag) => client.resource(project, event.id.value, tag)(source.token)
@@ -142,7 +142,7 @@ object CompositeIndexer {
     }
 
     def fetchRemoteEvents(source: RemoteProjectEventStream, offset: Offset): Source[EventEnvelope, NotUsed] = {
-      val clientCfg = KgClientConfig(source.endpoint, config.http.prefix)
+      val clientCfg = KgClientConfig(source.endpoint)
       val client    = KgClient(clientCfg)
       client.events(source.project, offset)(source.token)
     }

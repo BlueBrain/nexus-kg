@@ -10,7 +10,8 @@
       "@type" : "{type}",
       "projectionId" : "https://bluebrain.github.io/nexus/vocabulary/defaultElasticSearchIndex",
       "sourceId" : "{sourceId}",
-      "offset" : {value}
+      "value" : {value},
+      "instant": "{instant}"
     }
   ]
 }
