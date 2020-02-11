@@ -360,7 +360,7 @@
           "description": "The Sparql projection RDF type.",
           "nodeKind": "sh:IRI",
           "sh:hasValue": {
-            "@id": "nxv:Sparql"
+            "@id": "nxv:SparqlProjection"
           }
         },
         {
@@ -422,7 +422,7 @@
           "description": "The ElasticSearch projection RDF type.",
           "nodeKind": "sh:IRI",
           "sh:hasValue": {
-            "@id": "nxv:ElasticSearch"
+            "@id": "nxv:ElasticSearchProjection"
           }
         },
         {
