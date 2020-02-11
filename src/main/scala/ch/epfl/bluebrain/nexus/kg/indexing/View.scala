@@ -333,7 +333,7 @@ object View {
 
       def projections(cursors: Set[Cursor]): Either[Rejection, Set[Projection]] =
         if (cursors.isEmpty)
-          Left(InvalidResourceFormat(res.id.ref, s"At least one projection must be present"))
+          Left(InvalidResourceFormat(res.id.ref, "At least one projection must be present"))
         else if (cursors.size > config.maxProjections)
           Left(InvalidResourceFormat(res.id.ref, s"The number of projections cannot exceed ${config.maxProjections}"))
         else {
@@ -383,7 +383,7 @@ object View {
 
       def sources(cursors: Set[Cursor]): Either[Rejection, Set[Source]] =
         if (cursors.isEmpty)
-          Left(InvalidResourceFormat(res.id.ref, s"At least one source must be present"))
+          Left(InvalidResourceFormat(res.id.ref, "At least one source must be present"))
         else if (cursors.size > config.maxSources)
           Left(InvalidResourceFormat(res.id.ref, s"The number of sources cannot exceed ${config.maxSources}"))
         else {
