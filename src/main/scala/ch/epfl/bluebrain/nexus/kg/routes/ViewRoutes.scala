@@ -467,11 +467,19 @@ object ViewRoutes {
 
   private[routes] implicit val encoderOffset: Encoder[Offset] =
     Encoder.instance {
-      case NoOffset        => Json.obj("@type" -> nxv.NoProgress.prefix.asJson)
-      case Sequence(value) => Json.obj("@type" -> nxv.Sequential.prefix.asJson, nxv.offset.prefix -> value.asJson)
+      case Sequence(value) =>
+        Json.obj(
+          "@type" -> nxv.SequenceBasedOffset.prefix.asJson,
+          "value" -> value.asJson
+        )
       case t: TimeBasedUUID =>
-        Json.obj("@type" -> nxv.TimeBased.prefix.asJson, nxv.offset.prefix -> t.asInstant.asJson)
-      case _ => Json.obj()
+        Json.obj(
+          "@type"   -> nxv.TimeBasedOffset.prefix.asJson,
+          "value"   -> t.value.toString.asJson,
+          "instant" -> t.asInstant.asJson
+        )
+      case NoOffset => Json.obj("@type" -> nxv.NoOffset.prefix.asJson)
+      case _        => Json.obj()
     }
 
   private[routes] implicit def encoderListResultsOffset: Encoder[ListResults[Offset]] =

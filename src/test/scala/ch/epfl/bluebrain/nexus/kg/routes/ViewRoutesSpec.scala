@@ -789,8 +789,10 @@ class ViewRoutesSpec
         Get(endpoint) ~> addCredentials(oauthToken) ~> routes ~> check {
           status shouldEqual StatusCodes.OK
           responseAs[Json] shouldEqual
-            jsonContentOf("/view/progress.json", Map(quote("{type}") -> "Sequential", quote("{value}") -> "2"))
-              .removeNestedKeys("projectionId", "sourceId")
+            jsonContentOf(
+              "/view/progress.json",
+              Map(quote("{type}") -> "SequenceBasedOffset", quote("{value}") -> "2")
+            ).removeNestedKeys("projectionId", "sourceId", "instant")
         }
       }
     }
@@ -806,8 +808,8 @@ class ViewRoutesSpec
         Delete(endpoint) ~> addCredentials(oauthToken) ~> routes ~> check {
           status shouldEqual StatusCodes.OK
           responseAs[Json] shouldEqual
-            jsonContentOf("/view/progress.json", Map(quote("{type}") -> "NoProgress", quote("{value}") -> "1"))
-              .removeNestedKeys("offset", "projectionId", "sourceId")
+            jsonContentOf("/view/progress.json", Map(quote("{type}") -> "NoOffset", quote("{value}") -> "1"))
+              .removeNestedKeys("value", "instant", "projectionId", "sourceId")
         }
       }
     }
@@ -834,7 +836,11 @@ class ViewRoutesSpec
           responseAs[Json] shouldEqual
             jsonContentOf(
               "/view/progress.json",
-              Map(quote("{type}") -> "TimeBased", quote("{value}") -> s""""$time"""")
+              Map(
+                quote("{type}")    -> "TimeBasedOffset",
+                quote("{value}")   -> s""""$uuid"""",
+                quote("{instant}") -> time.toString
+              )
             ).removeNestedKeys("sourceId")
         }
       }
@@ -865,8 +871,9 @@ class ViewRoutesSpec
             jsonContentOf(
               "/view/progress.json",
               Map(
-                quote("{type}")     -> "TimeBased",
-                quote("{value}")    -> s""""${TimeBasedUUID(uuid).asInstant}"""",
+                quote("{type}")     -> "TimeBasedOffset",
+                quote("{instant}")  -> TimeBasedUUID(uuid).asInstant.toString,
+                quote("{value}")    -> s""""$uuid"""",
                 quote("{sourceId}") -> sourceId.toString()
               )
             ).removeNestedKeys("projectionId")
@@ -911,8 +918,8 @@ class ViewRoutesSpec
         Delete(endpoint) ~> addCredentials(oauthToken) ~> routes ~> check {
           status shouldEqual StatusCodes.OK
           responseAs[Json] shouldEqual
-            jsonContentOf("/view/progress.json", Map(quote("{type}") -> "NoProgress", quote("{value}") -> "1"))
-              .removeNestedKeys("offset", "sourceId")
+            jsonContentOf("/view/progress.json", Map(quote("{type}") -> "NoOffset", quote("{value}") -> "1"))
+              .removeNestedKeys("value", "instant", "sourceId")
         }
       }
     }
