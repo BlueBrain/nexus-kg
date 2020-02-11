@@ -99,7 +99,6 @@ lazy val kg = project
     cleanFiles           ++= (baseDirectory.value * "ddata*").get,
     Docker / packageName := "nexus-kg",
     resolvers            += "swissborg" at "https://dl.bintray.com/swissborg/maven",
-    coverageMinimum      := 80,
     libraryDependencies ++= Seq(
       adminClient,
       akkaDistributedData,
