@@ -229,17 +229,19 @@ object CompositeIndexer {
       case (initial, sourcesProject) =>
         val sources = sourcesProject.map { case (s, project) => sourceGraph(s, initial)(project) }
 
-        Source.fromGraph(GraphDSL.create() { implicit b =>
-          import GraphDSL.Implicits._
-          val persistFlow = b.add(ProgressFlowElem[F, Unit].toPersistedProgress(mainProgressId, initial))
+        Source
+          .fromGraph(GraphDSL.create() { implicit b =>
+            import GraphDSL.Implicits._
+            val persistFlow = b.add(ProgressFlowElem[F, Unit].toPersistedProgress(mainProgressId, initial))
 
-          val merge = b.add(Merge[PairMsg[Unit]](sourcesProject.size))
-          // format: off
-        sources.foreach(_ ~> merge)
-                             merge ~> persistFlow.in
-        // format: on
-          SourceShape(persistFlow.out)
-        })
+            val merge = b.add(Merge[PairMsg[Unit]](sourcesProject.size))
+            // format: off
+            sources.foreach(_ ~> merge)
+                                 merge ~> persistFlow.in
+            // format: on
+            SourceShape(persistFlow.out)
+          })
+          .via(kamonViewMetricsFlow(view, project))
     }
     StreamSupervisor.start(sourceF, mainProgressId, actorInitializer)
   }

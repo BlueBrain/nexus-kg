@@ -76,7 +76,9 @@ object SparqlIndexer {
         .runAsyncBatch(client.bulk(_))()
         .mergeEmit()
         .toPersistedProgress(view.progressId, initial)
-      cassandraSource(s"project=${view.ref.id}", view.progressId, initial.minProgress.offset).via(flow)
+      cassandraSource(s"project=${view.ref.id}", view.progressId, initial.minProgress.offset)
+        .via(flow)
+        .via(kamonViewMetricsFlow(view, project))
     }
     StreamSupervisor.start(sourceF, view.progressId, actorInitializer)
   }
