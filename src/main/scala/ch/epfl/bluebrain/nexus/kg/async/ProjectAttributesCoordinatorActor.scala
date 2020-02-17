@@ -5,18 +5,15 @@ import java.util.UUID
 import akka.actor.{Actor, ActorLogging, ActorRef, ActorSystem, Props}
 import akka.cluster.sharding.ShardRegion.{ExtractEntityId, ExtractShardId}
 import akka.cluster.sharding.{ClusterSharding, ClusterShardingSettings, ShardRegion}
-import akka.pattern.pipe
 import akka.stream.scaladsl.Source
 import akka.util.Timeout
 import cats.implicits._
 import ch.epfl.bluebrain.nexus.admin.client.types.Project
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity.Subject
 import ch.epfl.bluebrain.nexus.kg.async.ProjectAttributesCoordinatorActor.Msg._
-import ch.epfl.bluebrain.nexus.kg.async.ProjectAttributesCoordinatorActor._
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig._
-import ch.epfl.bluebrain.nexus.kg.indexing.{cassandraSource, Statistics}
-import ch.epfl.bluebrain.nexus.kg.resources.syntax._
+import ch.epfl.bluebrain.nexus.kg.indexing.cassandraSource
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection.FileDigestAlreadyExists
 import ch.epfl.bluebrain.nexus.kg.resources.{Event, Files, Rejection, Resource}
 import ch.epfl.bluebrain.nexus.kg.storage.Storage.StorageOperations.FetchAttributes
@@ -44,7 +41,6 @@ private abstract class ProjectAttributesCoordinatorActor(implicit val config: Ap
       log.debug("Started attributes coordinator for project '{}'", project.show)
       context.become(initialized(project))
       child = Some(startCoordinator(project, restartOffset = false))
-    case FetchStatistics(uuid) => val _ = progress(uuid).runToFuture pipeTo sender()
     case other =>
       log.debug("Received non Start message '{}', ignore", other)
   }
@@ -56,23 +52,12 @@ private abstract class ProjectAttributesCoordinatorActor(implicit val config: Ap
       child = None
       context.become(receive)
 
-    case FetchStatistics(uuid) => val _ = progress(uuid).runToFuture pipeTo sender()
-
     case _: Start => //ignore, it has already been started
 
     case other => log.error("Unexpected message received '{}'", other)
   }
 
   def startCoordinator(project: Project, restartOffset: Boolean): StreamSupervisor[Task, ProjectionProgress]
-
-  private def progress(uuid: UUID): Task[Statistics] =
-    child
-      .map(_.state().map(_.getOrElse(NoProgress)))
-      .getOrElse(Task.pure(NoProgress))
-      .map(_.progress(progressName(uuid)))
-      .map { p =>
-        Statistics(p.processed, p.discarded, p.failed, p.processed, p.offset.asInstant, p.offset.asInstant)
-      }
 }
 
 object ProjectAttributesCoordinatorActor {
@@ -90,7 +75,6 @@ object ProjectAttributesCoordinatorActor {
 
     final case class Start(uuid: UUID, project: Project) extends Msg
     final case class Stop(uuid: UUID)                    extends Msg
-    final case class FetchStatistics(uuid: UUID)         extends Msg
   }
 
   private[async] def shardExtractor(shards: Int): ExtractShardId = {

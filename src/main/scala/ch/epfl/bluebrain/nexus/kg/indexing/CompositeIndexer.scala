@@ -154,7 +154,7 @@ object CompositeIndexer {
         // format: off
         import GraphDSL.Implicits._
         val sourceView        = view.sparqlView(source)
-        val sourceProgressId  = view.progressId(source.id)
+        val sourceProgressId  = source.id.asString
         val sparqlClient      = clients.sparql.copy(namespace = sourceView.index).withRetryPolicy(config.sparql.indexing.retry)
         val sparqlClientQuery = sparqlClient.withRetryPolicy(config.sparql.query)
         val sourceMinProgress = initial.minProgressFilter(pId => pId == sourceProgressId || pId.startsWith(source.id.asString)).offset

@@ -16,12 +16,14 @@ import ch.epfl.bluebrain.nexus.commons.cache.KeyValueStoreSubscriber.KeyValueSto
 import ch.epfl.bluebrain.nexus.commons.cache.KeyValueStoreSubscriber.KeyValueStoreChanges
 import ch.epfl.bluebrain.nexus.commons.cache.OnKeyValueStoreChange
 import ch.epfl.bluebrain.nexus.iam.client.types.AccessControlList
+import ch.epfl.bluebrain.nexus.kg.IdStats
 import ch.epfl.bluebrain.nexus.kg.async.ProjectViewCoordinatorActor.Msg._
 import ch.epfl.bluebrain.nexus.kg.async.ProjectViewCoordinatorActor._
 import ch.epfl.bluebrain.nexus.kg.cache.{AclsCache, ProjectCache, ViewCache}
 import ch.epfl.bluebrain.nexus.kg.client.{KgClient, KgClientConfig}
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig
 import ch.epfl.bluebrain.nexus.kg.config.AppConfig._
+import ch.epfl.bluebrain.nexus.kg.indexing.Statistics.ViewStatistics
 import ch.epfl.bluebrain.nexus.kg.indexing.View.CompositeView.Source.{CrossProjectEventStream, RemoteProjectEventStream}
 import ch.epfl.bluebrain.nexus.kg.indexing.View.CompositeView.{Source => CompositeSource}
 import ch.epfl.bluebrain.nexus.kg.indexing.View._
@@ -92,7 +94,7 @@ private abstract class ProjectViewCoordinatorActor(viewCache: ViewCache[Task])(
               val projectionsProgress = v.projections.map { p =>
                 IdentifiedProgress(s.id, p.view.id, pp.progress(v.progressId(s.id, p.view.id)))
               }
-              val sourceProgress = IdentifiedProgress(s.id, pp.progress(v.progressId(s.id)))
+              val sourceProgress = IdentifiedProgress(s.id, pp.progress(s.id.asString))
               val projectStreamF =
                 v.projectSource(s.id).flatMap(projectsStream.get).map(progress).getOrElse(Task.pure(NoProgress))
               val combinedProgress = projectionsProgress + sourceProgress
@@ -114,14 +116,15 @@ private abstract class ProjectViewCoordinatorActor(viewCache: ViewCache[Task])(
   protected def progress(coordinator: ViewCoordinator): Task[ProjectionProgress] =
     coordinator.value.state().map(_.getOrElse(NoProgress))
 
-  private def statistics(viewId: AbsoluteIri): Task[Set[IdentifiedProgress[Statistics]]] =
+  private def statistics(viewId: AbsoluteIri): Task[Set[IdStats]] =
     progresses(viewId).map {
       case (set, nextRestart) =>
         set.map {
           case (viewIdentifiedProgress, pp) =>
             val ppDate = pp.offset.asInstant
             viewIdentifiedProgress.map { vp =>
-              Statistics(vp.processed, vp.discarded, vp.failed, pp.processed, vp.offset.asInstant, ppDate, nextRestart)
+              val lastEvDate = vp.offset.asInstant
+              ViewStatistics(vp.processed, vp.discarded, vp.failed, pp.processed, lastEvDate, ppDate, nextRestart)
             }
         }
     }
@@ -241,8 +244,8 @@ private abstract class ProjectViewCoordinatorActor(viewCache: ViewCache[Task])(
         coordinator: ViewCoordinator,
         deleteIndices: Boolean = true
     ): Future[Unit] = {
-      children -= v
-      (coordinator.value.stop() >>
+      (Task.delay(children -= v) >>
+        coordinator.value.stop() >>
         Task.delay(coordinator.cancelable.cancel()) >>
         (if (deleteIndices) deleteViewIndices(v, project) else Task.unit)).runToFuture
     }
@@ -326,16 +329,13 @@ private abstract class ProjectViewCoordinatorActor(viewCache: ViewCache[Task])(
           case None => if (self != sender()) sender() ! None
         }
 
-      case RestartProjection(uuid, viewId, sourceIdOpt, projectionIdOpt) =>
+      case RestartProjection(uuid, viewId, projectionIdOpt) =>
         val _ = children.findBy[CompositeView](viewId) match {
-          case Some((v, coord))
-              if sourceIdOpt.forall(sId => v.sources.exists(_.id == sId)) && projectionIdOpt.forall(
-                pId => v.projections.exists(_.view.id == pId)
-              ) =>
+          case Some((v, coord)) if projectionIdOpt.forall(pId => v.projections.exists(_.view.id == pId)) =>
             if (self != sender()) sender() ! Option(Ack(uuid))
             logStop(v, "restart triggered from client")
             stopView(v, coord, deleteIndices = false)
-              .map(_ => startProjectionsView(v, v.projectionsProgress(sourceIdOpt, projectionIdOpt), coord.prevRestart))
+              .map(_ => startProjectionsView(v, v.projectionsProgress(projectionIdOpt), coord.prevRestart))
           case _ =>
             if (self != sender()) sender() ! None
         }
@@ -397,14 +397,14 @@ object ProjectViewCoordinatorActor {
     final case class Stop(uuid: UUID)                                                                                                                             extends Msg
     final case class ViewsAddedOrModified(uuid: UUID, restart: Boolean, views: Set[IndexedView], ignoreRev: Boolean = false, prevRestart: Option[Instant] = None) extends Msg
     final case class RestartView(uuid: UUID, viewId: AbsoluteIri)                                                                                                 extends Msg
-    final case class RestartProjection(uuid: UUID, viewId: AbsoluteIri, sourceId: Option[AbsoluteIri], projectionId: Option[AbsoluteIri])                         extends Msg
+    final case class RestartProjection(uuid: UUID, viewId: AbsoluteIri, projectionId: Option[AbsoluteIri] = None)                                                 extends Msg
     final case class UpdateRestart(uuid: UUID, viewId: AbsoluteIri, prevRestart: Option[Instant])                                                                 extends Msg
     final case class Ack(uuid: UUID)                                                                                                                              extends Msg
     final case class ViewsRemoved(uuid: UUID, views: Set[AbsoluteIri])                                                                                            extends Msg
     final case class ProjectChanges(uuid: UUID, project: Project)                                                                                                 extends Msg
     final case class FetchOffset(uuid: UUID, viewId: AbsoluteIri)                                                                                                 extends Msg
     final case class FetchStatistics(uuid: UUID, viewId: AbsoluteIri)                                                                                             extends Msg
-    final case class AclChanges(uuid: UUID, projectsAcls: Map[Project, AccessControlList], views: Set[CompositeView])                                                                        extends Msg
+    final case class AclChanges(uuid: UUID, projectsAcls: Map[Project, AccessControlList], views: Set[CompositeView])                                             extends Msg
     // format: on
   }
 
@@ -453,7 +453,7 @@ object ProjectViewCoordinatorActor {
             // format: on
           }
           restart.flatMap {
-            case Some(true) => Task.delay(self ! RestartProjection(view.ref.id, view.id, None, None))
+            case Some(true) => Task.delay(self ! RestartProjection(view.ref.id, view.id, None))
             case Some(false) =>
               for {
                 current <- Task.timer.clock.realTime(MILLISECONDS).map(Instant.ofEpochMilli)
