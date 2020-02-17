@@ -56,8 +56,7 @@ object Main {
 
   def setupMonitoring(config: Config): Unit = {
     if (sys.env.getOrElse("KAMON_ENABLED", "false").toBoolean) {
-      Kamon.reconfigure(config)
-      Kamon.loadModules()
+      Kamon.init(config)
     }
   }
   def shutdownMonitoring(): Unit = {

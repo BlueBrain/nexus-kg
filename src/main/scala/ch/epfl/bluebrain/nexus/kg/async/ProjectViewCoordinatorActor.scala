@@ -76,7 +76,7 @@ private abstract class ProjectViewCoordinatorActor(viewCache: ViewCache[Task])(
         case (acc, v: SingleView) => acc + v
       }
       children ++= accessibleViews.map(view => view -> startCoordinator(view, project, restart = false))
-      startProjectStreamFromDB(project.ref)
+      startProjectStreamFromDB(project)
       unstashAll()
     case other =>
       log.debug("Received non Start message '{}', stashing until the actor is initialized", other)
@@ -139,7 +139,7 @@ private abstract class ProjectViewCoordinatorActor(viewCache: ViewCache[Task])(
       if (readPerms) inaccessible else inaccessible + current
     }
 
-  private def startProjectStreamFromDB(projectRef: ProjectRef): Unit = {
+  private def startCrossProjectStreamFromDB(projectRef: ProjectRef): Unit = {
     val progressId = projectStreamId()
     val sourceF: Task[Source[ProjectionProgress, _]] = projections.progress(progressId).map { initial =>
       val source = cassandraSource(s"project=${projectRef.id}", progressId, initial.minProgress.offset)
@@ -149,11 +149,21 @@ private abstract class ProjectViewCoordinatorActor(viewCache: ViewCache[Task])(
     projectsStream += projectRef -> coordinator
   }
 
-  private def startProjectStreamSource(source: CompositeSource)(current: ProjectRef): Unit =
+  private def startProjectStreamFromDB(project: Project): Unit = {
+    val progressId = projectStreamId()
+    val sourceF: Task[Source[ProjectionProgress, _]] = projections.progress(progressId).map { initial =>
+      val source = cassandraSource(s"project=${project.ref.id}", progressId, initial.minProgress.offset)
+      source.via(projectStreamFlow(initial)).via(kamonProjectMetricsFlow(project.projectLabel))
+    }
+    val coordinator = ViewCoordinator(StreamSupervisor.start(sourceF, progressId, context.actorOf))
+    projectsStream += project.ref -> coordinator
+  }
+
+  private def startProjectStreamSource(source: CompositeSource): Unit =
     source match {
-      case CrossProjectEventStream(_, _, ref: ProjectRef, _) => startProjectStreamFromDB(ref)
+      case CrossProjectEventStream(_, _, ref: ProjectRef, _) => startCrossProjectStreamFromDB(ref)
       case s: RemoteProjectEventStream                       => startProjectStreamFromSSE(s)
-      case _                                                 => startProjectStreamFromDB(current)
+      case _                                                 => ()
     }
 
   private def startProjectStreamFromSSE(remoteSource: RemoteProjectEventStream): Unit = {
@@ -164,7 +174,7 @@ private abstract class ProjectViewCoordinatorActor(viewCache: ViewCache[Task])(
       val source = client
         .events(remoteSource.project, initial.minProgress.offset)(remoteSource.token)
         .map[PairMsg[Any]](e => Right(Message(e, progressId)))
-      source.via(projectStreamFlow(initial))
+      source.via(projectStreamFlow(initial)).via(kamonProjectMetricsFlow(remoteSource.project))
     }
     val coordinator = ViewCoordinator(StreamSupervisor.start(sourceF, progressId, context.actorOf))
     projectsStream += remoteSource.project -> coordinator
@@ -254,7 +264,7 @@ private abstract class ProjectViewCoordinatorActor(viewCache: ViewCache[Task])(
       logStart(view, s"restart: '$restart'")
       children += view -> startCoordinator(view, project, restart, prevRestart)
       view match {
-        case v: CompositeView => v.sources.foreach(startProjectStreamSource(_)(view.ref))
+        case v: CompositeView => v.sources.foreach(startProjectStreamSource(_))
         case _                => ()
       }
     }
