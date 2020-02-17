@@ -167,7 +167,7 @@ package object indexing {
 
     def gaugesFor(metricName: String, view: CompositeView, project: Project): Map[String, Gauge] =
       (view.sources.map { source =>
-        view.progressId(source.id) -> Kamon
+        source.id.asString -> Kamon
           .gauge(metricName)
           .withTags(sourceTags(view, project, source))
       } ++ (for {
@@ -180,7 +180,7 @@ package object indexing {
 
     def countersFor(metricName: String, view: CompositeView, project: Project): Map[String, Counter] =
       (view.sources.map { source =>
-        view.progressId(source.id) -> Kamon
+        source.id.asString -> Kamon
           .counter(metricName)
           .withTags(sourceTags(view, project, source))
       } ++ (for {
@@ -193,7 +193,7 @@ package object indexing {
 
     def countsFor(view: CompositeView): Map[String, AtomicLong] =
       (view.sources.map { source =>
-        view.progressId(source.id) -> AtomicLong(0L)
+        source.id.asString -> AtomicLong(0L)
 
       } ++ (for {
         projection <- view.projections
