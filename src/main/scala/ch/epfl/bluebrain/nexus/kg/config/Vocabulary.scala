@@ -185,7 +185,10 @@ object Vocabulary {
     val NoOffset                   = PrefixMapping.prefix("NoOffset")
     val SequenceBasedOffset        = PrefixMapping.prefix("SequenceBasedOffset")
     val TimeBasedOffset            = PrefixMapping.prefix("TimeBasedOffset")
+    val CompositeViewOffset        = PrefixMapping.prefix("CompositeViewOffset")
     val Interval                   = PrefixMapping.prefix("Interval")
+    val ViewStatistics             = PrefixMapping.prefix("ViewStatistics")
+    val CompositeViewStatistics    = PrefixMapping.prefix("CompositeViewStatistics")
   }
 
   /**

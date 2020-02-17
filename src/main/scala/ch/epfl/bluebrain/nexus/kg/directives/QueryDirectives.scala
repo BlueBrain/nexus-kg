@@ -56,12 +56,6 @@ object QueryDirectives {
         }
       }
 
-  /**
-    * the source query parameter converted to an iri
-    */
-  def sourceId(implicit projection: Project): Directive1[Option[AbsoluteIri]] =
-    parameter("source".as[AbsoluteIri].?)
-
   private def fromMalformed(implicit config: PaginationConfig) =
     MalformedQueryParamRejection("from", s"from parameter cannot be greater than ${config.fromLimit}")
 

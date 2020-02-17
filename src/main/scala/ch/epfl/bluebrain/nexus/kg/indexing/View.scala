@@ -722,16 +722,12 @@ object View {
     def sparqlView(source: Source): SparqlView =
       SparqlView(source.filter, includeMetadata = true, ref, nxv.defaultSparqlIndex.value, uuid, rev, deprecated)
 
-    def progressId(sourceId: AbsoluteIri): String = sourceId.asString
-
     def progressId(sourceId: AbsoluteIri, projectionId: AbsoluteIri): String = s"${sourceId}_$projectionId"
 
-    def projectionsProgress(sourceIdOpt: Option[AbsoluteIri], projectionIdsOpt: Option[AbsoluteIri]): Set[String] =
-      (sourceIdOpt, projectionIdsOpt) match {
-        case (Some(sId), Some(pId)) => Set(progressId(sId, pId))
-        case (Some(sId), _)         => projections.map(p => progressId(sId, p.view.id))
-        case (_, Some(pId))         => sources.map(s => progressId(s.id, pId))
-        case _                      => for (s <- sources; p <- projections) yield progressId(s.id, p.view.id)
+    def projectionsProgress(projectionIdsOpt: Option[AbsoluteIri]): Set[String] =
+      projectionIdsOpt match {
+        case Some(pId) => sources.map(s => progressId(s.id, pId))
+        case None      => for (s <- sources; p <- projections) yield progressId(s.id, p.view.id)
       }
 
     def projectionsBy[T <: Projection](implicit T: ClassTag[T]): Set[T] =

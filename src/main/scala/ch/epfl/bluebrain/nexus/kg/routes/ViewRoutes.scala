@@ -15,6 +15,7 @@ import ch.epfl.bluebrain.nexus.commons.search.QueryResults.UnscoredQueryResults
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlResults
 import ch.epfl.bluebrain.nexus.commons.test.Resources.jsonContentOf
 import ch.epfl.bluebrain.nexus.iam.client.types._
+import ch.epfl.bluebrain.nexus.kg.{IdOffset, IdStats}
 import ch.epfl.bluebrain.nexus.kg.KgError.InvalidOutputFormat
 import ch.epfl.bluebrain.nexus.kg.async.ProjectViewCoordinator
 import ch.epfl.bluebrain.nexus.kg.cache._
@@ -26,9 +27,10 @@ import ch.epfl.bluebrain.nexus.kg.directives.AuthDirectives._
 import ch.epfl.bluebrain.nexus.kg.directives.PathDirectives._
 import ch.epfl.bluebrain.nexus.kg.directives.ProjectDirectives._
 import ch.epfl.bluebrain.nexus.kg.directives.QueryDirectives._
+import ch.epfl.bluebrain.nexus.kg.indexing.Statistics.ViewStatistics
 import ch.epfl.bluebrain.nexus.kg.indexing.View.CompositeView.Projection.{ElasticSearchProjection, SparqlProjection}
 import ch.epfl.bluebrain.nexus.kg.indexing.View._
-import ch.epfl.bluebrain.nexus.kg.indexing.{IdentifiedProgress, Statistics, View}
+import ch.epfl.bluebrain.nexus.kg.indexing.{IdentifiedProgress, View}
 import ch.epfl.bluebrain.nexus.kg.marshallers.instances._
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection.NotFound
 import ch.epfl.bluebrain.nexus.kg.resources.Rejection.NotFound.notFound
@@ -114,31 +116,35 @@ class ViewRoutes private[routes] (
   def routes(id: AbsoluteIri): Route =
     concat(
       // Retrieves view statistics
-      (get & pathPrefix("statistics") & sourceId & pathEndOrSingleSlash) { sIdOpt =>
+      (get & pathPrefix("statistics") & pathEndOrSingleSlash) {
         operationName(s"/${config.http.prefix}/views/{org}/{project}/{id}/statistics") {
           hasPermission(read).apply {
-            val result = coordinator.statistics(id, sIdOpt).map(toEitherQueryResults(id))
-            complete(result.runWithStatus(StatusCodes.OK))
+            val result = OptionT(coordinator.statistics(id)).toRight(notFound(id.ref))
+            complete(result.value.runWithStatus(StatusCodes.OK))
           }
         }
       },
-      // Retrieves progress for a view
-      (get & pathPrefix("progress") & sourceId & pathEndOrSingleSlash) { sIdOpt =>
-        operationName(s"/${config.http.prefix}/views/{org}/{project}/{id}/progress") {
+      // Retrieves view offset
+      (get & pathPrefix("offset") & pathEndOrSingleSlash) {
+        operationName(s"/${config.http.prefix}/views/{org}/{project}/{id}/offset") {
           hasPermission(read).apply {
-            val result = coordinator.offset(id, sIdOpt).map(toEitherQueryResults(id))
-            complete(result.runWithStatus(StatusCodes.OK))
+            val result = OptionT(coordinator.offset(id)).toRight(notFound(id.ref))
+            complete(result.value.runWithStatus(StatusCodes.OK))
           }
         }
       },
-      // Delete progress from a view. This triggers view restart with initial progress
-      (delete & pathPrefix("progress") & sourceId & pathEndOrSingleSlash) { sIdOpt =>
-        operationName(s"/${config.http.prefix}/views/{org}/{project}/{id}/progress") {
+      // Delete offset from a view. This triggers view restart with initial progress
+      (delete & pathPrefix("offset") & pathEndOrSingleSlash) {
+        operationName(s"/${config.http.prefix}/views/{org}/{project}/{id}/offset") {
           hasPermission(write).apply {
-            val result =
-              sIdOpt.map(sourceId => coordinator.restart(id, Some(sourceId), None)).getOrElse(coordinator.restart(id))
-            val eitherResult = OptionT(result).toRight(notFound(id.ref)).map(_ => noOffsetResult(sIdOpt)).value
-            complete(eitherResult.runWithStatus(StatusCodes.OK))
+            val result: OptionT[Task, Offset] = for {
+              offset <- OptionT(coordinator.offset(id))
+              _      <- OptionT(coordinator.restart(id))
+            } yield offset match {
+              case CompositeViewOffset(values) => CompositeViewOffset(values.map(_.map(_ => NoOffset)))
+              case _                           => NoOffset
+            }
+            complete(result.toRight(notFound(id.ref)).value.runWithStatus(StatusCodes.OK))
           }
         }
       },
@@ -268,13 +274,17 @@ class ViewRoutes private[routes] (
       pathPrefix("projections") {
         concat(
           // Consume the projection id segment as underscore if present
-          pathPrefix("_") {
-            routesAllProjections(id)
-          },
+          pathPrefix("_")(routesAllProjections(id)),
           // Consume the projection id segment
-          pathPrefix(IdSegment) { projectionId =>
-            routesProjection(id, projectionId)
-          }
+          pathPrefix(IdSegment)(projectionId => routesProjection(id, projectionId))
+        )
+      },
+      pathPrefix("sources") {
+        concat(
+          // Consume the source id segment as underscore if present
+          pathPrefix("_")(routesAllSources(id)),
+          // Consume the source id segment
+          pathPrefix(IdSegment)(sourceId => routesSource(id, sourceId))
         )
       }
     )
@@ -300,30 +310,33 @@ class ViewRoutes private[routes] (
         viewCache.getBy[CompositeView](project.ref, id)
       ),
       // Retrieves statistics from all projections
-      (get & pathPrefix("statistics") & sourceId & pathEndOrSingleSlash) { sIdOpt =>
+      (get & pathPrefix("statistics") & pathEndOrSingleSlash) {
         operationName(s"/${config.http.prefix}/views/{org}/{project}/{id}/projections/_/statistics") {
           hasPermission(read).apply {
-            val result = coordinator.projectionStats(id, sIdOpt, None).map(toEitherQueryResults(id))
+            val result = coordinator.projectionStats(id).map(toEitherQueryResults(id))
             complete(result.runWithStatus(StatusCodes.OK))
           }
         }
       },
-      // Retrieves progress from all projections
-      (get & pathPrefix("progress") & sourceId & pathEndOrSingleSlash) { sIdOpt =>
-        operationName(s"/${config.http.prefix}/views/{org}/{project}/{id}/projections/_/progress") {
+      // Retrieves offset from all projections
+      (get & pathPrefix("offset") & pathEndOrSingleSlash) {
+        operationName(s"/${config.http.prefix}/views/{org}/{project}/{id}/projections/_/offset") {
           hasPermission(read).apply {
-            val result = coordinator.projectionOffset(id, sIdOpt, None).map(toEitherQueryResults(id))
+            val result = coordinator.projectionOffsets(id).map(toEitherQueryResults(id))
             complete(result.runWithStatus(StatusCodes.OK))
           }
         }
       },
-      // Delete progress from all projections. This triggers view restart with initial progress all projections
-      (delete & pathPrefix("progress") & sourceId & pathEndOrSingleSlash) { sIdOpt =>
-        operationName(s"/${config.http.prefix}/views/{org}/{project}/{id}/projections/_/progress") {
+      // Delete offset from all projections. This triggers view restart with initial progress all projections
+      (delete & pathPrefix("offset") & pathEndOrSingleSlash) {
+        operationName(s"/${config.http.prefix}/views/{org}/{project}/{id}/projections/_/offset") {
           hasPermission(write).apply {
-            val result =
-              coordinator.restart(id, sIdOpt, None).map(_.toRight(notFound(id.ref)).map(_ => noOffsetResult(sIdOpt)))
-            complete(result.runWithStatus(StatusCodes.OK))
+            val result = for {
+              set <- OptionT(coordinator.projectionOffsets(id))
+              _   <- OptionT(coordinator.restartProjections(id))
+            } yield toQueryResults(set.map(_.map[Offset](_ => NoOffset)))
+            val eitherResult = result.toRight(notFound(id.ref)).value
+            complete(eitherResult.runWithStatus(StatusCodes.OK))
           }
         }
       }
@@ -350,42 +363,82 @@ class ViewRoutes private[routes] (
         viewCache.getProjectionBy[View](project.ref, id, projectionId)
       ),
       // Retrieves statistics for a projection
-      (get & pathPrefix("statistics") & sourceId & pathEndOrSingleSlash) { sIdOpt =>
+      (get & pathPrefix("statistics") & pathEndOrSingleSlash) {
         operationName(s"/${config.http.prefix}/views/{org}/{project}/{id}/projections/{projectionId}/statistics") {
           hasPermission(read).apply {
-            val result = coordinator.projectionStats(id, sIdOpt, Some(projectionId)).map(toEitherQueryResults(id))
-            complete(result.runWithStatus(StatusCodes.OK))
+            val result = OptionT(coordinator.projectionStats(id, projectionId)).toRight(notFound(id.ref))
+            complete(result.value.runWithStatus(StatusCodes.OK))
           }
         }
       },
-      // Retrieves progress for a projection
-      (get & pathPrefix("progress") & sourceId & pathEndOrSingleSlash) { sIdOpt =>
-        operationName(s"/${config.http.prefix}/views/{org}/{project}/{id}/projections/{projectionId}/progress") {
+      // Retrieves offset for a projection
+      (get & pathPrefix("offset") & pathEndOrSingleSlash) {
+        operationName(s"/${config.http.prefix}/views/{org}/{project}/{id}/projections/{projectionId}/offset") {
           hasPermission(read).apply {
-            val result = coordinator.projectionOffset(id, sIdOpt, Some(projectionId)).map(toEitherQueryResults(id))
+            val result = OptionT(coordinator.projectionOffset(id, projectionId)).toRight(notFound(id.ref))
+            complete(result.value.runWithStatus(StatusCodes.OK))
+          }
+        }
+      },
+      // Delete offset from a projection. This triggers view restart with initial progress for selected projection
+      (delete & pathPrefix("offset") & pathEndOrSingleSlash) {
+        operationName(s"/${config.http.prefix}/views/{org}/{project}/{id}/projections/{projectionId}/offset") {
+          val result: OptionT[Task, Offset] = for {
+            offset <- OptionT(coordinator.projectionOffset(id, projectionId))
+            _      <- OptionT(coordinator.restartProjection(id, projectionId))
+          } yield offset match {
+            case CompositeViewOffset(values) => CompositeViewOffset(values.map(_.map(_ => NoOffset)))
+            case _                           => NoOffset
+          }
+          val eitherResult = result.toRight(notFound(id.ref)).value
+          complete(eitherResult.runWithStatus(StatusCodes.OK))
+        }
+      }
+    )
+
+  private def routesAllSources(id: AbsoluteIri): Route =
+    concat(
+      // Retrieves statistics from all sources
+      (get & pathPrefix("statistics") & pathEndOrSingleSlash) {
+        operationName(s"/${config.http.prefix}/views/{org}/{project}/{id}/sources/_/statistics") {
+          hasPermission(read).apply {
+            val result = coordinator.sourceStats(id).map(toEitherQueryResults(id))
             complete(result.runWithStatus(StatusCodes.OK))
           }
         }
       },
-      // Delete progress from a projection. This triggers view restart with initial progress for selected projection
-      (delete & pathPrefix("progress") & sourceId & pathEndOrSingleSlash) { sIdOpt =>
-        operationName(s"/${config.http.prefix}/views/{org}/{project}/{id}/projections/{projectionId}/progress") {
-          hasPermission(write).apply {
-            val result =
-              coordinator
-                .restart(id, sIdOpt, Some(projectionId))
-                .map(_.toRight(notFound(id.ref)).map(_ => noOffsetResult(sIdOpt, Some(projectionId))))
+      // Retrieves offset from all sources
+      (get & pathPrefix("offset") & pathEndOrSingleSlash) {
+        operationName(s"/${config.http.prefix}/views/{org}/{project}/{id}/sources/_/offset") {
+          hasPermission(read).apply {
+            val result = coordinator.sourceOffsets(id).map(toEitherQueryResults(id))
             complete(result.runWithStatus(StatusCodes.OK))
           }
         }
       }
     )
 
-  private def noOffsetResult(
-      sourceId: Option[AbsoluteIri],
-      projectionId: Option[AbsoluteIri] = None
-  ): ListResults[Offset] =
-    UnscoredQueryResults(1L, List(UnscoredQueryResult(IdentifiedProgress(sourceId, projectionId, NoOffset))))
+  private def routesSource(id: AbsoluteIri, sourceId: AbsoluteIri): Route =
+    concat(
+      // Retrieves statistics for a source
+      (get & pathPrefix("statistics") & pathEndOrSingleSlash) {
+        operationName(s"/${config.http.prefix}/views/{org}/{project}/{id}/sources/{sourceId}/statistics") {
+          hasPermission(read).apply {
+            val result = OptionT(coordinator.sourceStat(id, sourceId)).toRight(notFound(id.ref))
+            complete(result.value.runWithStatus(StatusCodes.OK))
+          }
+        }
+      },
+      // Retrieves offset for a source
+      (get & pathPrefix("offset") & pathEndOrSingleSlash) {
+        operationName(s"/${config.http.prefix}/views/{org}/{project}/{id}/sources/{sourceId}/offset") {
+          hasPermission(read).apply {
+            val result = OptionT(coordinator.sourceOffset(id, sourceId)).toRight(notFound(id.ref))
+            complete(result.value.runWithStatus(StatusCodes.OK))
+          }
+        }
+      }
+    )
 
   private def sparqlRoutes(operation: String, id: AbsoluteIri, view: => Task[Option[View]]): Route =
     (pathPrefix("sparql") & pathEndOrSingleSlash) {
@@ -466,26 +519,37 @@ object ViewRoutes {
   type ListResults[A] = QueryResults[IdentifiedProgress[A]]
 
   private[routes] implicit val encoderOffset: Encoder[Offset] =
-    Encoder.instance {
-      case Sequence(value) =>
-        Json.obj(
-          "@type" -> nxv.SequenceBasedOffset.prefix.asJson,
-          "value" -> value.asJson
-        )
-      case t: TimeBasedUUID =>
-        Json.obj(
-          "@type"   -> nxv.TimeBasedOffset.prefix.asJson,
-          "value"   -> t.value.toString.asJson,
-          "instant" -> t.asInstant.asJson
-        )
-      case NoOffset => Json.obj("@type" -> nxv.NoOffset.prefix.asJson)
-      case _        => Json.obj()
-    }
+    Encoder
+      .instance[Offset] {
+        case Sequence(value) =>
+          Json.obj(
+            "@type" -> nxv.SequenceBasedOffset.prefix.asJson,
+            "value" -> value.asJson
+          )
+        case t: TimeBasedUUID =>
+          Json.obj(
+            "@type"   -> nxv.TimeBasedOffset.prefix.asJson,
+            "value"   -> t.value.toString.asJson,
+            "instant" -> t.asInstant.asJson
+          )
+        case CompositeViewOffset(value) =>
+          Json.obj(
+            "@type"  -> nxv.CompositeViewOffset.prefix.asJson,
+            "values" -> value.asJson.removeNestedKeys("@context")
+          )
+        case NoOffset =>
+          Json.obj("@type" -> nxv.NoOffset.prefix.asJson)
+        case _ =>
+          Json.obj()
+      }
+      .mapJson(_.addContext(offsetCtxUri))
 
   private[routes] implicit def encoderListResultsOffset: Encoder[ListResults[Offset]] =
-    qrsEncoderLowPrio[IdentifiedProgress[Offset]].mapJson(_.addContext(progressCtxUri))
+    qrsEncoderLowPrio[IdOffset]
+      .mapJson(_.removeNestedKeys("@context").addContext(offsetCtxUri).addContext(searchCtxUri))
 
-  private[routes] implicit def encoderListResultsStatistics: Encoder[ListResults[Statistics]] =
-    qrsEncoderLowPrio[IdentifiedProgress[Statistics]].mapJson(_.addContext(statisticsCtxUri))
+  private[routes] implicit def encoderListResultsStatistics: Encoder[ListResults[ViewStatistics]] =
+    qrsEncoderLowPrio[IdStats]
+      .mapJson(_.removeNestedKeys("@context").addContext(statisticsCtxUri).addContext(searchCtxUri))
 
 }

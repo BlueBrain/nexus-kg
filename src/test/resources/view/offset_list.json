@@ -1,8 +1,7 @@
 {
   "@context" : [
-    "https://bluebrain.github.io/nexus/contexts/search.json",
-    "https://bluebrain.github.io/nexus/contexts/resource.json",
-    "https://bluebrain.github.io/nexus/contexts/progress.json"
+    "https://bluebrain.github.io/nexus/contexts/offset.json",
+    "https://bluebrain.github.io/nexus/contexts/search.json"
   ],
   "_total" : 1,
   "_results" : [
