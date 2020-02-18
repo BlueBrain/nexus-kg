@@ -8,8 +8,6 @@ import akka.stream.scaladsl._
 import akka.util.Timeout
 import cats.effect.{Effect, Timer}
 import cats.implicits._
-import ch.epfl.bluebrain.nexus.admin.client.AdminClient
-import ch.epfl.bluebrain.nexus.admin.client.config.AdminClientConfig
 import ch.epfl.bluebrain.nexus.admin.client.types.Project
 import ch.epfl.bluebrain.nexus.commons.sparql.client.SparqlWriteQuery
 import ch.epfl.bluebrain.nexus.kg.cache.ProjectCache
@@ -125,11 +123,6 @@ object CompositeIndexer {
       if (res.deprecated && !view.filter.includeDeprecated) view.buildDeleteQuery(res)
       else view.buildInsertQuery(res)
 
-    def fetchRemoteProject(source: RemoteProjectEventStream): F[Option[Project]] = {
-      val clientCfg = AdminClientConfig(source.endpoint, source.endpoint, "")
-      AdminClient(clientCfg).fetchProject(source.project.organization, source.project.value)(source.token)
-    }
-
     def fetchRemoteResource(
         event: Event
     )(source: RemoteProjectEventStream, filter: Filter)(implicit project: Project): F[Option[ResourceV]] = {
@@ -220,7 +213,7 @@ object CompositeIndexer {
       val sourcesF: F[List[Option[(CompositeSource, Project)]]] = view.sources.toList.traverse {
         case s: CompositeSource.ProjectEventStream       => F.pure(Some(s                           -> project))
         case s: CompositeSource.CrossProjectEventStream  => projectCache.get(s.project).map(_.map(s -> _))
-        case s: CompositeSource.RemoteProjectEventStream => fetchRemoteProject(s).map(_.map(s       -> _))
+        case s: CompositeSource.RemoteProjectEventStream => s.fetchProject[F].map(_.map(s           -> _))
       }
       sourcesF.map(list => (initial, list.collect { case Some((source, project)) => source -> project }))
     }

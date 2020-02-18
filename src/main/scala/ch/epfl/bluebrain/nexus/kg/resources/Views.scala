@@ -2,13 +2,16 @@ package ch.epfl.bluebrain.nexus.kg.resources
 
 import java.util.UUID
 
+import akka.actor.ActorSystem
 import cats.data.{EitherT, OptionT}
 import cats.effect.Effect
 import cats.implicits._
+import ch.epfl.bluebrain.nexus.admin.client.AdminClientError
 import ch.epfl.bluebrain.nexus.admin.client.types.Project
 import ch.epfl.bluebrain.nexus.commons.es.client.ElasticSearchFailure.ElasticSearchClientError
 import ch.epfl.bluebrain.nexus.commons.http.HttpClient
 import ch.epfl.bluebrain.nexus.commons.search.{FromPagination, Pagination}
+import ch.epfl.bluebrain.nexus.iam.client.IamClientError
 import ch.epfl.bluebrain.nexus.iam.client.config.IamClientConfig
 import ch.epfl.bluebrain.nexus.iam.client.types.Identity.Subject
 import ch.epfl.bluebrain.nexus.iam.client.types.{AccessControlLists, Caller}
@@ -18,6 +21,7 @@ import ch.epfl.bluebrain.nexus.kg.config.Contexts._
 import ch.epfl.bluebrain.nexus.kg.config.Schemas._
 import ch.epfl.bluebrain.nexus.kg.config.Vocabulary._
 import ch.epfl.bluebrain.nexus.kg.indexing.View
+import ch.epfl.bluebrain.nexus.kg.indexing.View.CompositeView.Source.RemoteProjectEventStream
 import ch.epfl.bluebrain.nexus.kg.indexing.View._
 import ch.epfl.bluebrain.nexus.kg.indexing.ViewEncoder._
 import ch.epfl.bluebrain.nexus.kg.resolve.Materializer
@@ -43,6 +47,7 @@ import io.circe.{Encoder, Json}
 
 class Views[F[_]](repo: Repo[F])(
     implicit F: Effect[F],
+    as: ActorSystem,
     materializer: Materializer[F],
     config: AppConfig,
     projectCache: ProjectCache[F],
@@ -295,21 +300,43 @@ class Views[F[_]](repo: Repo[F])(
   ): EitherT[F, Rejection, View] = {
     val resource =
       ResourceF.simpleV(resId, Value(Json.obj(), Json.obj(), graph), rev = rev, types = types, schema = viewRef)
-    EitherT.fromEither[F](View(resource)).flatMap {
-      case es: ElasticSearchView => validateElasticSearchMappings(resId, es).map(_ => es)
-      case agg: AggregateView =>
-        agg.referenced[F].flatMap {
-          case v: AggregateView =>
-            val viewRefs = v.value.collect { case ViewRef(projectRef: ProjectRef, viewId) => projectRef -> viewId }
-            val eitherFoundViews = viewRefs.toList.traverse {
-              case (projectRef, viewId) =>
-                OptionT(viewCache.get(projectRef).map(_.find(_.id == viewId))).toRight(notFound(viewId.ref))
+    EitherT
+      .fromEither[F](View(resource))
+      .flatMap[Rejection, View] {
+        case es: ElasticSearchView => validateElasticSearchMappings(resId, es).map(_ => es)
+        case agg: AggregateView =>
+          agg.referenced[F].flatMap[Rejection, View] {
+            case v: AggregateView =>
+              val viewRefs = v.value.collect { case ViewRef(projectRef: ProjectRef, viewId) => projectRef -> viewId }
+              val eitherFoundViews = viewRefs.toList.traverse {
+                case (projectRef, viewId) =>
+                  OptionT(viewCache.get(projectRef).map(_.find(_.id == viewId))).toRight(notFound(viewId.ref))
+              }
+              eitherFoundViews.map(_ => v)
+            case v => EitherT.rightT(v)
+          }
+        case view => view.referenced[F]
+      }
+      // $COVERAGE-OFF$
+      .flatMap[Rejection, View] {
+        case v: CompositeView =>
+          val fetchProjectsF = v.sourcesBy[RemoteProjectEventStream].toList.traverse { source =>
+            val ref = source.id.ref
+            source.fetchProject[F].map(_.toRight[Rejection](ProjectRefNotFound(source.project))).recoverWith {
+              // format: off
+                case err: IamClientError =>
+                  F.pure(Left(InvalidResourceFormat(ref, s"Wrong 'endpoint' and/or 'token' fields. Reason: ${err.message}"): Rejection))
+                case err: AdminClientError =>
+                  F.pure(Left(InvalidResourceFormat(ref, s"Wrong 'endpoint' and/or 'token' fields. Reason: ${err.message}"): Rejection))
+                case _ =>
+                  F.pure(Left(InvalidResourceFormat(ref, "Unable to validate the remote project reference"): Rejection))
+                // format: on
             }
-            eitherFoundViews.map(_ => v)
-          case v => EitherT.rightT(v)
-        }
-      case view => view.referenced[F]
-    }
+          }
+          EitherT(fetchProjectsF.map(_.sequence)).map(_ => v)
+        case v => EitherT.rightT(v)
+      }
+    // $COVERAGE-ON$
   }
 
   private def validateElasticSearchMappings(resId: ResId, es: ElasticSearchView): RejOrUnit[F] =
@@ -387,6 +414,7 @@ object Views {
     */
   final def apply[F[_]: Effect: ProjectCache: ViewCache: Clients: Materializer](
       implicit config: AppConfig,
+      as: ActorSystem,
       repo: Repo[F]
   ): Views[F] =
     new Views[F](repo)

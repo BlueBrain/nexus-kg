@@ -4,10 +4,13 @@ import java.time.Instant
 import java.util.regex.Pattern.quote
 import java.util.{Properties, UUID}
 
+import akka.actor.ActorSystem
 import cats.data.EitherT
 import cats.effect.{Effect, Timer}
 import cats.implicits._
 import cats.{Functor, Monad}
+import ch.epfl.bluebrain.nexus.admin.client.AdminClient
+import ch.epfl.bluebrain.nexus.admin.client.config.AdminClientConfig
 import ch.epfl.bluebrain.nexus.admin.client.types.Project
 import ch.epfl.bluebrain.nexus.commons.search.FromPagination
 import ch.epfl.bluebrain.nexus.commons.search.QueryResult.UnscoredQueryResult
@@ -781,7 +784,13 @@ object View {
           project: ProjectLabel,
           endpoint: AbsoluteIri,
           token: Option[AuthToken]
-      ) extends Source
+      ) extends Source {
+
+        private lazy val clientCfg = AdminClientConfig(endpoint, endpoint, "")
+
+        def fetchProject[F[_]: Effect](implicit as: ActorSystem): F[Option[Project]] =
+          AdminClient[F](clientCfg).fetchProject(project.organization, project.value)(token)
+      }
     }
 
     final case class Interval(value: FiniteDuration)
