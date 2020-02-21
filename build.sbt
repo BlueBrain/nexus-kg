@@ -50,6 +50,7 @@ val scalaTestVersion            = "3.1.0"
 val s3mockVersion               = "0.3.0-RC1"
 val splitBrainLithiumVersion    = "0.10.0"
 val kryoVersion                 = "1.1.0"
+val thriftVersion               = "0.12.0"
 
 // Dependencies modules
 lazy val adminClient          = "ch.epfl.bluebrain.nexus"            %% "admin-client"               % adminVersion
@@ -88,6 +89,7 @@ lazy val shapeless            = "com.chuusai"                        %% "shapele
 lazy val s3mock               = "ch.epfl.bluebrain.nexus.io.findify" %% "s3mock"                     % s3mockVersion
 lazy val splitBrainLithium    = "com.swissborg"                      %% "lithium"                    % splitBrainLithiumVersion
 lazy val kryo                 = "io.altoo"                           %% "akka-kryo-serialization"    % kryoVersion
+lazy val thrift               = "org.apache.thrift"                  % "libthrift"                   % thriftVersion
 
 lazy val kg = project
   .in(file("."))
@@ -99,6 +101,7 @@ lazy val kg = project
     cleanFiles           ++= (baseDirectory.value * "ddata*").get,
     Docker / packageName := "nexus-kg",
     resolvers            += "swissborg" at "https://dl.bintray.com/swissborg/maven",
+    dependencyOverrides  += thrift,
     libraryDependencies ++= Seq(
       adminClient,
       akkaDistributedData,
