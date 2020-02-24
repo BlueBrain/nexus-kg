@@ -16,7 +16,6 @@ class PathSerializer extends Serializer[Path] {
     Path.of(input.readString())
 }
 
-
 class KryoSerializerInit extends DefaultKryoInitializer {
 
   override def postInit(kryo: ScalaKryo): Unit = {
