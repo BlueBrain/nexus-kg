@@ -1,20 +1,21 @@
 #!/usr/bin/env amm
 
-import coursier.core.Authentication, coursier.MavenRepository
+import coursierapi.MavenRepository
 
-interp.repositories() ++= Seq(MavenRepository("http://dl.bintray.com/bbp/nexus-releases"))
-interp.repositories() ++= Seq(MavenRepository("http://dl.bintray.com/bbp/nexus-snapshots"))
+interp.repositories.update(
+  interp.repositories() ::: List(MavenRepository.of("http://dl.bintray.com/bbp/nexus-releases"), MavenRepository.of("http://dl.bintray.com/bbp/nexus-snapshots"))
+)
 
 @ import $ivy.{
-  `ch.epfl.bluebrain.nexus::admin-client:64496380`,
-  `ch.epfl.bluebrain.nexus::elasticsearch-client:0.17.8`,
-  `ch.epfl.bluebrain.nexus::sparql-client:0.17.7`,
+  `ch.epfl.bluebrain.nexus::admin-client:1.3.0`,
+  `ch.epfl.bluebrain.nexus::elasticsearch-client:0.23.0`,
+  `ch.epfl.bluebrain.nexus::sparql-client:0.23.0`,
   `ch.qos.logback:logback-classic:1.2.3`,
-  `com.github.alexarchambault::case-app:2.0.0-M9`,
-  `com.lightbend.akka::akka-stream-alpakka-cassandra:1.1.1`,
-  `com.typesafe.akka::akka-http:10.1.9`,
-  `io.monix::monix-eval:3.0.0-RC3`,
-  `io.verizon.journal::core:3.0.19`,
+  `com.github.alexarchambault::case-app:2.0.0-M13`,
+  `com.lightbend.akka::akka-stream-alpakka-cassandra:1.1.2`,
+  `com.typesafe.akka::akka-http:10.1.11`,
+  `io.monix::monix-eval:3.1.0`,
+  `com.typesafe.scala-logging::scala-logging:3.9.2`,
   `org.scala-lang.modules::scala-xml:1.2.0`
 }
 
@@ -36,7 +37,7 @@ import akka.util.ByteString
 import caseapp._
 import caseapp.core.argparser._
 import caseapp.core.Error._
-import cats.effect.{Effect, IO, LiftIO}
+import cats.effect.{ContextShift, Effect, IO, LiftIO}
 import cats.implicits._
 import ch.epfl.bluebrain.nexus.admin.client.AdminClient
 import ch.epfl.bluebrain.nexus.admin.client.config.AdminClientConfig
@@ -47,11 +48,12 @@ import ch.epfl.bluebrain.nexus.commons.http.HttpClient
 import ch.epfl.bluebrain.nexus.commons.http.HttpClient._
 import ch.epfl.bluebrain.nexus.commons.http.HttpClient.UntypedHttpClient
 import ch.epfl.bluebrain.nexus.commons.http.JsonLdCirceSupport._
-import ch.epfl.bluebrain.nexus.commons.rdf.syntax._
 import ch.epfl.bluebrain.nexus.commons.sparql.client.{BlazegraphClient, SparqlResults}
 import ch.epfl.bluebrain.nexus.iam.client.types.AuthToken
+import ch.epfl.bluebrain.nexus.rdf.implicits._
 import ch.epfl.bluebrain.nexus.rdf.Iri
 import ch.epfl.bluebrain.nexus.rdf.Iri.AbsoluteIri
+import ch.epfl.bluebrain.nexus.sourcing.RetryStrategyConfig
 import com.datastax.driver.core._
 import com.datastax.driver.core.policies.AddressTranslator
 import com.datastax.driver.core.{Cluster, Session, SimpleStatement}
@@ -65,6 +67,7 @@ import os._
 
 import scala.concurrent.duration._
 import scala.concurrent.{ExecutionContext, Future}
+import scala.language.postfixOps
 import scala.util.{Failure, Success, Try}
 import scala.xml.XML
 
@@ -183,15 +186,15 @@ object delete {
       }
       def toAppConfig: AppConfig =
         AppConfig(
-          AdminClientConfig(admin, admin),
+          AdminClientConfig(admin, admin, ""),
           maxBatchDelete.getOrElse(20),
           maxSelect.getOrElse(20),
           readTimeout.getOrElse(60000),
           adminKeyspace.getOrElse("admin"),
           kgKeyspace.getOrElse("kg"),
           token.map(AuthToken(_)),
-          blazegraph.toAkkaUri,
-          elasticSearch.toAkkaUri,
+          blazegraph.asAkka,
+          elasticSearch.asAkka,
           elasticSearchPrefix.getOrElse("kg_"),
           CassandraConfig(credentials, CassandraContactPoints(contactPoints))
         )
@@ -256,8 +259,11 @@ type TagViewsPk = (String, Long, UUID, Long, String)
 type MessagesPk = (String, Long)
 type RowSelect = (Option[MessagesPk], Option[TagViewsPk], Option[String])
 implicit class RichFuture[A](private val future: Future[A]) extends AnyVal {
-  def to[F[_]](implicit F: LiftIO[F]): F[A] =
+  def to[F[_]](implicit F: LiftIO[F], ec: ExecutionContext): F[A] = {
+    implicit val contextShift: ContextShift[IO] = IO.contextShift(ec)
     F.liftIO(IO.fromFuture(IO(future)))
+  }
+
 }
 
 def selectStmt(stmt: String)(implicit session: Session, appConfig: AppConfig): Source[Row, NotUsed] =
@@ -324,7 +330,7 @@ def selectFromProgress(
 def deleteStmt[F[_]: Effect](
       keyspace: String,
       source: Source[RowSelect, NotUsed]
-  )(implicit session: Session, config: AppConfig, mt: ActorMaterializer, ec: ExecutionContext): F[Unit] = {
+  )(implicit session: Session, config: AppConfig, mt: Materializer, ec: ExecutionContext): F[Unit] = {
     val path = Files.createTempFile(keyspace, "stmt")
     val sourceStmt = source
       .mapConcat {
@@ -354,7 +360,7 @@ def deleteStmt[F[_]: Effect](
 def deleteKgRows[F[_]](projectsUuids: List[String])(
       implicit session: Session,
       config: AppConfig,
-      mt: ActorMaterializer,
+      mt: Materializer,
       ec: ExecutionContext,
       F: Effect[F]
   ): F[Unit] = {
@@ -370,7 +376,7 @@ def deleteKgRows[F[_]](projectsUuids: List[String])(
 def deleteAdminRows[F[_]](prefix: List[String])(
       implicit session: Session,
       config: AppConfig,
-      mt: ActorMaterializer,
+      mt: Materializer,
       ec: ExecutionContext,
       F: Effect[F]
   ): F[Unit] = {
@@ -384,7 +390,7 @@ def deleteAdminRows[F[_]](prefix: List[String])(
 def deleteProjectsRows[F[_]](projects: List[Project])(
       implicit session: Session,
       config: AppConfig,
-      mt: ActorMaterializer,
+      mt: Materializer,
       ec: ExecutionContext,
       F: Effect[F]
   ): F[Unit] =
@@ -394,7 +400,7 @@ def deleteProjectsRows[F[_]](projects: List[Project])(
 def deleteOrgsRows[F[_]](orgs: List[Organization])(
       implicit session: Session,
       config: AppConfig,
-      mt: ActorMaterializer,
+      mt: Materializer,
       ec: ExecutionContext,
       F: Effect[F]
   ): F[Unit] =
@@ -420,12 +426,13 @@ def deleteProjects(projects: List[ProjectLabel], orgs: List[String])(
       session: Session,
       adminClient: AdminClient[Task],
       as: ActorSystem,
-      mt: ActorMaterializer,
+      mt: Materializer,
       ec: ExecutionContext,
       scheduler: Scheduler
   ): Task[Unit] = {
     implicit val utClient            = untyped[Task]
     implicit val sparqlResultsClient = withUnmarshaller[Task, SparqlResults]
+    implicit val retryStrategyConfig = RetryStrategyConfig("once", 1 second, 1 second, 1, 1 second)
 
     val namespaceClient     = BlazegraphNamespaceClient[Task]
     val elasticSearchClient = ElasticSearchClient[Task](config.elasticsearchBase)
@@ -480,7 +487,7 @@ def deleteOrgs(orgs: List[String])(
       session: Session,
       adminClient: AdminClient[Task],
       as: ActorSystem,
-      mt: ActorMaterializer,
+      mt: Materializer,
       ec: ExecutionContext,
       scheduler: Scheduler
   ): Task[Unit] = {
@@ -518,7 +525,7 @@ def deleteOrgs(orgs: List[String])(
         case Right((cfg, _)) =>
           implicit val appConfig                      = cfg.toAppConfig
           implicit val system                         = ActorSystem("DeleteProjects")
-          implicit val mt                             = ActorMaterializer()
+          implicit val mt: Materializer               = ActorMaterializer()
           implicit val scheduler: Scheduler           = Scheduler.global
           implicit val adminClient: AdminClient[Task] = AdminClient[Task](appConfig.admin)
           implicit val session                        = createSession

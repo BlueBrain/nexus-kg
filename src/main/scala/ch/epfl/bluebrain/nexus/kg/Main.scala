@@ -150,6 +150,10 @@ object Main {
         RepairFromMessages.repair(repo)(as, Scheduler.global, pm)
       }
 
+      if (sys.env.getOrElse("MIGRATE_V12_TO_V13", "false").toBoolean) {
+        MigrateV12ToV13.migrate(views, clients.admin)(appConfig, as, Scheduler.global, pm)
+      }
+
       implicit val projections: Projections[Task, String] =
         Projections[Task, String].runSyncUnsafe(10.seconds)(Scheduler.global, pm)
       implicit val projectCache: ProjectCache[Task] = cache.project
