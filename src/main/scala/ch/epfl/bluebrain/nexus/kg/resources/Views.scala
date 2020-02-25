@@ -57,6 +57,11 @@ class Views[F[_]](repo: Repo[F])(
 
   private implicit val iamClientConfig: IamClientConfig = config.iam.iamClient
 
+  private def rejectWhenFound: Option[Resource] => Either[Rejection, Unit] = {
+    case None           => Right(())
+    case Some(resource) => Left(ResourceAlreadyExists(resource.id.ref): Rejection)
+  }
+
   /**
     * Creates a new view attempting to extract the id from the source. If a primary node of the resulting graph
     * is found:
@@ -70,8 +75,11 @@ class Views[F[_]](repo: Repo[F])(
     */
   def create(source: Json)(implicit acls: AccessControlLists, caller: Caller, project: Project): RejOrResource[F] =
     for {
+
       materialized <- materializer(transformSave(source))
       (id, value) = materialized
+      resId       = Id(project.ref, id)
+      _       <- EitherT(repo.get(resId, 1L, Some(viewRef)).value.map(rejectWhenFound))
       created <- create(Id(project.ref, id), value.graph)
     } yield created
 
@@ -89,9 +97,12 @@ class Views[F[_]](repo: Repo[F])(
       extractUuid: Boolean = false
   )(implicit acls: AccessControlLists, caller: Caller, project: Project): RejOrResource[F] = {
     val sourceUuid = if (extractUuid) extractUuidFrom(source) else uuid()
-    materializer(transformSave(source, sourceUuid), id.value).flatMap {
-      case Value(_, _, graph) => create(id, graph)
-    }
+    for {
+      _     <- EitherT(repo.get(id, 1L, Some(viewRef)).value.map(rejectWhenFound))
+      value <- materializer(transformSave(source, sourceUuid), id.value)
+      Value(_, _, graph) = value
+      created <- create(id, graph)
+    } yield created
   }
 
   /**
