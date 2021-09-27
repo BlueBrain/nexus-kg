@@ -1,33 +1,24 @@
-# Maintainers
+Bogdan Roman (maintainer)
+Simon Dumas (maintainer)
+Wojciech Wajerowicz (maintainer)
 
- - Bogdan Roman
- - Didac Montero
- - Simon Dumas
- - Wojciech Wajerowicz
-
-# Authors
-
- - Alejandra Garcia Rojas Martinez
- - Alexander Ulbrich
- - Anna-Kristin Kaufmann
- - Bogdan Roman
- - Carolina Lindqvist
- - Dhanesh Neela Mana
- - Didac Montero
- - Henry Genet
- - Ian Lavriushev
- - Jonathan Lurie
- - Julien Machon
- - Kenneth Pirman
- - Michaël Dupont 
- - Mohameth François Sy
- - Natalia Stafeeva
- - Pierre-Alexandre Fonta
- - Samuel Kerrien
- - Sean Hill
- - Simon Dumas
- - Wojciech Wajerowicz
-
-# Contributors
-
- 
+Alejandra Garcia Rojas Martinez (author)
+Alexander Ulbrich (author)
+Anna-Kristin Kaufmann (author)
+Bogdan Roman (author)
+Carolina Lindqvist (author)
+Dhanesh Neela Mana (author)
+Didac Montero (author)
+Henry Genet (author)
+Ian Lavriushev (author)
+Jonathan Lurie (author)
+Julien Machon (author)
+Kenneth Pirman (author)
+Michaël Dupont (author)
+Mohameth François Sy (author)
+Natalia Stafeeva (author)
+Pierre-Alexandre Fonta (author)
+Samuel Kerrien (author)
+Sean Hill (author)
+Simon Dumas (author)
+Wojciech Wajerowicz (author)
